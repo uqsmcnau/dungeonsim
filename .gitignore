@@ -1,0 +1,13 @@
+# Godot 4 generated files (imports, class cache, editor state)
+.godot/
+
+# Export / build output
+*.translation
+export_presets.cfg
+/build/
+/exports/
+
+# Editor and OS clutter
+.DS_Store
+Thumbs.db
+*.tmp
