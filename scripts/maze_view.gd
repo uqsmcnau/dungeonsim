@@ -5,14 +5,16 @@ var grid: Array = []
 var cell_size: float = 48.0
 var start_cells: Array = []
 var shop_cells: Array = []
+var mini_boss_cells: Array = []
 var exit_cell: Vector2i = Vector2i.ZERO
 
-func set_maze(new_grid: Array, new_cell_size: float, new_starts: Array, new_exit: Vector2i, new_shops: Array) -> void:
+func set_maze(new_grid: Array, new_cell_size: float, new_starts: Array, new_exit: Vector2i, new_shops: Array, new_mini_bosses: Array) -> void:
 	grid = new_grid
 	cell_size = new_cell_size
 	start_cells = new_starts
 	exit_cell = new_exit
 	shop_cells = new_shops
+	mini_boss_cells = new_mini_bosses
 	queue_redraw()
 
 func _draw() -> void:
@@ -35,6 +37,15 @@ func _draw() -> void:
 		var font := ThemeDB.fallback_font
 		var baseline := Vector2(shop.x * cell_size, shop.y * cell_size + cell_size * 0.78)
 		draw_string(font, baseline, "$", HORIZONTAL_ALIGNMENT_CENTER, cell_size, int(cell_size * 0.8), Color.WHITE)
+
+	for mini_boss in mini_boss_cells:
+		for dy in range(-1, 2):
+			for dx in range(-1, 2):
+				_draw_marker(mini_boss + Vector2i(dx, dy), Color(0.55, 0.15, 0.75, 0.18))
+		_draw_marker(mini_boss, Color(0.55, 0.15, 0.75, 0.6))
+		var mb_font := ThemeDB.fallback_font
+		var mb_baseline := Vector2(mini_boss.x * cell_size, mini_boss.y * cell_size + cell_size * 0.78)
+		draw_string(mb_font, mb_baseline, "☠", HORIZONTAL_ALIGNMENT_CENTER, cell_size, int(cell_size * 0.8), Color.WHITE)
 
 	for y in range(height):
 		for x in range(width):

@@ -11,6 +11,15 @@ const LEASH_RADIUS := 2
 const SIGHT_RANGE := 4
 const CHASE_MOVE_SECONDS := 0.8
 const CHASE_LEASH_RADIUS := 6
+## Monsters regen far slower than the shared formula's baseline (players use
+## the same formula for MP, a resource meant to refill quickly) — otherwise a
+## tough enemy fully heals in the time it takes to retreat and come back,
+## which would make wearing it down across several attempts pointless.
+const REGEN_TIME_SCALE := 0.03
+
+## Emitted right before a mini boss frees itself, so whoever's listening
+## (game_manager) can drop a silver chest on the cell it died on.
+signal mini_boss_defeated(cell: Vector2i)
 
 var cell_pos: Vector2i = Vector2i.ZERO
 var home_cell: Vector2i = Vector2i.ZERO
@@ -19,6 +28,9 @@ var stats: NpcStats
 var alive: bool = true
 var in_combat: bool = false
 var is_moving: bool = false
+var is_mini_boss: bool = false
+## Stationary bosses never chase or wander, but still tick for HP regen.
+var wanders: bool = true
 
 var grid: Array = []
 var cell_size: float = 40.0
@@ -31,7 +43,7 @@ var _wander_cooldown: float = 0.0
 @onready var visual: Polygon2D = $Visual
 @onready var label: Label = $Label
 
-func setup(cell: Vector2i, cs: float, enemy_level: int, maze_grid: Array, enemy_map: Dictionary, forbidden_cells: Dictionary, player_list: Array, wanders: bool = true) -> void:
+func setup(cell: Vector2i, cs: float, enemy_level: int, maze_grid: Array, enemy_map: Dictionary, forbidden_cells: Dictionary, player_list: Array, can_wander: bool = true) -> void:
 	cell_pos = cell
 	home_cell = cell
 	stats = NpcStats.for_enemy(enemy_level)
@@ -40,16 +52,19 @@ func setup(cell: Vector2i, cs: float, enemy_level: int, maze_grid: Array, enemy_
 	enemies = enemy_map
 	forbidden = forbidden_cells
 	players = player_list
+	wanders = can_wander
 	position = Vector2((cell.x + 0.5) * cell_size, (cell.y + 0.5) * cell_size)
 	visual.color = Color(1.0, clampf(0.6 - stats.level * 0.08, 0.05, 0.6), 0.05, 1.0)
 	label.text = "%d" % stats.level
 	enemies[cell_pos] = self
 	if wanders:
 		_wander_cooldown = randf_range(WANDER_MIN_WAIT, WANDER_MAX_WAIT)
-		_schedule_next_think(randf_range(0.0, THINK_SECONDS))
+	_schedule_next_think(randf_range(0.0, THINK_SECONDS))
 
 func defeat() -> void:
 	alive = false
+	if is_mini_boss:
+		mini_boss_defeated.emit(cell_pos)
 	queue_free()
 
 func _schedule_next_think(wait_time: float = THINK_SECONDS) -> void:
@@ -59,13 +74,18 @@ func _schedule_next_think(wait_time: float = THINK_SECONDS) -> void:
 func _on_think_timer() -> void:
 	if not alive:
 		return
+	## Passive regen whenever not actively fighting — the same rule for a
+	## stationary boss standing idle as for a wandering enemy between fights.
+	if not in_combat:
+		stats.regen_hp(THINK_SECONDS * REGEN_TIME_SCALE)
 	_think()
 	_schedule_next_think()
 
 ## Chases a player it can see; otherwise drifts home if it has strayed, or
-## wanders about near home at its own slow pace.
+## wanders about near home at its own slow pace. Does nothing at all for a
+## stationary boss beyond the regen already handled in _on_think_timer.
 func _think() -> void:
-	if is_moving or in_combat:
+	if is_moving or in_combat or not wanders:
 		return
 
 	var chase := _chase_step()

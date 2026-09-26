@@ -11,7 +11,7 @@ const IN_COMBAT_HEAL_THRESHOLD := 0.5
 const FLEE_DANGER_TURNS := 0.5
 ## Enemies occasionally hit harder than a character can plan around, which
 ## is what keeps even a careful character from being completely safe.
-const ENEMY_CRIT_CHANCE := 0.21
+const ENEMY_CRIT_CHANCE := 0.27
 const ENEMY_CRIT_MULTIPLIER := 2.0
 ## How far (in cells) a character can see, and how far ahead it will plan a
 ## route to a chest it has spotted.
@@ -20,6 +20,9 @@ const CHEST_PATH_DEPTH := 24
 ## A shop trip is only worth it if the shop is within this many steps.
 const SHOP_PATH_DEPTH := 80
 const SHOPPING_SECONDS := 1.0
+const CONSUME_SECONDS := 1.0
+## Below this fraction of max MP, top up with a Mana Potion if carrying one.
+const LOW_MANA_FRACTION := 0.3
 
 signal reached_exit(npc: NpcAgent)
 signal leveled_up(npc: NpcAgent)
@@ -44,6 +47,8 @@ var known_shops: Dictionary = {}
 var is_moving: bool = false
 var finished: bool = false
 var dead: bool = false
+## What this character is doing right now, in plain words, for the HUD.
+var current_action: String = "Exploring"
 
 @onready var visual: Polygon2D = $Visual
 @onready var name_label: Label = $NameLabel
@@ -84,20 +89,44 @@ func _process(delta: float) -> void:
 		_retreat()
 		if is_moving:
 			return
+	var pending_tome := _pending_tome()
+	if pending_tome != "":
+		_consume_item_idle(pending_tome)
+		return
 	if _needs_healing():
 		if stats.mp >= RECOVER_MP_COST:
 			_cast_recover_idle()
+		elif stats.has_item("Health Potion"):
+			_consume_item_idle("Health Potion")
+		else:
+			current_action = "Resting"
+		return
+	if stats.mp < int(stats.max_mp * LOW_MANA_FRACTION) and stats.has_item("Mana Potion"):
+		_consume_item_idle("Mana Potion")
 		return
 	_take_step()
 
 ## Outside combat, a hurt character stops to recover rather than pressing on
-## injured — casting Recover when it can afford it, otherwise resting until
-## its mana regenerates enough to.
+## injured — casting Recover when it can afford it, drinking a Health Potion
+## if it has one and can't, or just waiting for its mana to regenerate.
 func _needs_healing() -> bool:
 	return stats.hp < int(stats.max_hp * OUT_OF_COMBAT_HEAL_THRESHOLD)
 
+## An unread tome the character is carrying, if any — Fireball takes priority
+## over Spark since it's the stronger spell. Read at the next idle moment,
+## since there's no reason to delay learning a permanent spell.
+func _pending_tome() -> String:
+	for item_name in ["Tome of Fireball", "Tome of Spark"]:
+		if not stats.has_item(item_name):
+			continue
+		var spell: String = ItemCatalog.find(item_name)["spell"]
+		if not stats.knows_spell(spell):
+			return item_name
+	return ""
+
 func _cast_recover_idle() -> void:
 	is_moving = true
+	current_action = "Casting Recover"
 	name_label.text = "%s ✨ Recover" % npc_name
 	var timer := get_tree().create_timer(RECOVER_CAST_SECONDS)
 	timer.timeout.connect(_finish_recover_idle)
@@ -105,6 +134,37 @@ func _cast_recover_idle() -> void:
 func _finish_recover_idle() -> void:
 	stats.mp -= RECOVER_MP_COST
 	stats.hp = min(stats.max_hp, stats.hp + stats.recover_power())
+	is_moving = false
+	_update_label()
+
+## Applies a consumable's effect (a heal, a mana top-up, or learning a spell
+## from a tome) and uses up the one copy that was consumed.
+func _apply_consumable_effect(item_name: String) -> void:
+	var item := ItemCatalog.find(item_name)
+	match item.get("effect", ""):
+		"heal_hp":
+			stats.hp = min(stats.max_hp, stats.hp + int(item["amount"]))
+		"restore_mp":
+			stats.mp = min(stats.max_mp, stats.mp + int(item["amount"]))
+		"learn_spell":
+			stats.learn_spell(item["spell"])
+	stats.consume_item(item_name)
+
+func _consume_verb(item_name: String) -> String:
+	return "Reading" if ItemCatalog.find(item_name).get("effect") == "learn_spell" else "Drinking"
+
+## Consuming an item — a potion or a tome — takes a full action outside
+## combat too, the same as casting a spell does.
+func _consume_item_idle(item_name: String) -> void:
+	is_moving = true
+	var verb := _consume_verb(item_name)
+	current_action = "%s %s" % [verb, item_name]
+	name_label.text = "%s %s %s" % [npc_name, verb, item_name]
+	var timer := get_tree().create_timer(CONSUME_SECONDS)
+	timer.timeout.connect(_finish_consume_idle.bind(item_name))
+
+func _finish_consume_idle(item_name: String) -> void:
+	_apply_consumable_effect(item_name)
 	is_moving = false
 	_update_label()
 
@@ -155,6 +215,7 @@ func _shop_step() -> Vector2i:
 ## Sells spares and buys anything missing that the gold stretches to.
 func _start_shopping() -> void:
 	is_moving = true
+	current_action = "Shopping"
 	name_label.text = "%s $ Shopping" % npc_name
 	var timer := get_tree().create_timer(SHOPPING_SECONDS)
 	timer.timeout.connect(_finish_shopping)
@@ -164,6 +225,7 @@ func _finish_shopping() -> void:
 		return
 	var sold := stats.sell_spares()
 	var bought := stats.buy_missing()
+	bought.append_array(stats.buy_potions())
 	is_moving = false
 	if sold > 0 or not bought.is_empty():
 		name_label.text = "%s sold %d, bought %d" % [npc_name, sold, bought.size()]
@@ -270,16 +332,44 @@ func _disengage(enemy: EnemyAgent) -> void:
 	_retreat()
 
 ## Starts a battle fought in 1-second turns: the NPC is locked in place for
-## the duration of each turn, and the fight keeps going (attack exchanged
-## for attack, with Recover as an alternative action) until one side falls.
+## the duration of each turn, and the fight keeps going (attack, spell,
+## potion or Recover, chosen fresh each turn) until one side falls.
 func _engage(next_cell: Vector2i, enemy: EnemyAgent) -> void:
 	is_moving = true
 	enemy.in_combat = true
 	_run_combat_turn(next_cell, enemy)
 
+## Survival first (Recover, or a Health Potion if it can't afford that), then
+## whichever of its attack spells or a plain attack actually deals the most
+## damage right now. A spell's damage is fixed by intelligence while a plain
+## attack scales with strength, level and weapon bonuses, so a spell that
+## out-damages a fresh character is often no longer the better choice once
+## they've leveled up or found a sword — this compares them fresh each turn
+## rather than always preferring magic once it's known.
+func _choose_combat_action(enemy: EnemyAgent) -> String:
+	if stats.hp < int(stats.max_hp * IN_COMBAT_HEAL_THRESHOLD):
+		if stats.mp >= RECOVER_MP_COST:
+			return "recover"
+		if stats.has_item("Health Potion"):
+			return "potion_hp"
+
+	var best_action := "attack"
+	var best_damage: float = _expected_damage_dealt(enemy)
+	# Never spend the last of its mana on offense — always keep enough in
+	# reserve for one emergency Recover, so a spellcaster can't run itself
+	# out of healing by attacking too aggressively.
+	if stats.knows_spell("spark") and stats.mp - NpcStats.SPARK_MP_COST >= RECOVER_MP_COST and stats.spark_power() > best_damage:
+		best_action = "spark"
+		best_damage = stats.spark_power()
+	if stats.knows_spell("fireball") and stats.mp - NpcStats.FIREBALL_MP_COST >= RECOVER_MP_COST and stats.fireball_power() > best_damage:
+		best_action = "fireball"
+		best_damage = stats.fireball_power()
+	return best_action
+
 func _run_combat_turn(next_cell: Vector2i, enemy: EnemyAgent) -> void:
 	if not is_instance_valid(enemy) or not enemy.alive:
 		is_moving = false
+		_update_label()
 		_move_to(next_cell)
 		return
 
@@ -287,26 +377,49 @@ func _run_combat_turn(next_cell: Vector2i, enemy: EnemyAgent) -> void:
 		_disengage(enemy)
 		return
 
-	var use_recover: bool = stats.hp < int(stats.max_hp * IN_COMBAT_HEAL_THRESHOLD) and stats.mp >= RECOVER_MP_COST
-	if use_recover:
-		name_label.text = "%s ✨ Recover" % npc_name
-	else:
-		name_label.text = "%s ⚔ Lv.%d" % [npc_name, enemy.stats.level]
+	var action := _choose_combat_action(enemy)
+	match action:
+		"recover":
+			current_action = "Casting Recover"
+			name_label.text = "%s ✨ Recover" % npc_name
+		"potion_hp":
+			current_action = "Drinking Health Potion"
+			name_label.text = "%s Health Potion" % npc_name
+		"fireball":
+			current_action = "Casting Fireball"
+			name_label.text = "%s 🔥 Fireball" % npc_name
+		"spark":
+			current_action = "Casting Spark"
+			name_label.text = "%s ⚡ Spark" % npc_name
+		_:
+			current_action = "Fighting a level %d enemy" % enemy.stats.level
+			name_label.text = "%s ⚔ Lv.%d" % [npc_name, enemy.stats.level]
 
 	var timer := get_tree().create_timer(TURN_SECONDS)
-	timer.timeout.connect(_resolve_combat_turn.bind(next_cell, enemy, use_recover))
+	timer.timeout.connect(_resolve_combat_turn.bind(next_cell, enemy, action))
 
-func _resolve_combat_turn(next_cell: Vector2i, enemy: EnemyAgent, used_recover: bool) -> void:
+func _resolve_combat_turn(next_cell: Vector2i, enemy: EnemyAgent, action: String) -> void:
 	if not is_instance_valid(enemy) or not enemy.alive:
 		is_moving = false
+		_update_label()
 		_move_to(next_cell)
 		return
 
-	if used_recover:
-		stats.mp -= RECOVER_MP_COST
-		stats.hp = min(stats.max_hp, stats.hp + stats.recover_power())
-	elif randf() < _player_hit_chance(enemy):
-		enemy.stats.hp -= max(1, stats.attack_power() + randi() % 4 - enemy.stats.defense())
+	match action:
+		"recover":
+			stats.mp -= RECOVER_MP_COST
+			stats.hp = min(stats.max_hp, stats.hp + stats.recover_power())
+		"potion_hp":
+			_apply_consumable_effect("Health Potion")
+		"fireball":
+			stats.mp -= NpcStats.FIREBALL_MP_COST
+			enemy.stats.hp -= max(1, stats.fireball_power())
+		"spark":
+			stats.mp -= NpcStats.SPARK_MP_COST
+			enemy.stats.hp -= max(1, stats.spark_power())
+		_:
+			if randf() < _player_hit_chance(enemy):
+				enemy.stats.hp -= max(1, stats.attack_power() + randi() % 4 - enemy.stats.defense())
 
 	if enemy.stats.hp <= 0:
 		enemies.erase(next_cell)
@@ -316,6 +429,7 @@ func _resolve_combat_turn(next_cell: Vector2i, enemy: EnemyAgent, used_recover: 
 		if stats.add_xp(xp_gain):
 			leveled_up.emit(self)
 		is_moving = false
+		_update_label()
 		_move_to(next_cell)
 		return
 
@@ -338,6 +452,7 @@ func _resolve_combat_turn(next_cell: Vector2i, enemy: EnemyAgent, used_recover: 
 func _die() -> void:
 	dead = true
 	stats.hp = 0
+	current_action = "Defeated"
 	visible = false
 	died.emit(self)
 
@@ -393,6 +508,8 @@ func _on_enter_cell() -> void:
 		finished = true
 		reached_exit.emit(self)
 	_update_label()
+	if finished:
+		current_action = "Finished the maze!"
 	if shops.has(cell_pos) and stats.has_shop_business():
 		_start_shopping()
 
@@ -407,9 +524,9 @@ func _check_for_chest() -> void:
 	chests.erase(cell_pos)
 	if chest == null or not is_instance_valid(chest):
 		return
-	var loot: Dictionary = chest.collect()
-	var took_effect := stats.acquire_item(loot["name"], loot["ability"], loot["amount"])
-	name_label.text = "%s found %s%s!" % [npc_name, loot["name"], "" if took_effect else " (spare)"]
+	var item_name: String = chest.collect()
+	var worn := stats.acquire_item(item_name)
+	name_label.text = "%s found %s%s!" % [npc_name, item_name, "" if worn else " (spare)"]
 	var timer := get_tree().create_timer(1.5)
 	timer.timeout.connect(_update_label)
 
@@ -418,3 +535,4 @@ func _cell_to_world(cell: Vector2i) -> Vector2:
 
 func _update_label() -> void:
 	name_label.text = "%s Lv.%d" % [npc_name, stats.level]
+	current_action = "Exploring"

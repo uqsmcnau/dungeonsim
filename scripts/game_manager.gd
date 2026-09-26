@@ -13,6 +13,9 @@ const EXTRA_CONNECTION_CHANCE := 0.15
 const LEVEL_CURVE_EXPONENT := 1.5
 const BOSS_LEVEL := 12
 const BOSS_SCALE := 1.5
+const MINI_BOSS_COUNT := 3
+const MINI_BOSS_LEVEL := 8
+const MINI_BOSS_SCALE := 1.3
 const NPC_SCENE: PackedScene = preload("res://scenes/NPC.tscn")
 const ENEMY_SCENE: PackedScene = preload("res://scenes/Enemy.tscn")
 const CHEST_SCENE: PackedScene = preload("res://scenes/Chest.tscn")
@@ -37,8 +40,10 @@ var chest_map: Dictionary = {}
 ## Centers of the shops, in list form (for drawing) and lookup form.
 var shop_cells: Array = []
 var shop_map: Dictionary = {}
-## Starting safe zones, shop zones and the boss room: no enemies spawn or
-## wander here, and no random chests are placed here.
+## Centers of the mini boss rooms, for drawing.
+var mini_boss_cells: Array = []
+## Starting safe zones, shop zones, mini boss rooms and the boss room: no
+## enemies spawn or wander here, and no random chests are placed here.
 var restricted_cells: Dictionary = {}
 
 @onready var maze_view: MazeView = $World/MazeView
@@ -58,7 +63,8 @@ func _ready() -> void:
 		generator.open_room(grid, s, MAZE_WIDTH, MAZE_HEIGHT)
 	_build_restricted_cells()
 	_place_shops(generator)
-	maze_view.set_maze(grid, CELL_SIZE, start_cells, exit_cell, shop_cells)
+	_place_mini_bosses(generator)
+	maze_view.set_maze(grid, CELL_SIZE, start_cells, exit_cell, shop_cells, mini_boss_cells)
 	_spawn_enemies()
 	_spawn_boss()
 	_spawn_chests()
@@ -129,6 +135,32 @@ func _place_shops(generator: MazeGenerator) -> void:
 				shop_map[center] = true
 				break
 
+## Guards a handful of 3x3 mini boss rooms (structured the same way as the
+## main boss room) with a single tough, stationary enemy each. Defeating one
+## drops a silver chest — holding an upgraded, silver-only item — right on
+## the cell it fell on.
+func _place_mini_bosses(generator: MazeGenerator) -> void:
+	for i in range(MINI_BOSS_COUNT):
+		for attempt in range(60):
+			var center := Vector2i(randi_range(4, MAZE_WIDTH - 5), randi_range(4, MAZE_HEIGHT - 5))
+			if not _zone_is_free(center):
+				continue
+			generator.carve_boss_room(grid, center, MAZE_WIDTH, MAZE_HEIGHT)
+			_restrict_zone(center)
+			mini_boss_cells.append(center)
+
+			var mini_boss: EnemyAgent = ENEMY_SCENE.instantiate()
+			enemy_container.add_child(mini_boss)
+			mini_boss.setup(center, CELL_SIZE, MINI_BOSS_LEVEL, grid, enemy_map, {}, npcs, false)
+			mini_boss.is_mini_boss = true
+			mini_boss.visual.color = Color(0.55, 0.15, 0.75, 1.0)
+			mini_boss.scale = Vector2(MINI_BOSS_SCALE, MINI_BOSS_SCALE)
+			mini_boss.mini_boss_defeated.connect(_on_mini_boss_defeated)
+			break
+
+func _on_mini_boss_defeated(cell: Vector2i) -> void:
+	_place_chest(cell, ItemCatalog.RARITY_SILVER)
+
 ## Scatters enemies across the maze (never in a restricted zone), making them
 ## stronger the closer their cell is to the center.
 func _spawn_enemies() -> void:
@@ -190,10 +222,10 @@ func _spawn_chests() -> void:
 		_place_chest(c)
 		extra -= 1
 
-func _place_chest(cell: Vector2i) -> void:
+func _place_chest(cell: Vector2i, rarity: String = ItemCatalog.RARITY_BRONZE) -> void:
 	var chest: ChestAgent = CHEST_SCENE.instantiate()
 	chest_container.add_child(chest)
-	chest.setup(cell, CELL_SIZE)
+	chest.setup(cell, CELL_SIZE, rarity)
 	chest_map[cell] = chest
 
 func _pick_chest_cell(start: Vector2i) -> Vector2i:
@@ -237,3 +269,4 @@ func _on_npc_died(npc: NpcAgent) -> void:
 
 func _on_npc_leveled_up(npc: NpcAgent) -> void:
 	hud.refresh_npc(npc)
+	hud.flash_level_up(npc)

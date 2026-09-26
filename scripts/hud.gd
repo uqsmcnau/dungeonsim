@@ -11,15 +11,15 @@ var right_count: int = 0
 
 func _ready() -> void:
 	winner_label.visible = false
-	left_container.add_theme_constant_override("separation", 6)
-	right_container.add_theme_constant_override("separation", 6)
+	left_container.add_theme_constant_override("separation", 4)
+	right_container.add_theme_constant_override("separation", 4)
 
 ## Builds a progress bar with its value text centered directly on top of it,
 ## instead of as a separate line, returning the pieces the caller needs to
 ## keep updating.
 func _make_stat_bar(fill_color: Color) -> Dictionary:
 	var container := Control.new()
-	container.custom_minimum_size = Vector2(0, 16)
+	container.custom_minimum_size = Vector2(0, 14)
 
 	var bar := ProgressBar.new()
 	bar.show_percentage = false
@@ -53,8 +53,8 @@ func register_npc(npc: NpcAgent) -> void:
 	style.bg_color = Color(c.r, c.g, c.b, 0.28)
 	style.content_margin_left = 10
 	style.content_margin_right = 10
-	style.content_margin_top = 6
-	style.content_margin_bottom = 6
+	style.content_margin_top = 4
+	style.content_margin_bottom = 4
 	style.corner_radius_top_left = 6
 	style.corner_radius_top_right = 6
 	style.corner_radius_bottom_left = 6
@@ -75,6 +75,11 @@ func register_npc(npc: NpcAgent) -> void:
 	var header := Label.new()
 	vbox.add_child(header)
 
+	var action_label := Label.new()
+	action_label.add_theme_font_size_override("font_size", 12)
+	action_label.add_theme_color_override("font_color", Color(0.85, 0.85, 0.6, 1.0))
+	vbox.add_child(action_label)
+
 	var hp_widget := _make_stat_bar(Color(0.2, 0.8, 0.3))
 	vbox.add_child(hp_widget["container"])
 
@@ -82,28 +87,40 @@ func register_npc(npc: NpcAgent) -> void:
 	vbox.add_child(mp_widget["container"])
 
 	var abilities_label := Label.new()
+	abilities_label.add_theme_font_size_override("font_size", 12)
 	vbox.add_child(abilities_label)
-
-	var hit_label := Label.new()
-	hit_label.add_theme_font_size_override("font_size", 12)
-	vbox.add_child(hit_label)
 
 	var equipment_label := Label.new()
 	equipment_label.add_theme_font_size_override("font_size", 12)
 	equipment_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	vbox.add_child(equipment_label)
 
+	var potions_label := Label.new()
+	potions_label.add_theme_font_size_override("font_size", 12)
+	potions_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	vbox.add_child(potions_label)
+
+	## A white overlay on top of the whole panel, flashed on level-up (see
+	## flash_level_up) then faded back out.
+	var flash := ColorRect.new()
+	flash.color = Color(1, 1, 1, 0)
+	flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	flash.set_anchors_preset(Control.PRESET_FULL_RECT)
+	panel.add_child(flash)
+
 	rows[npc] = {
 		"panel": panel,
+		"flash": flash,
 		"header": header,
+		"action": action_label,
 		"hp_bar": hp_widget["bar"],
 		"hp_fill": hp_widget["fill"],
 		"hp_text": hp_widget["label"],
 		"mp_bar": mp_widget["bar"],
 		"mp_text": mp_widget["label"],
 		"abilities": abilities_label,
-		"hit": hit_label,
 		"equipment": equipment_label,
+		"potions": potions_label,
 	}
 	_refresh_row(npc)
 
@@ -121,6 +138,7 @@ func _refresh_row(npc: NpcAgent) -> void:
 	var s: NpcStats = npc.stats
 
 	r["header"].text = "%s — Lv.%d (%d/%d XP)  %dg" % [npc.npc_name, s.level, s.xp, s.xp_to_next, s.gold]
+	r["action"].text = "Action: %s" % npc.current_action
 
 	var hp_bar: ProgressBar = r["hp_bar"]
 	hp_bar.max_value = s.max_hp
@@ -139,25 +157,26 @@ func _refresh_row(npc: NpcAgent) -> void:
 		s.strength, s.dexterity, s.constitution, s.intelligence, s.wisdom, s.charisma
 	]
 
-	r["hit"].text = "Accuracy +%d%%   Evasion +%d%%   (from DEX)" % [roundi(s.accuracy() * 100.0), roundi(s.evasion() * 100.0)]
+	r["equipment"].text = "%s\n%s\n%s" % [
+		_slot_text(s, "hand"),
+		"   ".join([_slot_text(s, "armor"), _slot_text(s, "helmet"), _slot_text(s, "feet")]),
+		_slot_text(s, "accessory"),
+	]
 
-	var owned: Array = s.inventory.keys()
-	var equipment_text: String = "None" if owned.is_empty() else ", ".join(owned)
-	var spares: Array = []
-	for item_name in owned:
-		if s.spare_count(item_name) > 0:
-			spares.append("%s x%d" % [item_name, s.spare_count(item_name)])
-	r["equipment"].text = "Equipped: %s" % equipment_text
-	if not spares.is_empty():
-		var shown: Array = spares.slice(0, 2)
-		var extra: int = spares.size() - shown.size()
-		var spare_text: String = ", ".join(shown)
-		if extra > 0:
-			spare_text += " +%d more" % extra
-		r["equipment"].text += "\nSpare (no bonus): %s" % spare_text
+	var potion_parts: Array = []
+	for potion_name in ItemCatalog.stockable_names(ItemCatalog.RARITY_BRONZE):
+		var count: int = int(s.inventory.get(potion_name, 0))
+		if count > 0:
+			potion_parts.append("%s x%d" % [potion_name, count])
+	r["potions"].text = "Potions: %s" % ("-" if potion_parts.is_empty() else ", ".join(potion_parts))
 
-## Freezes the panel on its final stats and tints it grey to show the
-## character has died and is out of the run.
+## "Hands: Iron Sword, Shield" — or "Hands: -" when the slot is empty.
+func _slot_text(s: NpcStats, slot: String) -> String:
+	var worn: Array = s.equipped_in(slot)
+	return "%s: %s" % [ItemCatalog.SLOT_LABELS[slot], "-" if worn.is_empty() else ", ".join(worn)]
+
+## Freezes the panel on its final stats, tints it grey to show the character
+## has died and is out of the run, and flashes red on the way there.
 func mark_dead(npc: NpcAgent) -> void:
 	if not rows.has(npc):
 		return
@@ -165,6 +184,20 @@ func mark_dead(npc: NpcAgent) -> void:
 	var r: Dictionary = rows[npc]
 	r["panel"].modulate = Color(0.5, 0.5, 0.5, 1.0)
 	r["header"].text += "  ☠ DEAD"
+	_flash(npc, Color(1.0, 0.15, 0.15))
+
+## Briefly flashes the character's whole panel white to celebrate a level-up.
+func flash_level_up(npc: NpcAgent) -> void:
+	_flash(npc, Color(1, 1, 1))
+
+## Flashes a color over the character's panel, fading back out.
+func _flash(npc: NpcAgent, color: Color) -> void:
+	if not rows.has(npc):
+		return
+	var flash: ColorRect = rows[npc]["flash"]
+	flash.color = Color(color.r, color.g, color.b, 0.9)
+	var tween := flash.create_tween()
+	tween.tween_property(flash, "color:a", 0.0, 0.6)
 
 func announce_no_winner() -> void:
 	winner_label.text = "Everyone has fallen — no winner"
