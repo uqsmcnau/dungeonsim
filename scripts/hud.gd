@@ -11,8 +11,20 @@ var right_count: int = 0
 
 func _ready() -> void:
 	winner_label.visible = false
-	left_container.add_theme_constant_override("separation", 4)
-	right_container.add_theme_constant_override("separation", 4)
+	left_container.add_theme_constant_override("separation", 2)
+	right_container.add_theme_constant_override("separation", 2)
+
+## A single cell for the equipment/potions/spells grid: a fixed-width,
+## word-wrapping label, so two long entries sharing a row wrap instead of
+## pushing the panel wider than its column.
+const GRID_CELL_WIDTH := 200.0
+
+func _make_grid_cell() -> Label:
+	var label := Label.new()
+	label.add_theme_font_size_override("font_size", 12)
+	label.custom_minimum_size = Vector2(GRID_CELL_WIDTH, 0)
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	return label
 
 ## Builds a progress bar with its value text centered directly on top of it,
 ## instead of as a separate line, returning the pieces the caller needs to
@@ -53,8 +65,8 @@ func register_npc(npc: NpcAgent) -> void:
 	style.bg_color = Color(c.r, c.g, c.b, 0.28)
 	style.content_margin_left = 10
 	style.content_margin_right = 10
-	style.content_margin_top = 4
-	style.content_margin_bottom = 4
+	style.content_margin_top = 2
+	style.content_margin_bottom = 2
 	style.corner_radius_top_left = 6
 	style.corner_radius_top_right = 6
 	style.corner_radius_bottom_left = 6
@@ -69,10 +81,11 @@ func register_npc(npc: NpcAgent) -> void:
 
 	var vbox := VBoxContainer.new()
 	vbox.custom_minimum_size = Vector2(400, 0)
-	vbox.add_theme_constant_override("separation", 1)
+	vbox.add_theme_constant_override("separation", 0)
 	panel.add_child(vbox)
 
 	var header := Label.new()
+	header.add_theme_font_size_override("font_size", 14)
 	vbox.add_child(header)
 
 	var action_label := Label.new()
@@ -90,15 +103,31 @@ func register_npc(npc: NpcAgent) -> void:
 	abilities_label.add_theme_font_size_override("font_size", 12)
 	vbox.add_child(abilities_label)
 
-	var equipment_label := Label.new()
-	equipment_label.add_theme_font_size_override("font_size", 12)
-	equipment_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	vbox.add_child(equipment_label)
+	## One label per equipment slot, laid out two to a row so the slot list
+	## reads as columns rather than one long wrapped block.
+	var equipment_grid := GridContainer.new()
+	equipment_grid.columns = 2
+	equipment_grid.add_theme_constant_override("h_separation", 12)
+	equipment_grid.add_theme_constant_override("v_separation", 0)
+	vbox.add_child(equipment_grid)
 
-	var potions_label := Label.new()
-	potions_label.add_theme_font_size_override("font_size", 12)
-	potions_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	vbox.add_child(potions_label)
+	# Every cell gets the same capped width with wrapping allowed, so two
+	# long entries sharing a row (e.g. Accessories + Potions, both able to
+	## list two items) wrap instead of pushing the panel wider than its column.
+	var slot_labels: Dictionary = {}
+	for slot in ItemCatalog.SLOT_ORDER:
+		var slot_label := _make_grid_cell()
+		equipment_grid.add_child(slot_label)
+		slot_labels[slot] = slot_label
+
+	# Potions and spells fill out the same grid rather than breaking into
+	# separate full-width rows, continuing on from the equipment slots
+	# (accessory | potions, then spells alone on the next row).
+	var potions_label := _make_grid_cell()
+	equipment_grid.add_child(potions_label)
+
+	var spells_label := _make_grid_cell()
+	equipment_grid.add_child(spells_label)
 
 	## A white overlay on top of the whole panel, flashed on level-up (see
 	## flash_level_up) then faded back out.
@@ -119,8 +148,9 @@ func register_npc(npc: NpcAgent) -> void:
 		"mp_bar": mp_widget["bar"],
 		"mp_text": mp_widget["label"],
 		"abilities": abilities_label,
-		"equipment": equipment_label,
+		"slot_labels": slot_labels,
 		"potions": potions_label,
+		"spells": spells_label,
 	}
 	_refresh_row(npc)
 
@@ -157,11 +187,9 @@ func _refresh_row(npc: NpcAgent) -> void:
 		s.strength, s.dexterity, s.constitution, s.intelligence, s.wisdom, s.charisma
 	]
 
-	r["equipment"].text = "%s\n%s\n%s" % [
-		_slot_text(s, "hand"),
-		"   ".join([_slot_text(s, "armor"), _slot_text(s, "helmet"), _slot_text(s, "feet")]),
-		_slot_text(s, "accessory"),
-	]
+	var slot_labels: Dictionary = r["slot_labels"]
+	for slot in ItemCatalog.SLOT_ORDER:
+		slot_labels[slot].text = _slot_text(s, slot)
 
 	var potion_parts: Array = []
 	for potion_name in ItemCatalog.stockable_names(ItemCatalog.RARITY_BRONZE):
@@ -169,6 +197,11 @@ func _refresh_row(npc: NpcAgent) -> void:
 		if count > 0:
 			potion_parts.append("%s x%d" % [potion_name, count])
 	r["potions"].text = "Potions: %s" % ("-" if potion_parts.is_empty() else ", ".join(potion_parts))
+
+	var spell_names: Array = []
+	for spell in s.known_spells:
+		spell_names.append(String(spell).capitalize())
+	r["spells"].text = "Spells: %s" % ("-" if spell_names.is_empty() else ", ".join(spell_names))
 
 ## "Hands: Iron Sword, Shield" — or "Hands: -" when the slot is empty.
 func _slot_text(s: NpcStats, slot: String) -> String:

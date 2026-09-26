@@ -28,7 +28,7 @@ script = ExtResource("3_hud")
 
 [node name="WinnerLabel" type="Label" parent="HUD/Control"]
 offset_left = 480.0
-offset_top = 12.0
+offset_top = 6.0
 offset_right = 1440.0
 offset_bottom = 48.0
 theme_override_font_sizes/font_size = 24
@@ -38,12 +38,12 @@ visible = false
 
 [node name="LeftStats" type="VBoxContainer" parent="HUD/Control"]
 offset_left = 20.0
-offset_top = 12.0
+offset_top = 6.0
 offset_right = 460.0
 offset_bottom = 1060.0
 
 [node name="RightStats" type="VBoxContainer" parent="HUD/Control"]
 offset_left = 1460.0
-offset_top = 12.0
+offset_top = 6.0
 offset_right = 1900.0
 offset_bottom = 1060.0
