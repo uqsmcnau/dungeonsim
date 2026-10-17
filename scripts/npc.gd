@@ -101,6 +101,9 @@ var party_offset: Vector2 = Vector2.ZERO
 @onready var visual: Polygon2D = $Visual
 @onready var name_label: Label = $NameLabel
 
+func _ready() -> void:
+	leveled_up.connect(_on_leveled_up)
+
 func setup(spawn_cell: Vector2i, target_cell: Vector2i, maze_grid: Array, cs: float, color: Color, display_name: String, enemy_map: Dictionary, chest_map: Dictionary, shop_map: Dictionary, player_map: Dictionary, restricted_cells: Dictionary = {}) -> void:
 	cell_pos = spawn_cell
 	exit_cell = target_cell
@@ -1188,5 +1191,19 @@ func _cell_to_world(cell: Vector2i) -> Vector2:
 	return Vector2((cell.x + 0.5) * cell_size, (cell.y + 0.5) * cell_size)
 
 func _update_label() -> void:
-	name_label.text = "%s Lv.%d" % [npc_name, stats.level]
+	name_label.text = _level_tag()
 	current_action = "Exploring"
+
+func _level_tag() -> String:
+	return "%s Lv.%d" % [npc_name, stats.level]
+
+## Keeps the "Name Lv.N" tag above this character current when it levels
+## up. Otherwise only _update_label refreshes it, which followers almost
+## never run (it's the leader's AI that does), so a follower levelling up
+## from its share of a kill's xp kept showing its old level indefinitely.
+## Leaves a label that's busy showing something else (a fight, a pickup,
+## shopping) alone: those revert via _update_label when they're done,
+## picking up the new level then.
+func _on_leveled_up(_npc: NpcAgent) -> void:
+	if name_label.text.begins_with("%s Lv." % npc_name):
+		name_label.text = _level_tag()
