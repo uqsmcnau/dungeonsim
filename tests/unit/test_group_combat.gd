@@ -353,7 +353,9 @@ func test_a_pack_freed_this_way_can_be_fought_normally_afterwards():
 	main.player_map[newcomer.cell_pos] = newcomer
 	var newcomer_cell: Vector2i = newcomer.cell_pos
 
-	assert_true(CombatMath.decide_fight(newcomer.stats, enemy.stats), "sanity: the newcomer should be confident against this weak enemy")
+	# Check the odds, not decide_fight itself -- that rolls randf() against a
+	# chance capped at 0.95, so it would flake ~5% of runs even here.
+	assert_gte(CombatMath.win_chance_against(newcomer.stats, enemy.stats), 0.95, "sanity: the newcomer should be confident against this weak enemy")
 	newcomer._engage(cell, enemy)
 	assert_true(enemy.in_combat, "the pack should be engageable again, not stuck refusing all future fights")
 
