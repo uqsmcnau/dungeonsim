@@ -17,6 +17,11 @@ const ENEMY_CRIT_MULTIPLIER := 2.0
 ## route to a chest it has spotted.
 const SIGHT_RANGE := 6
 const CHEST_PATH_DEPTH := 24
+## How many of its own steps a character ignores a chest for after finding
+## no monster-free route to it (see _chest_step) -- long enough to wander
+## off and explore elsewhere, short enough to come back for it once the
+## monster in the way has moved on.
+const CHEST_SKIP_STEPS := 12
 ## A shop trip is only worth it if the shop is within this many steps.
 const SHOP_PATH_DEPTH := 80
 const SHOPPING_SECONDS := 1.0
@@ -40,6 +45,8 @@ var visited: Dictionary = {}
 var enemies: Dictionary = {}
 var chests: Dictionary = {}
 var chest_goal: Vector2i = MazeQuery.NONE
+## Chests set aside for now, by cell -> steps left to ignore them for.
+var skipped_chests: Dictionary = {}
 ## Every living player, by current cell — shared across all NPCs, the same
 ## way `enemies` is, so each can see where the others are. Only ever holds
 ## PARTY LEADERS; a party's followers are found via `party`, not this dict.
@@ -297,17 +304,48 @@ func _finish_shopping() -> void:
 ## a chest has been spotted it stays the goal (even if the route around a
 ## corner briefly loses sight of it) until it's taken by someone or turns out
 ## to be unreachable.
+##
+## Routes around monsters, since a chest isn't worth picking a fight over.
+## If there's no way there that avoids them, the chest is set aside for
+## CHEST_SKIP_STEPS steps. Simply dropping the goal isn't enough: the chest
+## would be re-spotted on the very next step, so the character would bounce
+## forever between stepping toward it and backing off from the monster in
+## the way.
 func _chest_step() -> Vector2i:
+	_tick_skipped_chests()
 	if chest_goal != MazeQuery.NONE and not chests.has(chest_goal):
 		chest_goal = MazeQuery.NONE
 	if chest_goal == MazeQuery.NONE:
-		chest_goal = MazeQuery.nearest_visible(grid, cell_pos, SIGHT_RANGE, chests)
+		chest_goal = MazeQuery.nearest_visible(grid, cell_pos, SIGHT_RANGE, _chests_worth_trying())
 	if chest_goal == MazeQuery.NONE:
 		return cell_pos
-	var step := MazeQuery.step_toward(grid, cell_pos, chest_goal, CHEST_PATH_DEPTH)
+	var step := MazeQuery.step_toward(grid, cell_pos, chest_goal, CHEST_PATH_DEPTH, _live_enemy_cells())
 	if step == cell_pos:
+		skipped_chests[chest_goal] = CHEST_SKIP_STEPS
 		chest_goal = MazeQuery.NONE
 	return step
+
+func _tick_skipped_chests() -> void:
+	for c in skipped_chests.keys():
+		skipped_chests[c] -= 1
+		if skipped_chests[c] <= 0:
+			skipped_chests.erase(c)
+
+func _chests_worth_trying() -> Dictionary:
+	if skipped_chests.is_empty():
+		return chests
+	var result: Dictionary = {}
+	for c in chests:
+		if not skipped_chests.has(c):
+			result[c] = chests[c]
+	return result
+
+func _live_enemy_cells() -> Dictionary:
+	var result: Dictionary = {}
+	for c in enemies:
+		if _has_live_enemy(c):
+			result[c] = true
+	return result
 
 ## Prefers an unvisited, enemy-free cell; falls back to any unvisited cell
 ## (even an enemy's) once safe options run out, then to the BFS frontier
