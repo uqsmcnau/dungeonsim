@@ -45,6 +45,15 @@ func _ready() -> void:
 	right_container.add_theme_constant_override("separation", 2)
 	fog_toggle.toggled.connect(func(pressed: bool): fog_toggled.emit(pressed))
 	pause_button.toggled.connect(set_paused)
+	var space := InputEventKey.new()
+	space.keycode = KEY_SPACE
+	pause_button.shortcut = Shortcut.new()
+	pause_button.shortcut.events = [space]
+	# Space also "presses" whichever button has keyboard focus, so once the
+	# fog checkbox had been clicked it would swallow Space as a fog toggle.
+	# Keep the toolbar buttons out of focus so Space always means pause.
+	pause_button.focus_mode = Control.FOCUS_NONE
+	fog_toggle.focus_mode = Control.FOCUS_NONE
 
 func set_paused(paused: bool) -> void:
 	get_tree().paused = paused
@@ -240,6 +249,7 @@ func inspect(npc: NpcAgent) -> void:
 	var close_button := Button.new()
 	close_button.text = "✕"
 	close_button.flat = true
+	close_button.focus_mode = Control.FOCUS_NONE
 	# Like the pause button, stays clickable while the game is paused.
 	close_button.process_mode = Node.PROCESS_MODE_ALWAYS
 	close_button.pressed.connect(close_inspector)
