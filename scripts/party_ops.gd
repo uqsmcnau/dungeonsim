@@ -79,7 +79,7 @@ static func join_party_of(joiner: NpcAgent, host: NpcAgent) -> void:
 			relocate_to_party(member, host)
 	host.current_action = "Party formed (%d members)" % host.party.size()
 	host.name_label.text = "%s's party grew to %d!" % [host.npc_name, host.party.size()]
-	var timer := joiner.get_tree().create_timer(1.5)
+	var timer := joiner.get_tree().create_timer(1.5, false)
 	timer.timeout.connect(host._update_label)
 
 ## A one-time relocation onto a new host's cell for a character that just

@@ -9,6 +9,9 @@ signal fog_toggled(enabled: bool)
 @onready var right_container: VBoxContainer = $RightStats
 @onready var winner_label: Label = $WinnerLabel
 @onready var fog_toggle: CheckBox = $FogToggle
+## Pauses the whole SceneTree. It (and the fog toggle) run with
+## PROCESS_MODE_ALWAYS so they stay clickable while everything else freezes.
+@onready var pause_button: Button = $PauseButton
 
 ## Only this many HUD panels are ever shown at once -- whichever characters
 ## currently rank highest by combat power (see NpcStats.combat_power),
@@ -34,6 +37,12 @@ func _ready() -> void:
 	left_container.add_theme_constant_override("separation", 2)
 	right_container.add_theme_constant_override("separation", 2)
 	fog_toggle.toggled.connect(func(pressed: bool): fog_toggled.emit(pressed))
+	pause_button.toggled.connect(set_paused)
+
+func set_paused(paused: bool) -> void:
+	get_tree().paused = paused
+	pause_button.set_pressed_no_signal(paused)
+	pause_button.text = "Resume" if paused else "Pause"
 
 ## A single cell for the equipment/potions/spells grid: a fixed-width,
 ## word-wrapping label, so two long entries sharing a row wrap instead of
@@ -296,7 +305,7 @@ func mark_dead(npc: NpcAgent) -> void:
 	if was_on_leaderboard:
 		dying[npc] = true
 		r["panel"].visible = true
-		var timer := get_tree().create_timer(DEATH_GRACE_SECONDS)
+		var timer := get_tree().create_timer(DEATH_GRACE_SECONDS, false)
 		timer.timeout.connect(func():
 			dying.erase(npc)
 			if rows.has(npc):

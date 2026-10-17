@@ -27,12 +27,22 @@ anchor_bottom = 1.0
 script = ExtResource("3_hud")
 
 [node name="FogToggle" type="CheckBox" parent="HUD/Control"]
+process_mode = 3
 offset_left = 490.0
 offset_top = 6.0
-offset_right = 700.0
+offset_right = 640.0
 offset_bottom = 40.0
 button_pressed = true
 text = "Fog of War"
+
+[node name="PauseButton" type="Button" parent="HUD/Control"]
+process_mode = 3
+offset_left = 650.0
+offset_top = 6.0
+offset_right = 750.0
+offset_bottom = 40.0
+toggle_mode = true
+text = "Pause"
 
 [node name="WinnerLabel" type="Label" parent="HUD/Control"]
 offset_left = 480.0

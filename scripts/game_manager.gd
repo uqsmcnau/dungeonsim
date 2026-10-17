@@ -80,7 +80,7 @@ func _ready() -> void:
 	_place_mini_bosses(generator)
 	maze_view.set_maze(grid, CELL_SIZE, start_cells, exit_cell, shop_cells, mini_boss_cells)
 	maze_view.reveal_permanently(_zone_cells(exit_cell))
-	hud.fog_toggled.connect(maze_view.set_fog_enabled)
+	hud.fog_toggled.connect(_on_fog_toggled)
 	_spawn_enemies()
 	_spawn_boss()
 	_spawn_chests()
@@ -88,6 +88,15 @@ func _ready() -> void:
 
 func _process(_delta: float) -> void:
 	hud.update_positions(npcs)
+	_sync_fog()
+
+## The fog checkbox stays usable while paused, but _process doesn't run then,
+## so re-sync immediately or enemies/chests wouldn't appear/hide until resume.
+func _on_fog_toggled(enabled: bool) -> void:
+	maze_view.set_fog_enabled(enabled)
+	_sync_fog()
+
+func _sync_fog() -> void:
 	maze_view.update_fog(npcs, NpcAgent.SIGHT_RANGE)
 	for cell in enemy_map:
 		var enemy: EnemyAgent = enemy_map[cell]

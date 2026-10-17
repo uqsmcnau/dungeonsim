@@ -128,7 +128,7 @@ func _promote_next_pack_leader() -> void:
 	enemies.erase(cell_pos)
 
 func _schedule_next_think(wait_time: float = THINK_SECONDS) -> void:
-	var timer := get_tree().create_timer(wait_time)
+	var timer := get_tree().create_timer(wait_time, false)
 	timer.timeout.connect(_on_think_timer)
 
 func _on_think_timer() -> void:

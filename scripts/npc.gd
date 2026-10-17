@@ -175,7 +175,7 @@ func _cast_recover_idle() -> void:
 	is_moving = true
 	current_action = "Casting Recover"
 	name_label.text = "%s ✨ Recover" % npc_name
-	var timer := get_tree().create_timer(RECOVER_CAST_SECONDS)
+	var timer := get_tree().create_timer(RECOVER_CAST_SECONDS, false)
 	timer.timeout.connect(_finish_recover_idle)
 
 func _finish_recover_idle() -> void:
@@ -207,7 +207,7 @@ func _consume_item_idle(item_name: String) -> void:
 	var verb := _consume_verb(item_name)
 	current_action = "%s %s" % [verb, item_name]
 	name_label.text = "%s %s %s" % [npc_name, verb, item_name]
-	var timer := get_tree().create_timer(CONSUME_SECONDS)
+	var timer := get_tree().create_timer(CONSUME_SECONDS, false)
 	timer.timeout.connect(_finish_consume_idle.bind(item_name))
 
 func _finish_consume_idle(item_name: String) -> void:
@@ -264,7 +264,7 @@ func _start_shopping() -> void:
 	is_moving = true
 	current_action = "Shopping"
 	name_label.text = "%s $ Shopping" % npc_name
-	var timer := get_tree().create_timer(SHOPPING_SECONDS)
+	var timer := get_tree().create_timer(SHOPPING_SECONDS, false)
 	timer.timeout.connect(_finish_shopping)
 
 func _finish_shopping() -> void:
@@ -276,7 +276,7 @@ func _finish_shopping() -> void:
 	is_moving = false
 	if sold > 0 or not bought.is_empty():
 		name_label.text = "%s sold %d, bought %d" % [npc_name, sold, bought.size()]
-		var timer := get_tree().create_timer(1.5)
+		var timer := get_tree().create_timer(1.5, false)
 		timer.timeout.connect(_update_label)
 	else:
 		_update_label()
@@ -488,7 +488,7 @@ func _run_group_combat_turn(my_cell: Vector2i, enemy_cell: Vector2i) -> void:
 
 	me.current_action = "Fighting a level %d enemy" % target.stats.level
 	me.name_label.text = "%s ⚔ Lv.%d" % [me.npc_name, target.stats.level]
-	var timer := me.get_tree().create_timer(TURN_SECONDS)
+	var timer := me.get_tree().create_timer(TURN_SECONDS, false)
 	timer.timeout.connect(_resolve_group_combat_turn.bind(my_cell, enemy_cell))
 
 func _resolve_group_combat_turn(my_cell: Vector2i, enemy_cell: Vector2i) -> void:
@@ -632,7 +632,7 @@ func _run_group_pvp_turn(my_party: Array, their_party: Array, my_cell: Vector2i,
 	them.current_action = "Fighting %s" % me.npc_name
 	them.name_label.text = "%s ⚔ vs %s" % [them.npc_name, me.npc_name]
 
-	var timer := me.get_tree().create_timer(TURN_SECONDS)
+	var timer := me.get_tree().create_timer(TURN_SECONDS, false)
 	timer.timeout.connect(_resolve_group_pvp_turn.bind(my_party, their_party, my_cell, their_cell))
 
 func _resolve_group_pvp_turn(my_party: Array, their_party: Array, my_cell: Vector2i, their_cell: Vector2i) -> void:
@@ -835,7 +835,7 @@ func _check_for_chest() -> void:
 	if parts.is_empty():
 		return
 	name_label.text = "%s found %s!" % [npc_name, ", ".join(parts)]
-	var timer := get_tree().create_timer(1.5)
+	var timer := get_tree().create_timer(1.5, false)
 	timer.timeout.connect(_update_label)
 
 func _cell_to_world(cell: Vector2i) -> Vector2:
