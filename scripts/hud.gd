@@ -10,9 +10,24 @@ signal fog_toggled(enabled: bool)
 @onready var winner_label: Label = $WinnerLabel
 @onready var fog_toggle: CheckBox = $FogToggle
 
+## Only this many HUD panels are ever shown at once -- whichever characters
+## currently rank highest by combat power (see NpcStats.combat_power),
+## counting both the living and anyone still serving out their death grace
+## period (below). A dying character keeps occupying its slot until that
+## grace period actually ends, so a lower-ranked living character isn't
+## promoted into its place early.
+const VISIBLE_HUD_COUNT := 10
+## A character that was on the leaderboard at the moment it died keeps its
+## panel on screen (playing the death flash, then sitting frozen and grey)
+## for this long before actually dropping off, rather than vanishing the
+## instant it's removed from the living roster.
+const DEATH_GRACE_SECONDS := 3.0
+
 var rows: Dictionary = {}
-var left_count: int = 0
-var right_count: int = 0
+## Characters currently in their post-death grace period. Still included in
+## the leaderboard ranking (using their frozen stats) so they keep occupying
+## a slot until the grace timer actually removes them.
+var dying: Dictionary = {}
 
 func _ready() -> void:
 	winner_label.visible = false
@@ -62,8 +77,9 @@ func _make_stat_bar(fill_color: Color) -> Dictionary:
 
 	return {"container": container, "bar": bar, "label": label, "fill": fill}
 
-## Alternates new panels between the left and right columns flanking the
-## maze, keeping both sides balanced regardless of how many NPCs there are.
+## New panels start in the left column -- _balance_columns reassigns them
+## (along with everyone else) the moment the leaderboard next updates, so
+## where they start doesn't matter.
 func register_npc(npc: NpcAgent) -> void:
 	var panel := PanelContainer.new()
 	var style := StyleBoxFlat.new()
@@ -78,12 +94,7 @@ func register_npc(npc: NpcAgent) -> void:
 	style.corner_radius_bottom_left = 6
 	style.corner_radius_bottom_right = 6
 	panel.add_theme_stylebox_override("panel", style)
-	if left_count <= right_count:
-		left_container.add_child(panel)
-		left_count += 1
-	else:
-		right_container.add_child(panel)
-		right_count += 1
+	left_container.add_child(panel)
 
 	var vbox := VBoxContainer.new()
 	vbox.custom_minimum_size = Vector2(400, 0)
@@ -147,6 +158,7 @@ func register_npc(npc: NpcAgent) -> void:
 		"panel": panel,
 		"flash": flash,
 		"header": header,
+		"rank": 0,
 		"action": action_label,
 		"hp_bar": hp_widget["bar"],
 		"hp_fill": hp_widget["fill"],
@@ -164,8 +176,58 @@ func refresh_npc(npc: NpcAgent) -> void:
 	_refresh_row(npc)
 
 func update_positions(npcs: Array) -> void:
+	_update_leaderboard(npcs)
 	for npc in npcs:
 		_refresh_row(npc)
+
+## Ranks every living character (dead ones are already excluded from
+## `npcs` by the time this is called -- see GameManager._on_npc_died) plus
+## anyone still serving out their death grace period (see mark_dead, using
+## their frozen stats) together by combat power, and shows only the panels
+## for the top VISIBLE_HUD_COUNT. A dying character keeps occupying its
+## slot in this combined ranking for as long as its grace period lasts, so
+## a lower-ranked living character only gets promoted into view once that
+## slot is actually freed up -- never while the dead one is still showing.
+func _update_leaderboard(npcs: Array) -> void:
+	var ranked: Array = npcs.duplicate()
+	for npc in dying:
+		if not ranked.has(npc):
+			ranked.append(npc)
+	ranked.sort_custom(func(a, b): return a.stats.combat_power() > b.stats.combat_power())
+
+	var shown: Dictionary = {}
+	for i in range(min(VISIBLE_HUD_COUNT, ranked.size())):
+		shown[ranked[i]] = i + 1
+
+	for npc in rows:
+		var rank: int = shown.get(npc, 0)
+		rows[npc]["rank"] = rank
+		rows[npc]["panel"].visible = rank > 0
+
+	_balance_columns(shown)
+
+## Keeps the two columns balanced -- odd ranks in the left column, even
+## ranks in the right, so the normal 10-visible case always lands exactly
+## 5 and 5 -- rather than leaving each panel in whichever column it
+## happened to start in, which could leave one column crowded and the
+## other sparse once only a shifting subset of characters are ever shown.
+func _balance_columns(shown: Dictionary) -> void:
+	var ranked_shown: Array = shown.keys()
+	ranked_shown.sort_custom(func(a, b): return shown[a] < shown[b])
+	var left_index := 0
+	var right_index := 0
+	for npc in ranked_shown:
+		var panel: PanelContainer = rows[npc]["panel"]
+		if int(shown[npc]) % 2 == 1:
+			if panel.get_parent() != left_container:
+				panel.reparent(left_container)
+			left_container.move_child(panel, left_index)
+			left_index += 1
+		else:
+			if panel.get_parent() != right_container:
+				panel.reparent(right_container)
+			right_container.move_child(panel, right_index)
+			right_index += 1
 
 func _refresh_row(npc: NpcAgent) -> void:
 	if not rows.has(npc):
@@ -174,7 +236,8 @@ func _refresh_row(npc: NpcAgent) -> void:
 	var s: NpcStats = npc.stats
 
 	var party_tag: String = " (Party of %d)" % npc.party.size() if npc.party.size() > 1 else ""
-	r["header"].text = "%s [%s]%s — Lv.%d (%d/%d XP)  %dg" % [npc.npc_name, s.alignment, party_tag, s.level, s.xp, s.xp_to_next, s.gold]
+	var rank_tag: String = "#%d " % int(r["rank"]) if int(r["rank"]) > 0 else ""
+	r["header"].text = "%s%s [%s]%s — Lv.%d (%d/%d XP)  %dg" % [rank_tag, npc.npc_name, s.alignment, party_tag, s.level, s.xp, s.xp_to_next, s.gold]
 	r["action"].text = "Action: %s" % npc.current_action
 
 	var hp_bar: ProgressBar = r["hp_bar"]
@@ -220,11 +283,25 @@ func _slot_text(s: NpcStats, slot: String) -> String:
 func mark_dead(npc: NpcAgent) -> void:
 	if not rows.has(npc):
 		return
-	_refresh_row(npc)
 	var r: Dictionary = rows[npc]
+	var was_on_leaderboard: bool = int(r["rank"]) > 0
+	_refresh_row(npc)
 	r["panel"].modulate = Color(0.5, 0.5, 0.5, 1.0)
 	r["header"].text += "  ☠ DEAD"
 	_flash(npc, Color(1.0, 0.15, 0.15))
+
+	# It was visible on the leaderboard right up until it died -- keep it
+	# there a little longer (frozen, death flash playing) instead of having
+	# it vanish the instant it's removed from the living roster.
+	if was_on_leaderboard:
+		dying[npc] = true
+		r["panel"].visible = true
+		var timer := get_tree().create_timer(DEATH_GRACE_SECONDS)
+		timer.timeout.connect(func():
+			dying.erase(npc)
+			if rows.has(npc):
+				r["panel"].visible = false
+		)
 
 ## Briefly flashes the character's whole panel white to celebrate a level-up.
 func flash_level_up(npc: NpcAgent) -> void:

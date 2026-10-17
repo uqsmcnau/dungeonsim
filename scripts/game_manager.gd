@@ -4,7 +4,7 @@ extends Node2D
 const MAZE_WIDTH := 48
 const MAZE_HEIGHT := 48
 const CELL_SIZE := 20.0
-const NPC_COUNT := 12
+const NPC_COUNT := 20
 const ENEMY_DENSITY := 0.06
 const EXTRA_CHEST_DENSITY := 0.012
 const SHOP_COLUMNS := 2
@@ -25,14 +25,21 @@ const NPC_SCENE: PackedScene = preload("res://scenes/NPC.tscn")
 const ENEMY_SCENE: PackedScene = preload("res://scenes/Enemy.tscn")
 const CHEST_SCENE: PackedScene = preload("res://scenes/Chest.tscn")
 
+## One distinct entry per NPC_COUNT -- kept at exactly 20 so no two of the
+## 20 starting characters share both a name and a color (they'd otherwise
+## cycle and repeat via the modulo indexing below once NPC_COUNT exceeded
+## the list length).
 var npc_colors := [
 	Color.RED, Color.BLUE, Color.GREEN, Color.YELLOW,
 	Color.ORANGE, Color.PURPLE, Color.CYAN, Color.MAGENTA,
 	Color.LIME, Color.PINK, Color.TEAL, Color.GOLD,
+	Color.BROWN, Color.CORAL, Color.VIOLET, Color.SALMON,
+	Color.KHAKI, Color.CRIMSON, Color.TURQUOISE, Color.SIENNA,
 ]
 var npc_names := [
 	"Aria", "Bram", "Cass", "Dorn", "Eska", "Finn",
 	"Gale", "Hesk", "Iris", "Jace", "Kael", "Lyra",
+	"Mira", "Nox", "Orla", "Pell", "Quen", "Rook", "Sable", "Tam",
 ]
 
 var npcs: Array = []

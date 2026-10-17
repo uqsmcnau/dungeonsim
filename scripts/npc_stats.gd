@@ -94,6 +94,14 @@ func attack_power() -> int:
 func defense() -> int:
 	return int(constitution / 2) + defense_bonus
 
+## A single score summarizing how dangerous this character would be in a
+## fight right now — used only to rank the HUD leaderboard (see Hud).
+## Attack and defense both roughly determine how many turns a fight takes,
+## so they're weighted heavier per point than the HP pool backing them up;
+## level isn't counted separately since it already feeds into attack_power.
+func combat_power() -> float:
+	return float(attack_power() + defense()) * 2.0 + float(max_hp) * 0.25
+
 func move_speed() -> float:
 	return 0.7 + dexterity * 0.03
 
