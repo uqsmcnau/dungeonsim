@@ -13,6 +13,13 @@ signal fog_toggled(enabled: bool)
 ## PROCESS_MODE_ALWAYS so they stay clickable while everything else freezes.
 @onready var pause_button: Button = $PauseButton
 @onready var players_left_label: Label = $PlayersLeftLabel
+## Shows whether Guidance (right-click "go there", see
+## GameManager._on_world_right_clicked) is ready, or how long until it is.
+## PROCESS_MODE_ALWAYS so its "not ready" flash still plays while paused.
+@onready var guidance_indicator: Control = $GuidanceIndicator
+var guidance_widget: Dictionary = {}
+const GUIDANCE_READY_COLOR := Color(0.95, 0.75, 0.2)
+const GUIDANCE_COOLING_COLOR := Color(0.4, 0.45, 0.55)
 
 ## Only this many HUD panels are ever shown at once -- whichever characters
 ## currently rank highest by combat power (see NpcStats.combat_power),
@@ -55,10 +62,49 @@ func _ready() -> void:
 	pause_button.focus_mode = Control.FOCUS_NONE
 	fog_toggle.focus_mode = Control.FOCUS_NONE
 
+	guidance_widget = _make_stat_bar(GUIDANCE_READY_COLOR)
+	var guidance_bar: Control = guidance_widget["container"]
+	guidance_bar.set_anchors_preset(Control.PRESET_FULL_RECT)
+	# Let hovers through to the indicator itself, which carries the tooltip.
+	guidance_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	guidance_widget["bar"].mouse_filter = Control.MOUSE_FILTER_IGNORE
+	guidance_widget["label"].add_theme_font_size_override("font_size", 14)
+	guidance_indicator.add_child(guidance_bar)
+	update_guidance(0.0, 1.0)
+
+	# The banner sits just below the toolbar (which has no room left for it
+	# in the middle), on a translucent strip so it reads over the maze.
+	var banner_bg := StyleBoxFlat.new()
+	banner_bg.bg_color = Color(0.0, 0.0, 0.0, 0.65)
+	winner_label.add_theme_stylebox_override("normal", banner_bg)
+
 func set_paused(paused: bool) -> void:
 	get_tree().paused = paused
 	pause_button.set_pressed_no_signal(paused)
 	pause_button.text = "Resume" if paused else "Pause"
+
+## Fills up as Guidance recharges: gold "Guidance ready" when it's usable,
+## otherwise a greyed bar counting down the seconds left.
+func update_guidance(cooldown_left: float, cooldown_total: float) -> void:
+	var bar: ProgressBar = guidance_widget["bar"]
+	var fill: StyleBoxFlat = guidance_widget["fill"]
+	var label: Label = guidance_widget["label"]
+	bar.step = 0.0  # continuous -- a fraction, not whole numbers
+	bar.max_value = 1.0
+	if cooldown_left <= 0.0:
+		bar.value = 1.0
+		fill.bg_color = GUIDANCE_READY_COLOR
+		label.text = "Guidance ready"
+	else:
+		bar.value = 1.0 - cooldown_left / cooldown_total
+		fill.bg_color = GUIDANCE_COOLING_COLOR
+		label.text = "Guidance %ds" % ceili(cooldown_left)
+
+## A quick red flash on the indicator when Guidance is tried on cooldown.
+func guidance_denied() -> void:
+	guidance_indicator.modulate = Color(1.0, 0.35, 0.35)
+	var tween := guidance_indicator.create_tween()
+	tween.tween_property(guidance_indicator, "modulate", Color.WHITE, 0.4)
 
 ## A single cell for the equipment/potions/spells grid: a fixed-width,
 ## word-wrapping label, so two long entries sharing a row wrap instead of

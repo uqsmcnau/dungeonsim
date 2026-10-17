@@ -89,6 +89,12 @@ var party: Array = []
 ## teams up with another loner later carries the old name on (see
 ## PartyOps._merged_party_name).
 var party_name: String = ""
+## Where the spectator's Guidance has sent this party (right-click, see
+## guide_to), or NONE. Only the leader's counts: it's handed on if the
+## leader falls (PartyOps.promote_next_leader), and dropped if this party
+## merges into another (PartyOps.join_party_of) -- that one isn't ours to
+## steer.
+var guidance_target: Vector2i = MazeQuery.NONE
 var is_party_leader: bool = true
 var party_offset: Vector2 = Vector2.ZERO
 
@@ -247,6 +253,11 @@ func _finish_consume_idle(item_name: String) -> void:
 func _take_step() -> void:
 	_notice_shops()
 
+	# The spectator's Guidance trumps everything else this party might want to do
+	# -- teaming up, shops, chests and exploring all wait until it arrives.
+	if guidance_target != MazeQuery.NONE and _follow_guidance():
+		return
+
 	# Priorities: teaming up with another party in sight that's up for it,
 	# then a shop worth visiting, then a chest in sight, then exploring --
 	# and none of these is worth picking a fight over, so an enemy in the
@@ -275,6 +286,108 @@ func _take_step() -> void:
 	if candidate == cell_pos:
 		return
 	_attempt_move(candidate)
+
+## Guidance: sends this party to walk to `cell` (the spectator's right-click,
+## see GameManager._on_world_right_clicked for the cooldown). Parties
+## only travel through ground they've already explored, so a click on
+## unexplored or unreachable ground sends them to the closest spot they
+## know how to reach instead. Returns false if there's nowhere to go -- e.g.
+## they're already as close as they know how to get.
+func guide_to(cell: Vector2i) -> bool:
+	if dead or finished:
+		return false
+	var dest := _nearest_reachable_known(cell, _party_known_cells())
+	if dest == cell_pos:
+		guidance_target = MazeQuery.NONE
+		return false
+	guidance_target = dest
+	current_action = "Following guidance"
+	return true
+
+## Every cell anyone in this party has been to -- a party pools what its
+## members have explored.
+func _party_known_cells() -> Dictionary:
+	var known: Dictionary = {}
+	for member in living_party():
+		known.merge(member.visited)
+	return known
+
+## Of the known cells reachable from here (through known cells only), the
+## one closest to `target` -- `target` itself if it's among them.
+func _nearest_reachable_known(target: Vector2i, known: Dictionary) -> Vector2i:
+	var best := cell_pos
+	var best_dist: int = abs(cell_pos.x - target.x) + abs(cell_pos.y - target.y)
+	var seen: Dictionary = {cell_pos: true}
+	var queue: Array = [cell_pos]
+	while not queue.is_empty():
+		var cur: Vector2i = queue.pop_front()
+		for n in MazeQuery.open_neighbors(grid, cur):
+			if seen.has(n) or not known.has(n):
+				continue
+			seen[n] = true
+			queue.append(n)
+			var d: int = abs(n.x - target.x) + abs(n.y - target.y)
+			if d < best_dist:
+				best = n
+				best_dist = d
+	return best
+
+## First step of a shortest route to `target` through `known` cells, never
+## entering an `avoid` cell (other than `target` itself), or our own cell if
+## there's no such route.
+func _route_through_known(target: Vector2i, known: Dictionary, avoid: Dictionary) -> Vector2i:
+	var came_from: Dictionary = {cell_pos: cell_pos}
+	var queue: Array = [cell_pos]
+	while not queue.is_empty():
+		var cur: Vector2i = queue.pop_front()
+		for n in MazeQuery.open_neighbors(grid, cur):
+			if came_from.has(n) or not known.has(n):
+				continue
+			if avoid.has(n) and n != target:
+				continue
+			came_from[n] = cur
+			if n == target:
+				var step: Vector2i = n
+				while came_from[step] != cell_pos:
+					step = came_from[step]
+				return step
+			queue.append(n)
+	return cell_pos
+
+## Takes the next step toward the Guidance target, returning whether it did
+## anything (false once it's arrived, or the target's become unreachable,
+## so this step falls through to the party's own AI).
+##
+## Routes around monsters and other parties where it can. If the only way is
+## past one, the normal rules decide what happens on contact: a fight is
+## fought and the Guidance picks back up afterwards; merging into their
+## party hands control to them (join_party_of drops the Guidance). But if
+## this party just backs off, the Guidance is abandoned -- retrying would
+## only bounce back and forth in front of whoever's in the way.
+func _follow_guidance() -> bool:
+	if cell_pos == guidance_target:
+		guidance_target = MazeQuery.NONE
+		_update_label()
+		return false
+	var known := _party_known_cells()
+	var avoid := _live_enemy_cells()
+	for c in players:
+		if c != cell_pos and _has_live_player(c):
+			avoid[c] = true
+	var step := _route_through_known(guidance_target, known, avoid)
+	if step == cell_pos:
+		step = _route_through_known(guidance_target, known, {})
+	if step == cell_pos:
+		guidance_target = MazeQuery.NONE
+		return false
+
+	current_action = "Following guidance"
+	var contested := _has_live_enemy(step) or _has_live_player(step)
+	_attempt_move(step)
+	if contested and is_party_leader and not is_in_combat():
+		guidance_target = MazeQuery.NONE
+		current_action = "Guidance blocked"
+	return true
 
 ## Next step toward the nearest other party leader in line of sight that
 ## this party wants to team up with (see _wants_to_party_with), routed

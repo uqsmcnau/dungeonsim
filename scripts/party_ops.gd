@@ -85,6 +85,7 @@ static func join_party_of(joiner: NpcAgent, host: NpcAgent) -> void:
 		if not is_instance_valid(member) or member.dead:
 			continue
 		member.is_party_leader = false
+		member.guidance_target = MazeQuery.NONE  # the host's party isn't ours to steer
 		member.party = host.party
 		member.in_pvp_combat = host.in_pvp_combat
 		member.in_pack_combat = host.in_pack_combat
@@ -148,6 +149,7 @@ static func promote_next_leader(former_leader: NpcAgent) -> void:
 	for member in former_leader.party:
 		if is_instance_valid(member) and not member.dead:
 			member.is_party_leader = true
+			member.guidance_target = former_leader.guidance_target  # carry on with any standing Guidance
 			member.cell_pos = former_leader.cell_pos
 			member.position = former_leader.position
 			# Take over the cell's registration -- unless some *other* party's

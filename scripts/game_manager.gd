@@ -24,6 +24,9 @@ const PACK_LEVEL_SCALE := 0.65
 ## How far (in pixels) from a character's icon center a click still selects
 ## it -- about half a cell, matching the 16px icon.
 const PICK_RADIUS := 10.0
+## Seconds of game time (it doesn't tick while paused) between uses of
+## Guidance, the spectator's right-click "go there" for the selected party.
+const GUIDANCE_COOLDOWN := 15.0
 const NPC_SCENE: PackedScene = preload("res://scenes/NPC.tscn")
 const ENEMY_SCENE: PackedScene = preload("res://scenes/Enemy.tscn")
 const CHEST_SCENE: PackedScene = preload("res://scenes/Chest.tscn")
@@ -62,6 +65,9 @@ var mini_boss_cells: Array = []
 ## Starting safe zones, shop zones, mini boss rooms and the boss room: no
 ## enemies spawn or wander here, and no random chests are placed here.
 var restricted_cells: Dictionary = {}
+## Seconds until Guidance can be used again (0 = ready). Ticked down in
+## _process, so it freezes while the game is paused.
+var guidance_cooldown_left: float = 0.0
 
 @onready var maze_view: MazeView = $World/MazeView
 @onready var npc_container: Node2D = $World/NPCs
@@ -85,14 +91,18 @@ func _ready() -> void:
 	maze_view.reveal_permanently(_zone_cells(exit_cell))
 	hud.fog_toggled.connect(_on_fog_toggled)
 	$ClickPicker.clicked.connect(_on_world_clicked)
+	$ClickPicker.right_clicked.connect(_on_world_right_clicked)
 	_spawn_enemies()
 	_spawn_boss()
 	_spawn_chests()
 	_spawn_npcs()
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	hud.update_positions(npcs)
 	_sync_fog()
+	_sync_guidance_marker()
+	guidance_cooldown_left = maxf(0.0, guidance_cooldown_left - delta)
+	hud.update_guidance(guidance_cooldown_left, GUIDANCE_COOLDOWN)
 
 ## The fog checkbox stays usable while paused, but _process doesn't run then,
 ## so re-sync immediately or enemies/chests wouldn't appear/hide until resume.
@@ -108,6 +118,44 @@ func _on_world_clicked(world_pos: Vector2) -> void:
 		hud.inspect(npc)
 	else:
 		hud.close_inspector()
+
+## Guidance: right-clicking the maze while a character is selected
+## (inspected) sends their whole party there -- whoever's leading it, even
+## if the selected character is a follower. Usable once every
+## GUIDANCE_COOLDOWN seconds; the cooldown only starts when Guidance is
+## actually given, so a click that goes nowhere doesn't waste it. Works
+## while paused; the party sets off once the game resumes.
+func _on_world_right_clicked(world_pos: Vector2) -> void:
+	var leader := _inspected_party_leader()
+	if leader == null:
+		return
+	var cell := world_to_cell(world_pos)
+	if cell.x < 0 or cell.x >= MAZE_WIDTH or cell.y < 0 or cell.y >= MAZE_HEIGHT:
+		return
+	if guidance_cooldown_left > 0.0:
+		hud.guidance_denied()
+		return
+	if leader.guide_to(cell):
+		guidance_cooldown_left = GUIDANCE_COOLDOWN
+		hud.update_guidance(guidance_cooldown_left, GUIDANCE_COOLDOWN)
+	_sync_guidance_marker()
+
+## The leader of the selected character's party, or null if nobody's
+## selected or they're out of the running.
+func _inspected_party_leader() -> NpcAgent:
+	var npc: NpcAgent = hud.inspected
+	if npc == null or npc.dead or npc.finished:
+		return null
+	return npc._current_party_leader(npc.party)
+
+func world_to_cell(world_pos: Vector2) -> Vector2i:
+	var local: Vector2 = npc_container.get_global_transform().affine_inverse() * world_pos
+	return Vector2i(floori(local.x / CELL_SIZE), floori(local.y / CELL_SIZE))
+
+## Marks where the selected party has been sent by Guidance, if anywhere.
+func _sync_guidance_marker() -> void:
+	var leader := _inspected_party_leader()
+	maze_view.set_guidance_marker(leader.guidance_target if leader != null else MazeQuery.NONE)
 
 ## The living character whose icon is nearest `world_pos`, within
 ## PICK_RADIUS, or null. Party members share a cell (offset by

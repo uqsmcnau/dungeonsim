@@ -18,6 +18,16 @@ var discovered: Dictionary = {}
 var currently_visible: Dictionary = {}
 var sticky_cells: Dictionary = {}
 
+## Where the selected party has been sent by Guidance (see
+## GameManager._on_world_right_clicked), or NONE.
+var guidance_marker: Vector2i = MazeQuery.NONE
+
+func set_guidance_marker(cell: Vector2i) -> void:
+	if cell == guidance_marker:
+		return
+	guidance_marker = cell
+	queue_redraw()
+
 func set_maze(new_grid: Array, new_cell_size: float, new_starts: Array, new_exit: Vector2i, new_shops: Array, new_mini_bosses: Array) -> void:
 	grid = new_grid
 	cell_size = new_cell_size
@@ -136,6 +146,11 @@ func _draw() -> void:
 				draw_line(bottom_left, bottom_right, wall_color, thickness)
 			if walls & MazeGenerator.WALL_W:
 				draw_line(top_left, bottom_left, wall_color, thickness)
+
+	if guidance_marker != MazeQuery.NONE:
+		var center := Vector2((guidance_marker.x + 0.5) * cell_size, (guidance_marker.y + 0.5) * cell_size)
+		draw_arc(center, cell_size * 0.4, 0.0, TAU, 24, Color(1.0, 0.85, 0.2, 0.95), 2.0)
+		draw_circle(center, cell_size * 0.1, Color(1.0, 0.85, 0.2, 0.95))
 
 func _draw_marker_if_visible(cell: Vector2i, color: Color) -> void:
 	if is_discovered(cell):
