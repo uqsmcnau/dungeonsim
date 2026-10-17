@@ -33,6 +33,12 @@ var rows: Dictionary = {}
 ## a slot until the grace timer actually removes them.
 var dying: Dictionary = {}
 
+## The character shown in the bottom-right inspector (opened by clicking
+## their icon in the maze), or null, plus that panel's widgets.
+var inspected: NpcAgent = null
+var inspector: Dictionary = {}
+const INSPECTOR_MARGIN := 20.0
+
 func _ready() -> void:
 	winner_label.visible = false
 	left_container.add_theme_constant_override("separation", 2)
@@ -91,6 +97,15 @@ func _make_stat_bar(fill_color: Color) -> Dictionary:
 ## (along with everyone else) the moment the leaderboard next updates, so
 ## where they start doesn't matter.
 func register_npc(npc: NpcAgent) -> void:
+	var r := _build_panel(npc)
+	left_container.add_child(r["panel"])
+	rows[npc] = r
+	_refresh_row(npc)
+
+## Builds one character's stat panel (unparented) and returns its widgets,
+## in the shape _fill_panel expects. Shared by the leaderboard rows and the
+## inspector, so the two always look and read the same.
+func _build_panel(npc: NpcAgent) -> Dictionary:
 	var panel := PanelContainer.new()
 	var style := StyleBoxFlat.new()
 	var c: Color = npc.visual.color
@@ -104,16 +119,21 @@ func register_npc(npc: NpcAgent) -> void:
 	style.corner_radius_bottom_left = 6
 	style.corner_radius_bottom_right = 6
 	panel.add_theme_stylebox_override("panel", style)
-	left_container.add_child(panel)
 
 	var vbox := VBoxContainer.new()
 	vbox.custom_minimum_size = Vector2(400, 0)
 	vbox.add_theme_constant_override("separation", 0)
 	panel.add_child(vbox)
 
+	# A row rather than a bare label so the inspector can tack its close
+	# button onto the end of it.
+	var header_row := HBoxContainer.new()
+	vbox.add_child(header_row)
+
 	var header := Label.new()
 	header.add_theme_font_size_override("font_size", 14)
-	vbox.add_child(header)
+	header.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header_row.add_child(header)
 
 	var action_label := Label.new()
 	action_label.add_theme_font_size_override("font_size", 12)
@@ -164,9 +184,10 @@ func register_npc(npc: NpcAgent) -> void:
 	flash.set_anchors_preset(Control.PRESET_FULL_RECT)
 	panel.add_child(flash)
 
-	rows[npc] = {
+	return {
 		"panel": panel,
 		"flash": flash,
+		"header_row": header_row,
 		"header": header,
 		"rank": 0,
 		"action": action_label,
@@ -180,16 +201,72 @@ func register_npc(npc: NpcAgent) -> void:
 		"potions": potions_label,
 		"spells": spells_label,
 	}
-	_refresh_row(npc)
 
 func refresh_npc(npc: NpcAgent) -> void:
 	_refresh_row(npc)
+	if npc == inspected:
+		_refresh_inspector()
 
 func update_positions(npcs: Array) -> void:
 	_update_players_left(npcs)
 	_update_leaderboard(npcs)
 	for npc in npcs:
 		_refresh_row(npc)
+	_refresh_inspector()
+
+## Opens (or switches) the bottom-right inspector to show `npc`, independent
+## of whether they're currently on the leaderboard.
+func inspect(npc: NpcAgent) -> void:
+	close_inspector()
+	inspected = npc
+	inspector = _build_panel(npc)
+	var panel: PanelContainer = inspector["panel"]
+	panel.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	# Pinned by its bottom-right corner, growing up and left as its contents
+	# (e.g. wrapped equipment lists) need more room.
+	panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	panel.offset_left = -INSPECTOR_MARGIN
+	panel.offset_top = -INSPECTOR_MARGIN
+	panel.offset_right = -INSPECTOR_MARGIN
+	panel.offset_bottom = -INSPECTOR_MARGIN
+	# Late in a run the right leaderboard column can grow down far enough to
+	# run underneath this panel -- pre-blend the translucent tint against
+	# the default clear color so it reads the same but hides what's below.
+	var style: StyleBoxFlat = panel.get_theme_stylebox("panel")
+	var tint: Color = style.bg_color
+	style.bg_color = RenderingServer.get_default_clear_color().lerp(Color(tint.r, tint.g, tint.b), tint.a)
+
+	var close_button := Button.new()
+	close_button.text = "✕"
+	close_button.flat = true
+	# Like the pause button, stays clickable while the game is paused.
+	close_button.process_mode = Node.PROCESS_MODE_ALWAYS
+	close_button.pressed.connect(close_inspector)
+	inspector["header_row"].add_child(close_button)
+	inspector["close_button"] = close_button
+
+	add_child(panel)
+	_refresh_inspector()
+
+func close_inspector() -> void:
+	if inspector.has("panel"):
+		inspector["panel"].queue_free()
+	inspector = {}
+	inspected = null
+
+## Called every frame, but also straight from inspect() so a click while
+## paused (when update_positions isn't running) still shows current stats.
+func _refresh_inspector() -> void:
+	if inspected == null:
+		return
+	inspector["rank"] = rows[inspected]["rank"] if rows.has(inspected) else 0
+	_fill_panel(inspector, inspected)
+	# Dead characters drop out of `npcs` but stay inspectable, frozen on
+	# their final stats and greyed out like their leaderboard panel.
+	if inspected.dead:
+		inspector["header"].text += "  ☠ DEAD"
+		inspector["panel"].modulate = Color(0.5, 0.5, 0.5, 1.0)
 
 ## `rows` keeps every character ever registered (dead ones included), so it
 ## doubles as the starting headcount.
@@ -252,7 +329,10 @@ func _balance_columns(shown: Dictionary) -> void:
 func _refresh_row(npc: NpcAgent) -> void:
 	if not rows.has(npc):
 		return
-	var r: Dictionary = rows[npc]
+	_fill_panel(rows[npc], npc)
+
+## Writes `npc`'s current stats into a panel built by _build_panel.
+func _fill_panel(r: Dictionary, npc: NpcAgent) -> void:
 	var s: NpcStats = npc.stats
 
 	var party_tag: String = " (Party of %d)" % npc.party.size() if npc.party.size() > 1 else ""
@@ -308,6 +388,8 @@ func mark_dead(npc: NpcAgent) -> void:
 	_refresh_row(npc)
 	r["panel"].modulate = Color(0.5, 0.5, 0.5, 1.0)
 	r["header"].text += "  ☠ DEAD"
+	if npc == inspected:
+		_refresh_inspector()
 	_flash(npc, Color(1.0, 0.15, 0.15))
 
 	# It was visible on the leaderboard right up until it died -- keep it
@@ -327,11 +409,15 @@ func mark_dead(npc: NpcAgent) -> void:
 func flash_level_up(npc: NpcAgent) -> void:
 	_flash(npc, Color(1, 1, 1))
 
-## Flashes a color over the character's panel, fading back out.
+## Flashes a color over the character's panel (and their inspector, if
+## open), fading back out.
 func _flash(npc: NpcAgent, color: Color) -> void:
-	if not rows.has(npc):
-		return
-	var flash: ColorRect = rows[npc]["flash"]
+	if rows.has(npc):
+		_flash_rect(rows[npc]["flash"], color)
+	if npc == inspected:
+		_flash_rect(inspector["flash"], color)
+
+func _flash_rect(flash: ColorRect, color: Color) -> void:
 	flash.color = Color(color.r, color.g, color.b, 0.9)
 	var tween := flash.create_tween()
 	tween.tween_property(flash, "color:a", 0.0, 0.6)

@@ -21,6 +21,9 @@ const MINI_BOSS_SCALE := 1.3
 ## through rather than always a single, tougher target.
 const PACK_ENCOUNTER_CHANCE := 0.3
 const PACK_LEVEL_SCALE := 0.65
+## How far (in pixels) from a character's icon center a click still selects
+## it -- about half a cell, matching the 16px icon.
+const PICK_RADIUS := 10.0
 const NPC_SCENE: PackedScene = preload("res://scenes/NPC.tscn")
 const ENEMY_SCENE: PackedScene = preload("res://scenes/Enemy.tscn")
 const CHEST_SCENE: PackedScene = preload("res://scenes/Chest.tscn")
@@ -81,6 +84,7 @@ func _ready() -> void:
 	maze_view.set_maze(grid, CELL_SIZE, start_cells, exit_cell, shop_cells, mini_boss_cells)
 	maze_view.reveal_permanently(_zone_cells(exit_cell))
 	hud.fog_toggled.connect(_on_fog_toggled)
+	$ClickPicker.clicked.connect(_on_world_clicked)
 	_spawn_enemies()
 	_spawn_boss()
 	_spawn_chests()
@@ -95,6 +99,30 @@ func _process(_delta: float) -> void:
 func _on_fog_toggled(enabled: bool) -> void:
 	maze_view.set_fog_enabled(enabled)
 	_sync_fog()
+
+## Clicking a character's icon opens their inspector panel; clicking empty
+## maze space closes it.
+func _on_world_clicked(world_pos: Vector2) -> void:
+	var npc: NpcAgent = npc_at(world_pos)
+	if npc != null:
+		hud.inspect(npc)
+	else:
+		hud.close_inspector()
+
+## The living character whose icon is nearest `world_pos`, within
+## PICK_RADIUS, or null. Party members share a cell (offset by
+## PartyOps.PARTY_OFFSETS), so their icons overlap -- nearest wins.
+func npc_at(world_pos: Vector2) -> NpcAgent:
+	var best: NpcAgent = null
+	var best_dist := PICK_RADIUS
+	for npc in npcs:
+		if npc.dead:
+			continue
+		var dist: float = npc.global_position.distance_to(world_pos)
+		if dist <= best_dist:
+			best = npc
+			best_dist = dist
+	return best
 
 func _sync_fog() -> void:
 	maze_view.update_fog(npcs, NpcAgent.SIGHT_RANGE)
