@@ -105,6 +105,15 @@ func living_pack() -> Array:
 			result.append(m)
 	return result
 
+## Releases every living pack member from the fight, not just whoever's
+## leading the pack right now -- a follower left still marked in_combat
+## would freeze the moment it got promoted to leader (see _think), and
+## block its cell for good (players won't engage or pass a busy pack).
+func end_combat() -> void:
+	for m in living_pack():
+		m.in_combat = false
+		m.fighting_party = []
+
 func defeat() -> void:
 	alive = false
 	if is_mini_boss:

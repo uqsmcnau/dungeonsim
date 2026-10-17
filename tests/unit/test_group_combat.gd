@@ -331,6 +331,66 @@ func test_enemy_in_combat_is_released_if_the_fight_loop_finds_no_one_left_at_its
 
 	assert_false(enemy.in_combat, "the pack must not stay permanently marked in_combat with no one left to resolve the fight")
 
+## Regression test for a reported bug: a monster kills a player, then never
+## moves again. The fight loop captured the pack leader at the start of the
+## turn; if the party killed that leader (promoting a follower) and was then
+## wiped out by the survivor in the same turn, the in_combat release landed
+## on the dead leader and the survivor stayed locked -- frozen -- forever.
+## The enemy's hits are random, so this retries with fresh fights until one
+## actually plays out that way.
+func test_pack_survivor_is_released_when_its_leader_and_the_party_fall_in_the_same_turn():
+	var scenario_happened := false
+	for attempt in range(15):
+		var player: NpcAgent = main.npcs[0]
+		player.party = [player]
+		player.is_party_leader = true
+		_set_stats(player, 1, 1, 1, 1, 1)
+		player.stats.inventory.clear()
+		main.player_map[player.cell_pos] = player
+
+		var cell: Vector2i = _clear_cell()
+		var leader := _new_enemy()
+		var survivor := _new_enemy()
+		leader.setup(cell, main.CELL_SIZE, 1, main.grid, main.enemy_map, {}, [])
+		survivor.setup(cell, main.CELL_SIZE, 5, main.grid, main.enemy_map, {}, [])
+		EnemyAgent.form_pack([leader, survivor])
+		leader.stats.hp = 0  # falls to the player's first action, whatever it is
+		survivor.stats.hp = 1000
+		# Engaged by hand rather than via _engage, whose first turn would
+		# have this 1-HP player flee before anything happened.
+		leader.in_combat = true
+		survivor.in_combat = true
+		player.in_pack_combat = true
+		player.is_moving = true
+
+		player._resolve_group_combat_turn(player.cell_pos, cell)
+
+		assert_true(survivor.is_pack_leader, "sanity: the survivor should have taken over the pack")
+		if player.dead:
+			scenario_happened = true
+			assert_false(survivor.in_combat, "the surviving monster must be released, not left frozen in_combat")
+			break
+	assert_true(scenario_happened, "sanity: the survivor should land a killing blow within 15 tries")
+
+func test_releasing_a_fight_frees_every_pack_member_not_just_the_leader():
+	# e.g. a party fleeing: the followers used to stay in_combat, so whichever
+	# was promoted when the leader later fell came out frozen.
+	var leader := _new_enemy()
+	var follower := _new_enemy()
+	var cell: Vector2i = _clear_cell()
+	leader.setup(cell, main.CELL_SIZE, 1, main.grid, main.enemy_map, {}, [])
+	follower.setup(cell, main.CELL_SIZE, 1, main.grid, main.enemy_map, {}, [])
+	EnemyAgent.form_pack([leader, follower])
+	leader.in_combat = true
+	follower.in_combat = true
+
+	main.npcs[0]._release_group_combat_lock(cell)
+
+	assert_false(leader.in_combat)
+	assert_false(follower.in_combat, "the follower must be released too")
+	leader.defeat()
+	assert_true(follower.is_pack_leader and not follower.in_combat, "a later promotion must not inherit a stale combat lock")
+
 func test_a_pack_freed_this_way_can_be_fought_normally_afterwards():
 	var leader: NpcAgent = main.npcs[0]
 	var enemy := _new_enemy()

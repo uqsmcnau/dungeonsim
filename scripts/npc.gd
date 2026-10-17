@@ -571,13 +571,17 @@ func _resolve_group_combat_turn(my_cell: Vector2i, enemy_cell: Vector2i) -> void
 			if victim.stats.hp <= 0:
 				victim._die()
 
+	# Not `enemy.in_combat = false`: `enemy` is whoever led the pack at the
+	# start of this turn, and if the party killed it above, a follower has
+	# since taken over -- releasing the dead one would leave the survivor
+	# locked in_combat (and frozen in place) forever.
 	if me.living_party().is_empty():
-		enemy.in_combat = false
+		_release_group_combat_lock(enemy_cell)
 		return
 
 	var next_driver: NpcAgent = players.get(my_cell)
 	if next_driver == null:
-		enemy.in_combat = false
+		_release_group_combat_lock(enemy_cell)
 		return
 	next_driver._run_group_combat_turn(my_cell, enemy_cell)
 
@@ -586,11 +590,13 @@ func _resolve_group_combat_turn(my_cell: Vector2i, enemy_cell: Vector2i) -> void
 ## conclusion (e.g. the whole party died). Without this the pack would stay
 ## permanently marked as mid-fight, and nobody could ever engage -- or even
 ## walk past -- it again (see _process/_attempt_move, which both retreat
-## from a cell whose enemy.in_combat is true rather than passing it).
+## from a cell whose enemy.in_combat is true rather than passing it). Looks
+## the pack up fresh by cell so it always finds the current leader, and
+## releases the whole pack (see EnemyAgent.end_combat).
 func _release_group_combat_lock(enemy_cell: Vector2i) -> void:
 	var enemy: EnemyAgent = enemies.get(enemy_cell)
 	if enemy != null and is_instance_valid(enemy):
-		enemy.in_combat = false
+		enemy.end_combat()
 
 ## Ends a party-vs-pack fight once the pack is wiped out: frees every party
 ## member's is_moving lock (see _engage) and moves the surviving party onto
