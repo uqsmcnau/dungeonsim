@@ -84,7 +84,12 @@ func _process(_delta: float) -> void:
 	maze_view.update_fog(npcs, NpcAgent.SIGHT_RANGE)
 	for cell in enemy_map:
 		var enemy: EnemyAgent = enemy_map[cell]
-		enemy.visible = maze_view.is_currently_visible(cell)
+		var cell_visible: bool = maze_view.is_currently_visible(cell)
+		# enemy_map only ever holds the pack's leader; followers (sharing the
+		# same cell, offset slightly) aren't in it at all, so without this
+		# they'd never get hidden and would always show through the fog.
+		for pack_member in enemy.living_pack():
+			pack_member.visible = cell_visible
 	for cell in chest_map:
 		var chest: ChestAgent = chest_map[cell]
 		chest.visible = maze_view.is_currently_visible(cell)
