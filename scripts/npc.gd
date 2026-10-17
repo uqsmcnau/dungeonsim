@@ -634,6 +634,41 @@ func _try_join_fight_against(enemy: EnemyAgent) -> bool:
 	PartyOps.join_party_of(self, fighter)
 	return true
 
+## Splits `amount` xp evenly across this character's living party (see
+## _split_evenly) -- called on whoever landed the killing blow.
+func share_xp_with_party(amount: int) -> void:
+	var split := _split_evenly(amount)
+	for member in split:
+		if member.stats.add_xp(split[member]):
+			member.leveled_up.emit(member)
+
+## Splits `amount` gold evenly across this character's living party (see
+## _split_evenly) -- called on whoever landed the killing blow or opened
+## the chest.
+func share_gold_with_party(amount: int) -> void:
+	var split := _split_evenly(amount)
+	for member in split:
+		member.stats.gold += split[member]
+
+## How to divide `amount` evenly across this character's living party (just
+## itself, if it's on its own), as {member: share}. When it doesn't divide
+## evenly, the leftover points go one each to the first members, starting
+## with this character, so none is lost to rounding. Members whose share
+## comes to nothing are left out.
+func _split_evenly(amount: int) -> Dictionary:
+	var members: Array = living_party()
+	members.erase(self)
+	members.push_front(self)
+	@warning_ignore("integer_division")
+	var share: int = amount / members.size()
+	var remainder: int = amount % members.size()
+	var split: Dictionary = {}
+	for i in range(members.size()):
+		var gain: int = share + (1 if i < remainder else 0)
+		if gain > 0:
+			split[members[i]] = gain
+	return split
+
 ## Every living member of this character's party, including itself.
 func living_party() -> Array:
 	var result: Array = []
@@ -758,9 +793,8 @@ func _resolve_group_combat_turn(my_party: Array, enemy_cell: Vector2i) -> void:
 		ally._apply_combat_action(action, target.stats)
 		if target.stats.hp <= 0:
 			foes.erase(target)
-			ally.stats.gold += target.stats.gold
-			if ally.stats.add_xp(target.stats.xp):
-				ally.leveled_up.emit(ally)
+			ally.share_gold_with_party(target.stats.gold)
+			ally.share_xp_with_party(target.stats.xp)
 			target.defeat()
 
 	if foes.is_empty():
@@ -1086,7 +1120,8 @@ func _on_enter_cell() -> void:
 ## the chest is removed from the shared map the moment it's collected, so
 ## nobody else can also grab it. Only the first copy of a given item takes
 ## effect; a duplicate is kept as a spare to sell. A death drop can hand over
-## several items plus gold at once.
+## several items plus gold at once. The items go to whoever opened it; the
+## gold is split evenly across their party (see share_gold_with_party).
 func _check_for_chest() -> void:
 	if not chests.has(cell_pos):
 		return
@@ -1103,7 +1138,7 @@ func _check_for_chest() -> void:
 		for i in range(count):
 			stats.acquire_item(item_name)
 		parts.append("%s x%d" % [item_name, count] if count > 1 else item_name)
-	stats.gold += gold
+	share_gold_with_party(gold)
 	if gold > 0:
 		parts.append("%dg" % gold)
 	if parts.is_empty():
