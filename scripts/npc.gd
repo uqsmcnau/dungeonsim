@@ -664,8 +664,13 @@ func _disengage_group_combat(enemy_cell: Vector2i) -> void:
 ## another leader's whole party — every living member on both sides joins
 ## in, each fighting with their own tactics each turn (see
 ## _resolve_group_pvp_turn).
+##
+## in_pvp_combat on every member of both sides is the only lock needed --
+## _process already refuses to act while it's set. This used to also set
+## is_moving on the attacker, but only the attacker's own exit paths ever
+## cleared that: when the *defender* fled (or its party vanished
+## mid-fight), the attacker stayed locked forever, still "Fighting".
 func _engage_player(next_cell: Vector2i, opponent: NpcAgent) -> void:
-	is_moving = true
 	for member in living_party():
 		member.in_pvp_combat = true
 	for member in opponent.living_party():
@@ -781,11 +786,16 @@ func _conclude_group_pvp(my_party: Array, their_party: Array, my_cell: Vector2i,
 		their_side._update_label()
 		their_side._move_to(my_cell)
 
+## Frees both sides from the fight, and clears the "Fighting X" status off
+## everyone still standing -- otherwise a side that didn't drive the ending
+## (e.g. the one left behind when the other flees) keeps showing it.
 func _release_pvp_locks(party_a: Array, party_b: Array) -> void:
 	for party_ref in [party_a, party_b]:
 		for member in party_ref:
 			if is_instance_valid(member):
 				member.in_pvp_combat = false
+				if not member.dead:
+					member._update_label()
 
 ## Breaks off a player-vs-player fight that's turning dangerous for the
 ## character driving this side of it — both sides are freed to resume their

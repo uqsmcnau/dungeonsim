@@ -200,6 +200,54 @@ func test_stronger_party_defeats_a_weaker_one_in_pvp():
 	assert_true(pb.dead, "the weaker party's leader should have died")
 	assert_false(pa.in_pvp_combat, "both sides' pvp locks should be released once it's over")
 
+func _pvp_pair() -> Array:
+	var attacker: NpcAgent = main.npcs[0]
+	var defender: NpcAgent = main.npcs[1]
+	for npc in [attacker, defender]:
+		npc.party = [npc]
+		npc.is_party_leader = true
+		npc.is_moving = false
+		npc.stats.inventory.clear()
+		main.player_map[npc.cell_pos] = npc
+	_set_stats(attacker, 5, 100, 20, 10)
+	return [attacker, defender]
+
+## Regression test for a reported bug: one player stuck "fighting" another
+## who'd already run away. The attacker was locked with is_moving as well as
+## in_pvp_combat, but a defender fleeing only released in_pvp_combat.
+func test_attacker_is_freed_when_the_defender_flees():
+	var pair := _pvp_pair()
+	var attacker: NpcAgent = pair[0]
+	var defender: NpcAgent = pair[1]
+	_set_stats(defender, 1, 3, 5, 10)  # low enough to flee on the very first turn
+
+	attacker._engage_player(defender.cell_pos, defender)
+
+	assert_false(defender.in_pvp_combat, "sanity: the defender should have fled")
+	assert_false(attacker.in_pvp_combat)
+	assert_false(attacker.is_moving, "the attacker must not be left locked in place")
+	assert_eq(attacker.current_action, "Exploring", "and must not keep showing 'Fighting' someone who's gone")
+
+	attacker.visited.clear()  # make sure there's somewhere new to go
+	attacker._process(0.0)
+	assert_true(attacker.is_moving, "the attacker should actually get on with exploring")
+
+func test_attacker_is_freed_when_the_defenders_party_vanishes_mid_fight():
+	# e.g. the defender killed by something else between two turns.
+	var pair := _pvp_pair()
+	var attacker: NpcAgent = pair[0]
+	var defender: NpcAgent = pair[1]
+	_set_stats(defender, 5, 100, 20, 10)
+	attacker._engage_player(defender.cell_pos, defender)
+	assert_true(attacker.in_pvp_combat, "sanity: an even fight should be underway")
+
+	var defender_party: Array = defender.party
+	defender._die()
+	attacker._resolve_group_pvp_turn(attacker.party, defender_party, attacker.cell_pos, defender.cell_pos)
+
+	assert_false(attacker.in_pvp_combat)
+	assert_false(attacker.is_moving)
+
 ## Regression test for a real bug: when PvP starts because one leader finds
 ## the other already on ITS OWN cell (the idle-safety-net path), both sides
 ## end up registered at the exact same cell. The combat code used to look
