@@ -18,6 +18,10 @@ config/name="DungeonSim"
 run/main_scene="res://scenes/Main.tscn"
 config/features=PackedStringArray("4.7")
 
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/gut/plugin.cfg")
+
 [display]
 
 window/size/viewport_width=1920
