@@ -23,8 +23,6 @@ const SHOPPING_SECONDS := 1.0
 const CONSUME_SECONDS := 1.0
 ## Below this fraction of max MP, top up with a Mana Potion if carrying one.
 const LOW_MANA_FRACTION := 0.3
-const MAX_PARTY_SIZE := 4
-const PARTY_OFFSETS := [Vector2.ZERO, Vector2(10, -10), Vector2(-10, 10), Vector2(10, 10)]
 
 signal reached_exit(npc: NpcAgent)
 signal leveled_up(npc: NpcAgent)
@@ -63,8 +61,8 @@ var finished: bool = false
 var dead: bool = false
 ## What this character is doing right now, in plain words, for the HUD.
 var current_action: String = "Exploring"
-## Party of up to MAX_PARTY_SIZE characters (including self), sharing the
-## same array once merged — mirroring how `pack` works for enemy groups.
+## Party of up to PartyOps.MAX_PARTY_SIZE characters (including self),
+## sharing the same array once merged — mirroring how `pack` works for enemy groups.
 ## Only the leader (is_party_leader) runs its own idle AI, decides whether to
 ## fight or form a party, and picks where to explore; followers just tag
 ## along (see _follow_to) and fight alongside whenever the leader does.
@@ -115,7 +113,7 @@ func _process(delta: float) -> void:
 		var enemy: EnemyAgent = enemies[cell_pos]
 		if enemy.in_combat:
 			return
-		if _decide_fight(enemy.stats):
+		if CombatMath.decide_fight(stats, enemy.stats):
 			_engage(cell_pos, enemy)
 			return
 		_retreat()
@@ -132,8 +130,8 @@ func _process(delta: float) -> void:
 			if not safe_cells.has(cell_pos) and _decide_pvp_fight(opponent):
 				_engage_player(cell_pos, opponent)
 				return
-			if _can_form_party_with(opponent):
-				opponent._join_party_of(self)
+			if PartyOps.can_form_party_with(self, opponent):
+				PartyOps.join_party_of(opponent, self)
 				return
 			_retreat()
 			if is_moving:
@@ -347,7 +345,7 @@ func _attempt_move(next_cell: Vector2i) -> void:
 		var enemy: EnemyAgent = enemies[next_cell]
 		if enemy.in_combat:
 			_retreat()
-		elif _decide_fight(enemy.stats):
+		elif CombatMath.decide_fight(stats, enemy.stats):
 			_engage(next_cell, enemy)
 		else:
 			_retreat()
@@ -358,47 +356,12 @@ func _attempt_move(next_cell: Vector2i) -> void:
 			_retreat()
 		elif not safe_cells.has(next_cell) and _decide_pvp_fight(opponent):
 			_engage_player(next_cell, opponent)
-		elif _can_form_party_with(opponent):
-			_join_party_of(opponent)
+		elif PartyOps.can_form_party_with(self, opponent):
+			PartyOps.join_party_of(self, opponent)
 		else:
 			_retreat()
 		return
 	_move_to(next_cell)
-
-## These take an opponent's stat block directly (rather than an EnemyAgent)
-## so the same math works for a monster fight and a player-vs-player one.
-func _hit_chance_against(opponent_stats: NpcStats) -> float:
-	return CombatRules.hit_chance(stats.accuracy(), opponent_stats.evasion())
-
-func _hit_chance_from(opponent_stats: NpcStats) -> float:
-	return CombatRules.hit_chance(opponent_stats.accuracy(), stats.evasion())
-
-## Average damage of one of our hits / one of theirs, assuming it lands.
-func _damage_per_hit_dealt(opponent_stats: NpcStats) -> float:
-	return max(1.0, stats.attack_power() + 1.5 - opponent_stats.defense())
-
-func _damage_per_hit_taken(opponent_stats: NpcStats) -> float:
-	return max(1.0, opponent_stats.attack_power() + 1.0 - stats.defense())
-
-## Average damage per turn, counting the turns an attack misses.
-func _expected_damage_dealt(opponent_stats: NpcStats) -> float:
-	return _hit_chance_against(opponent_stats) * _damage_per_hit_dealt(opponent_stats)
-
-func _expected_damage_taken(opponent_stats: NpcStats) -> float:
-	return _hit_chance_from(opponent_stats) * _damage_per_hit_taken(opponent_stats)
-
-## Compares how many turns it'd take to kill the opponent against how many it
-## would take to be killed ourselves — the same estimate both a monster
-## fight's coin-flip and a player's "can I win this" judgment are based on.
-func _win_chance_against(opponent_stats: NpcStats) -> float:
-	var turns_to_kill: float = max(opponent_stats.hp, 1) / _expected_damage_dealt(opponent_stats)
-	var turns_to_die: float = max(stats.hp, 1) / _expected_damage_taken(opponent_stats)
-	return clampf(turns_to_die / (turns_to_die + turns_to_kill), 0.05, 0.95)
-
-## Fights a monster with a probability that reflects the odds — even a
-## long-shot occasionally gets taken.
-func _decide_fight(opponent_stats: NpcStats) -> bool:
-	return randf() < _win_chance_against(opponent_stats)
 
 ## Whether to throw the first punch at another player — governed by
 ## alignment, not just the odds: Evil attacks anyone it thinks it can beat,
@@ -414,7 +377,7 @@ func _decide_pvp_fight(opponent: NpcAgent) -> bool:
 				return false
 		_:
 			return false
-	return _win_chance_against(opponent.stats) > 0.5
+	return CombatMath.win_chance_against(stats, opponent.stats) > 0.5
 
 ## The living member of `combatants` (an Array of anything exposing `.stats`)
 ## with the lowest current HP — used so a group fight naturally focuses fire
@@ -435,93 +398,6 @@ func living_party() -> Array:
 		if is_instance_valid(member) and not member.dead:
 			result.append(member)
 	return result
-
-func _assign_party_offsets() -> void:
-	for i in range(party.size()):
-		if is_instance_valid(party[i]):
-			party[i].party_offset = PARTY_OFFSETS[i % PARTY_OFFSETS.size()]
-
-## A meaningfully higher bar than the 50/50 "thinks it can probably win" used
-## to decide whether to throw a punch at all — "confident" means a clear
-## edge, not a coin flip. This also matters because the damage formulas give
-## the attacker a slightly higher bonus than the defender's counter (+1.5 vs
-## +1.0), so even two IDENTICAL characters compute themselves as having a
-## razor-thin edge over one another; a bar of 0.5 would make this check
-## nearly always true and the "form a party" rule nearly vacuous.
-const SOLO_CONFIDENCE_THRESHOLD := 0.65
-
-## Whether this Evil character is confident it could take on everyone else in
-## a prospective merge all by itself — checked against the toughest of them
-## by level, since if it can't beat the strongest, it can't beat them all.
-func _confident_solo_against(others: Array) -> bool:
-	if others.is_empty():
-		return false
-	var toughest: NpcAgent = others[0]
-	for o in others:
-		if o.stats.level > toughest.stats.level:
-			toughest = o
-	return _win_chance_against(toughest.stats) > SOLO_CONFIDENCE_THRESHOLD
-
-## Whether this character's party and `opponent`'s party can merge instead of
-## fighting. Good and Neutral characters always band together with each
-## other (and with each other's parties); Good and Evil never band together,
-## matching the fact that Good actively hunts Evil; Evil only bands together
-## with other Evil, and only if nobody in the combined group is confident it
-## could take everyone else by itself — otherwise it'd rather go it alone (or
-## try its luck fighting) than share the spoils.
-func _can_form_party_with(opponent: NpcAgent) -> bool:
-	if party.size() + opponent.party.size() > MAX_PARTY_SIZE:
-		return false
-
-	var i_am_evil := stats.alignment == NpcStats.ALIGNMENT_EVIL
-	var they_are_evil := opponent.stats.alignment == NpcStats.ALIGNMENT_EVIL
-	if i_am_evil != they_are_evil:
-		return false
-
-	if i_am_evil:
-		var everyone: Array = party + opponent.party
-		for member in everyone:
-			var others: Array = everyone.filter(func(m): return m != member)
-			if member._confident_solo_against(others):
-				return false
-
-	return true
-
-## Merges this character's whole party into `host`'s (host remains the
-## leader) — used when the two decide not to fight, instead.
-func _join_party_of(host: NpcAgent) -> void:
-	var joining: Array = party.duplicate()
-	players.erase(cell_pos)
-	for member in joining:
-		if not is_instance_valid(member) or member.dead:
-			continue
-		member.is_party_leader = false
-		member.party = host.party
-		if not host.party.has(member):
-			host.party.append(member)
-	host._assign_party_offsets()
-	for member in joining:
-		if is_instance_valid(member) and not member.dead:
-			member._relocate_to_party(host)
-	host.current_action = "Party formed (%d members)" % host.party.size()
-	host.name_label.text = "%s's party grew to %d!" % [host.npc_name, host.party.size()]
-	var timer := get_tree().create_timer(1.5)
-	timer.timeout.connect(host._update_label)
-
-## A one-time relocation onto a new host's cell for a character that just
-## joined that party, as opposed to _follow_to's every-step tagging along.
-func _relocate_to_party(host: NpcAgent) -> void:
-	is_moving = true
-	var duration: float = move_seconds_base / max(stats.move_speed(), 0.1)
-	var target_world: Vector2 = host.position + party_offset
-	var tween := create_tween()
-	tween.tween_property(self, "position", target_world, duration)
-	tween.finished.connect(func():
-		is_moving = false
-		cell_pos = host.cell_pos
-		visited[cell_pos] = true
-		_update_label()
-	)
 
 ## Starts a fight between this character's whole party and an enemy pack —
 ## every living member on both sides joins in, each fighting with their own
@@ -547,7 +423,7 @@ func _choose_combat_action(opponent_stats: NpcStats) -> String:
 			return "potion_hp"
 
 	var best_action := "attack"
-	var best_damage: float = _expected_damage_dealt(opponent_stats)
+	var best_damage: float = CombatMath.expected_damage_dealt(stats, opponent_stats)
 	# Never spend the last of its mana on offense — always keep enough in
 	# reserve for one emergency Recover, so a spellcaster can't run itself
 	# out of healing by attacking too aggressively.
@@ -576,7 +452,7 @@ func _apply_combat_action(action: String, opponent_stats: NpcStats) -> void:
 			stats.mp -= NpcStats.SPARK_MP_COST
 			opponent_stats.hp -= max(1, stats.spark_power())
 		_:
-			if randf() < _hit_chance_against(opponent_stats):
+			if randf() < CombatMath.hit_chance_against(stats, opponent_stats):
 				opponent_stats.hp -= max(1, stats.attack_power() + randi() % 4 - opponent_stats.defense())
 
 ## One turn of a party-vs-pack fight. `my_cell`/`enemy_cell` are the fixed
@@ -599,7 +475,7 @@ func _run_group_combat_turn(my_cell: Vector2i, enemy_cell: Vector2i) -> void:
 		return
 
 	var target: EnemyAgent = me._weakest(foes)
-	if me.stats.hp <= me._damage_per_hit_taken(target.stats) * FLEE_DANGER_TURNS:
+	if me.stats.hp <= CombatMath.damage_taken_per_hit(me.stats, target.stats) * FLEE_DANGER_TURNS:
 		me._disengage_group_combat(enemy_cell)
 		return
 
@@ -640,7 +516,7 @@ func _resolve_group_combat_turn(my_cell: Vector2i, enemy_cell: Vector2i) -> void
 		if allies.is_empty():
 			break
 		var victim: NpcAgent = allies[randi() % allies.size()]
-		if randf() < victim._hit_chance_from(foe.stats):
+		if randf() < CombatMath.hit_chance_against(foe.stats, victim.stats):
 			var damage: int = max(1, foe.stats.attack_power() + randi() % 3 - victim.stats.defense())
 			if randf() < ENEMY_CRIT_CHANCE:
 				damage = int(ceil(damage * ENEMY_CRIT_MULTIPLIER))
@@ -720,11 +596,11 @@ func _run_group_pvp_turn(my_party: Array, their_party: Array, my_cell: Vector2i,
 		return
 
 	var my_target: NpcAgent = me._weakest(foes)
-	if me.stats.hp <= me._damage_per_hit_taken(my_target.stats) * FLEE_DANGER_TURNS:
+	if me.stats.hp <= CombatMath.damage_taken_per_hit(me.stats, my_target.stats) * FLEE_DANGER_TURNS:
 		me._disengage_group_pvp(my_party, their_party)
 		return
 	var their_target: NpcAgent = them._weakest(allies)
-	if them.stats.hp <= them._damage_per_hit_taken(their_target.stats) * FLEE_DANGER_TURNS:
+	if them.stats.hp <= CombatMath.damage_taken_per_hit(them.stats, their_target.stats) * FLEE_DANGER_TURNS:
 		them._disengage_group_pvp(their_party, my_party)
 		return
 
@@ -832,17 +708,8 @@ func _die() -> void:
 	players.erase(cell_pos)
 	party.erase(self)
 	if is_party_leader and not party.is_empty():
-		_promote_next_party_leader()
+		PartyOps.promote_next_leader(self)
 	died.emit(self)
-
-func _promote_next_party_leader() -> void:
-	for member in party:
-		if is_instance_valid(member) and not member.dead:
-			member.is_party_leader = true
-			member.cell_pos = cell_pos
-			member.position = position
-			players[cell_pos] = member
-			return
 
 func _retreat() -> void:
 	var open_dirs := MazeQuery.open_neighbors(grid, cell_pos)

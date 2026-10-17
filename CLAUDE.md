@@ -47,14 +47,29 @@ needs the generated maze or the full NPC/enemy roster.
 
 ## Architecture conventions worth knowing before touching combat/party code
 
+- **Combat math and party-merge mechanics live outside NpcAgent.**
+  `scripts/combat_math.gd` (`CombatMath`) holds the pure hit/damage/win-chance
+  functions as static methods over two `NpcStats` blocks — no scene state,
+  fully covered by `test_combat_math.gd` without instantiating anything.
+  `scripts/party_ops.gd` (`PartyOps`) holds the party-merge-compatibility and
+  actual-merge mechanics as static methods taking the `NpcAgent`(s) involved
+  explicitly (`PartyOps.can_form_party_with(npc, opponent)`,
+  `PartyOps.join_party_of(joiner, host)`, etc.) — this one still reads/writes
+  `NpcAgent` fields (`party`, `is_party_leader`, ...) since those fields live
+  on the agent itself, not in a separate object; it's a static-utility split,
+  not a real ownership change. `npc.gd` itself is still the biggest file by
+  far (movement, shopping, chest/consumable handling, the two group-combat
+  turn loops) — that part was deliberately left alone rather than forced
+  into a bigger structural change the project didn't need.
+
 - **Leader/follower pairs, twice.** Both player parties (`NpcAgent.party`)
   and enemy packs (`EnemyAgent.pack`) use the same pattern: one leader makes
   decisions (explore, fight, wander) and runs its own `_process`/think-loop;
   followers just tag along visually (`_follow_to` / `_follow_pack_move`) and
   join combat when the leader does. If a leader dies, a follower is
-  promoted automatically (`_promote_next_party_leader` /
-  `_promote_next_pack_leader`) — this is load-bearing: without it, the
-  survivors would freeze forever, since only leaders ever act.
+  promoted automatically (`PartyOps.promote_next_leader` /
+  `EnemyAgent._promote_next_pack_leader`) — this is load-bearing: without
+  it, the survivors would freeze forever, since only leaders ever act.
 
 - **Two different "who represents this cell" dicts.** `game_manager.gd`
   owns `player_map` (cell → party leader) and `enemy_map` (cell → pack
