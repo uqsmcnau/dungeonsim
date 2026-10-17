@@ -69,7 +69,12 @@ static func can_form_party_with(npc: NpcAgent, opponent: NpcAgent) -> bool:
 ## taking turns (and taking hits) from the next one on, and the fight
 ## itself carries on uninterrupted. They just need the same combat flags
 ## as everyone already in it.
+##
+## Naming the merged party (see _merged_party_name): a lone player meeting
+## an existing party takes on that party's name, whichever of the two is
+## hosting; otherwise the host's name wins -- the host already leads it.
 static func join_party_of(joiner: NpcAgent, host: NpcAgent) -> void:
+	var merged_name := _merged_party_name(joiner, host)
 	var joining: Array = joiner.party.duplicate()
 	joiner._unregister()
 	# If the two shared a cell (e.g. both stepped onto the same one at once),
@@ -85,6 +90,9 @@ static func join_party_of(joiner: NpcAgent, host: NpcAgent) -> void:
 		member.in_pack_combat = host.in_pack_combat
 		if not host.party.has(member):
 			host.party.append(member)
+	for member in host.party:
+		if is_instance_valid(member):
+			member.party_name = merged_name
 	assign_party_offsets(host)
 	for member in joining:
 		if is_instance_valid(member) and not member.dead:
@@ -92,10 +100,28 @@ static func join_party_of(joiner: NpcAgent, host: NpcAgent) -> void:
 	# Mid-fight, the host's label is busy showing the fight -- don't clobber it.
 	if host.is_in_combat():
 		return
-	host.current_action = "Party formed (%d members)" % host.party.size()
-	host.name_label.text = "%s's party grew to %d!" % [host.npc_name, host.party.size()]
+	host.current_action = "%s grew to %d" % [host.party_name, host.party.size()]
+	host.name_label.text = "%s grew to %d!" % [host.party_name, host.party.size()]
 	var timer := joiner.get_tree().create_timer(1.5, false)
 	timer.timeout.connect(host._update_label)
+
+## The name the party formed by `joiner` joining `host` should go by,
+## worked out before the merge while the two sides can still be told apart:
+## - a lone host joined by an existing party (2+ members) keeps *their*
+##   name -- one player tagging along shouldn't rename an established party;
+## - otherwise the host's name (when a lone player joins an existing party,
+##   that's the party's own name; when two parties merge, the leader's);
+## - and if that side never had one (two loners teaming up for the first
+##   time), a fresh name in keeping with the host's alignment.
+## A lone host's name can be non-empty: a survivor whose party fell keeps
+## it, and carries it on if another loner joins them.
+static func _merged_party_name(joiner: NpcAgent, host: NpcAgent) -> String:
+	var merged_name: String = host.party_name
+	if host.living_party().size() == 1 and joiner.living_party().size() > 1:
+		merged_name = joiner.party_name
+	if merged_name == "":
+		merged_name = PartyNames.generate(host.stats.alignment)
+	return merged_name
 
 ## A one-time relocation onto a new host's cell for a character that just
 ## joined that party, as opposed to NpcAgent._follow_to's every-step

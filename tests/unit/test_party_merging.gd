@@ -126,12 +126,16 @@ func test_living_party_reflects_all_living_members():
 	PartyOps.join_party_of(joiner, host)
 	assert_eq(host.living_party().size(), 2)
 
-func test_hud_shows_party_size_once_merged_and_omits_it_for_solo_characters():
+func test_hud_shows_party_name_and_size_once_merged_and_omits_it_for_solo_characters():
 	var host: NpcAgent = main.npcs[0]
 	var joiner: NpcAgent = main.npcs[1]
 	var solo: NpcAgent = main.npcs[2]
 	PartyOps.join_party_of(joiner, host)
 	main.hud.refresh_npc(host)
+	main.hud.refresh_npc(joiner)
 	main.hud.refresh_npc(solo)
-	assert_string_contains(main.hud.rows[host]["header"].text, "(Party of 2)")
-	assert_false(main.hud.rows[solo]["header"].text.contains("(Party of"))
+	var expected := "Party: %s (2)" % host.party_name
+	assert_eq(main.hud.rows[host]["party"].text, expected)
+	assert_true(main.hud.rows[host]["party"].visible)
+	assert_eq(main.hud.rows[joiner]["party"].text, expected, "every member's panel shows the same party")
+	assert_false(main.hud.rows[solo]["party"].visible, "no party line for someone on their own")

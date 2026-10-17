@@ -83,6 +83,12 @@ var current_action: String = "Exploring"
 ## fight or form a party, and picks where to explore; followers just tag
 ## along (see _follow_to) and fight alongside whenever the leader does.
 var party: Array = []
+## The party's randomly generated name (see PartyNames), shared by every
+## member. Empty until this character first ends up in a party of two or
+## more; kept after the rest of the party falls, so a lone survivor who
+## teams up with another loner later carries the old name on (see
+## PartyOps._merged_party_name).
+var party_name: String = ""
 var is_party_leader: bool = true
 var party_offset: Vector2 = Vector2.ZERO
 

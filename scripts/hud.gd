@@ -144,6 +144,14 @@ func _build_panel(npc: NpcAgent) -> Dictionary:
 	header.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header_row.add_child(header)
 
+	# Its own line rather than part of the header: party names run up to
+	# ~30 characters, which would push the header past the panel's width.
+	# Hidden while on their own (see _fill_panel).
+	var party_label := Label.new()
+	party_label.add_theme_font_size_override("font_size", 12)
+	party_label.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0, 1.0))
+	vbox.add_child(party_label)
+
 	var action_label := Label.new()
 	action_label.add_theme_font_size_override("font_size", 12)
 	action_label.add_theme_color_override("font_color", Color(0.85, 0.85, 0.6, 1.0))
@@ -198,6 +206,7 @@ func _build_panel(npc: NpcAgent) -> Dictionary:
 		"flash": flash,
 		"header_row": header_row,
 		"header": header,
+		"party": party_label,
 		"rank": 0,
 		"action": action_label,
 		"hp_bar": hp_widget["bar"],
@@ -345,9 +354,12 @@ func _refresh_row(npc: NpcAgent) -> void:
 func _fill_panel(r: Dictionary, npc: NpcAgent) -> void:
 	var s: NpcStats = npc.stats
 
-	var party_tag: String = " (Party of %d)" % npc.party.size() if npc.party.size() > 1 else ""
 	var rank_tag: String = "#%d " % int(r["rank"]) if int(r["rank"]) > 0 else ""
-	r["header"].text = "%s%s [%s]%s — Lv.%d (%d/%d XP)  %dg" % [rank_tag, npc.npc_name, s.alignment, party_tag, s.level, s.xp, s.xp_to_next, s.gold]
+	r["header"].text = "%s%s [%s] — Lv.%d (%d/%d XP)  %dg" % [rank_tag, npc.npc_name, s.alignment, s.level, s.xp, s.xp_to_next, s.gold]
+	var in_party: bool = npc.party.size() > 1
+	r["party"].visible = in_party
+	if in_party:
+		r["party"].text = "Party: %s (%d)" % [npc.party_name, npc.party.size()]
 	r["action"].text = "Action: %s" % npc.current_action
 
 	var hp_bar: ProgressBar = r["hp_bar"]
