@@ -71,7 +71,7 @@ static func can_form_party_with(npc: NpcAgent, opponent: NpcAgent) -> bool:
 ## as everyone already in it.
 static func join_party_of(joiner: NpcAgent, host: NpcAgent) -> void:
 	var joining: Array = joiner.party.duplicate()
-	joiner.players.erase(joiner.cell_pos)
+	joiner._unregister()
 	for member in joining:
 		if not is_instance_valid(member) or member.dead:
 			continue
@@ -120,5 +120,10 @@ static func promote_next_leader(former_leader: NpcAgent) -> void:
 			member.is_party_leader = true
 			member.cell_pos = former_leader.cell_pos
 			member.position = former_leader.position
-			former_leader.players[former_leader.cell_pos] = member
+			# Take over the cell's registration -- unless some *other* party's
+			# leader holds it (the two were sharing a cell), which mustn't be
+			# knocked off the map in turn.
+			var owner = former_leader.players.get(former_leader.cell_pos)
+			if owner == null or owner == former_leader:
+				former_leader.players[former_leader.cell_pos] = member
 			return

@@ -106,7 +106,7 @@ func test_newcomer_fights_alongside_and_is_released_when_the_fight_ends():
 	assert_true(host.living_party().has(newcomer), "the fight loop iterates living_party() -- the newcomer must be in it")
 
 	enemy.stats.hp = 0  # not 1: attacks can miss, and the test would flake
-	host._resolve_group_combat_turn(host.cell_pos, enemy_cell)
+	host._resolve_group_combat_turn(host.party, enemy_cell)
 
 	assert_false(main.enemy_map.has(enemy_cell), "sanity: the pack should be defeated")
 	assert_false(newcomer.in_pack_combat, "the newcomer's combat flag should be released with everyone else's")

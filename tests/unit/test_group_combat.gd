@@ -115,7 +115,7 @@ func test_party_defeats_a_weaker_enemy_pack():
 
 	var guard := 0
 	while main.enemy_map.has(foe_cell) and guard < 30:
-		leader._resolve_group_combat_turn(leader.cell_pos, foe_cell)
+		leader._resolve_group_combat_turn(leader.party, foe_cell)
 		guard += 1
 
 	assert_false(main.enemy_map.has(foe_cell), "the party should wipe out the 2-enemy pack")
@@ -163,10 +163,7 @@ func test_mid_fight_leader_death_hands_off_to_a_surviving_follower():
 
 	var guard := 0
 	while main.enemy_map.has(cell) and not tanky.dead and guard < 30:
-		var driver: NpcAgent = main.player_map.get(fight_cell)
-		if driver == null:
-			break
-		driver._resolve_group_combat_turn(fight_cell, cell)
+		tanky._resolve_group_combat_turn(tanky.party, cell)
 		guard += 1
 
 	assert_false(main.enemy_map.has(cell), "the promoted leader should still be able to finish off the pack")
@@ -360,24 +357,107 @@ func test_a_follower_promoted_mid_fight_cannot_act_independently():
 	assert_eq(follower.cell_pos, cell_before, "a locked character's _process must not move it")
 	assert_true(follower.is_moving, "the lock should still be in place -- _process should have returned immediately")
 
-func test_enemy_in_combat_is_released_if_the_fight_loop_finds_no_one_left_at_its_anchor_cell():
-	# Reproduces the exact leak: simulate the fight's anchor cell no longer
-	# having anyone registered there (as if the driver had wandered off, or
-	# the whole party vanished) and confirm the pack's in_combat flag gets
-	# cleared rather than staying stuck forever.
+func test_enemy_in_combat_is_released_if_the_fight_loop_finds_no_one_left_in_the_party():
+	# The whole party gone (as if killed between turns): the pack's in_combat
+	# flag must be cleared rather than staying stuck forever.
 	var leader: NpcAgent = main.npcs[0]
 	var enemy := _new_enemy()
 	var cell: Vector2i = _clear_cell()
 	enemy.setup(cell, main.CELL_SIZE, 1, main.grid, main.enemy_map, {}, [])
-	var my_cell: Vector2i = leader.cell_pos
+	var party_ref: Array = leader.party
 
 	leader._engage(cell, enemy)
 	assert_true(enemy.in_combat, "sanity: engaging should mark the pack in_combat")
 
-	main.player_map.erase(my_cell)  # simulate nobody being registered there any more
-	leader._run_group_combat_turn(my_cell, cell)
+	for member in party_ref.duplicate():
+		member._die()
+	leader._run_group_combat_turn(party_ref, cell)
 
 	assert_false(enemy.in_combat, "the pack must not stay permanently marked in_combat with no one left to resolve the fight")
+
+## Regression test for a reported bug: a party of 2 stuck unable to move
+## after a third member joined (and then died). A follower's _die() erased
+## whoever was registered on its cell -- i.e. its own leader -- and the
+## fight loop, which found its driver by that registration, quit with the
+## party still locked. It now tracks the party array, and _die() only
+## removes its own registration.
+func test_follower_dying_mid_fight_does_not_strand_the_party():
+	var leader: NpcAgent = main.npcs[0]
+	var follower: NpcAgent = main.npcs[1]
+	var doomed: NpcAgent = main.npcs[2]
+	leader.party = [leader, follower, doomed]
+	leader.is_party_leader = true
+	for m in [follower, doomed]:
+		m.party = leader.party
+		m.is_party_leader = false
+		m.cell_pos = leader.cell_pos
+	for m in leader.party:
+		_set_stats(m, 10, 500, 30, 30)
+		m.stats.inventory.clear()
+	main.player_map[leader.cell_pos] = leader
+
+	var enemy := _new_enemy()
+	var cell: Vector2i = _clear_cell()
+	enemy.setup(cell, main.CELL_SIZE, 1, main.grid, main.enemy_map, {}, [])
+	enemy.stats.hp = 60
+	leader._engage(cell, enemy)
+
+	doomed._die()  # a follower falls mid-fight
+	assert_eq(main.player_map.get(leader.cell_pos), leader, "a follower dying must not erase its leader's registration")
+
+	var guard := 0
+	while main.enemy_map.has(cell) and guard < 40:
+		leader._resolve_group_combat_turn(leader.party, cell)
+		guard += 1
+	assert_false(main.enemy_map.has(cell), "the fight should carry on to the end, not quit")
+	for m in [leader, follower]:
+		assert_false(m.in_pack_combat, "%s should be released once it's over" % m.npc_name)
+
+func test_fight_carries_on_even_if_the_leaders_registration_is_lost():
+	# Belt and braces: whatever knocks the party off the player map, its own
+	# fight must still be driven to a proper end rather than abandoned.
+	var leader: NpcAgent = main.npcs[0]
+	_set_stats(leader, 10, 500, 30, 30)
+	leader.stats.inventory.clear()
+	var enemy := _new_enemy()
+	var cell: Vector2i = _clear_cell()
+	enemy.setup(cell, main.CELL_SIZE, 1, main.grid, main.enemy_map, {}, [])
+	enemy.stats.hp = 60
+	leader._engage(cell, enemy)
+
+	main.player_map.erase(leader.cell_pos)
+	var guard := 0
+	while main.enemy_map.has(cell) and guard < 40:
+		leader._resolve_group_combat_turn(leader.party, cell)
+		guard += 1
+	assert_false(main.enemy_map.has(cell))
+	assert_false(leader.in_pack_combat, "the party must be released, not left locked in place")
+
+func test_leader_leaving_a_shared_cell_does_not_erase_the_other_leaders_registration():
+	var a: NpcAgent = main.npcs[0]
+	var b: NpcAgent = main.npcs[1]
+	var shared: Vector2i = a.cell_pos
+	b.cell_pos = shared
+	main.player_map[shared] = b  # b arrived second, so b holds the cell
+
+	a._on_move_finished(shared + Vector2i(1, 0))
+
+	assert_eq(main.player_map.get(shared), b, "a moving off must not knock b off the map")
+
+func test_promotion_does_not_overwrite_another_partys_registration():
+	var leader: NpcAgent = main.npcs[0]
+	var follower: NpcAgent = main.npcs[1]
+	var other: NpcAgent = main.npcs[2]
+	leader.party = [leader, follower]
+	follower.party = leader.party
+	follower.is_party_leader = false
+	other.cell_pos = leader.cell_pos
+	main.player_map[leader.cell_pos] = other  # the other party's leader holds the shared cell
+
+	leader._die()
+
+	assert_true(follower.is_party_leader, "sanity: the follower should be promoted")
+	assert_eq(main.player_map.get(leader.cell_pos), other)
 
 ## Regression test for a reported bug: a monster kills a player, then never
 ## moves again. The fight loop captured the pack leader at the start of the
@@ -411,7 +491,7 @@ func test_pack_survivor_is_released_when_its_leader_and_the_party_fall_in_the_sa
 		player.in_pack_combat = true
 		player.is_moving = true
 
-		player._resolve_group_combat_turn(player.cell_pos, cell)
+		player._resolve_group_combat_turn(player.party, cell)
 
 		assert_true(survivor.is_pack_leader, "sanity: the survivor should have taken over the pack")
 		if player.dead:
@@ -446,11 +526,11 @@ func test_a_pack_freed_this_way_can_be_fought_normally_afterwards():
 	enemy.setup(cell, main.CELL_SIZE, 1, main.grid, main.enemy_map, {}, [])
 	enemy.stats.hp = 5
 	enemy.stats.max_hp = 5
-	var my_cell: Vector2i = leader.cell_pos
+	var party_ref: Array = leader.party
 
 	leader._engage(cell, enemy)
-	main.player_map.erase(my_cell)
-	leader._run_group_combat_turn(my_cell, cell)
+	leader._die()  # the whole (solo) party gone mid-fight
+	leader._run_group_combat_turn(party_ref, cell)
 	assert_false(enemy.in_combat)
 
 	# A second, fresh character should be able to engage the now-freed pack
@@ -469,6 +549,6 @@ func test_a_pack_freed_this_way_can_be_fought_normally_afterwards():
 
 	var guard := 0
 	while main.enemy_map.has(cell) and guard < 30:
-		newcomer._resolve_group_combat_turn(newcomer_cell, cell)
+		newcomer._resolve_group_combat_turn(newcomer.party, cell)
 		guard += 1
 	assert_false(main.enemy_map.has(cell), "the newcomer should be able to actually finish off the freed pack")
