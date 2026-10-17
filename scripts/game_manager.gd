@@ -37,6 +37,8 @@ var start_cells: Array = []
 var exit_cell: Vector2i
 var enemy_map: Dictionary = {}
 var chest_map: Dictionary = {}
+## Every living player, by current cell — lets NPCs see and fight each other.
+var player_map: Dictionary = {}
 ## Centers of the shops, in list form (for drawing) and lookup form.
 var shop_cells: Array = []
 var shop_map: Dictionary = {}
@@ -65,6 +67,8 @@ func _ready() -> void:
 	_place_shops(generator)
 	_place_mini_bosses(generator)
 	maze_view.set_maze(grid, CELL_SIZE, start_cells, exit_cell, shop_cells, mini_boss_cells)
+	maze_view.reveal_permanently(_zone_cells(exit_cell))
+	hud.fog_toggled.connect(maze_view.set_fog_enabled)
 	_spawn_enemies()
 	_spawn_boss()
 	_spawn_chests()
@@ -72,6 +76,13 @@ func _ready() -> void:
 
 func _process(_delta: float) -> void:
 	hud.update_positions(npcs)
+	maze_view.update_fog(npcs, NpcAgent.SIGHT_RANGE)
+	for cell in enemy_map:
+		var enemy: EnemyAgent = enemy_map[cell]
+		enemy.visible = maze_view.is_currently_visible(cell)
+	for cell in chest_map:
+		var chest: ChestAgent = chest_map[cell]
+		chest.visible = maze_view.is_currently_visible(cell)
 
 ## Walks the border of the maze and picks `count` evenly spaced cells along
 ## it, so however many NPCs there are, each begins from a distinct point
@@ -99,13 +110,19 @@ func _build_restricted_cells() -> void:
 		_restrict_zone(s)
 	_restrict_zone(exit_cell)
 
-## Marks the 3x3 block around `center` (clipped to the maze) as restricted.
-func _restrict_zone(center: Vector2i) -> void:
+## The 3x3 block around `center`, clipped to the maze bounds.
+func _zone_cells(center: Vector2i) -> Dictionary:
+	var cells: Dictionary = {}
 	for dy in range(-1, 2):
 		for dx in range(-1, 2):
 			var c := Vector2i(center.x + dx, center.y + dy)
 			if c.x >= 0 and c.x < MAZE_WIDTH and c.y >= 0 and c.y < MAZE_HEIGHT:
-				restricted_cells[c] = true
+				cells[c] = true
+	return cells
+
+## Marks the 3x3 block around `center` (clipped to the maze) as restricted.
+func _restrict_zone(center: Vector2i) -> void:
+	restricted_cells.merge(_zone_cells(center))
 
 func _zone_is_free(center: Vector2i) -> bool:
 	for dy in range(-1, 2):
@@ -133,6 +150,7 @@ func _place_shops(generator: MazeGenerator) -> void:
 				_restrict_zone(center)
 				shop_cells.append(center)
 				shop_map[center] = true
+				maze_view.register_sticky_zone(_zone_cells(center))
 				break
 
 ## Guards a handful of 3x3 mini boss rooms (structured the same way as the
@@ -148,6 +166,7 @@ func _place_mini_bosses(generator: MazeGenerator) -> void:
 			generator.carve_boss_room(grid, center, MAZE_WIDTH, MAZE_HEIGHT)
 			_restrict_zone(center)
 			mini_boss_cells.append(center)
+			maze_view.register_sticky_zone(_zone_cells(center))
 
 			var mini_boss: EnemyAgent = ENEMY_SCENE.instantiate()
 			enemy_container.add_child(mini_boss)
@@ -228,6 +247,21 @@ func _place_chest(cell: Vector2i, rarity: String = ItemCatalog.RARITY_BRONZE) ->
 	chest.setup(cell, CELL_SIZE, rarity)
 	chest_map[cell] = chest
 
+## Drops everything a fallen character was carrying where they died. If
+## another chest already sits on that exact cell (two characters happening to
+## die in the same spot), the loot is merged into it instead of replacing it.
+func _place_death_chest(cell: Vector2i, loot: Dictionary, gold: int) -> void:
+	if loot.is_empty() and gold <= 0:
+		return
+	if chest_map.has(cell):
+		var existing: ChestAgent = chest_map[cell]
+		existing.merge_in(loot, gold)
+		return
+	var chest: ChestAgent = CHEST_SCENE.instantiate()
+	chest_container.add_child(chest)
+	chest.setup_from_death(cell, CELL_SIZE, loot, gold)
+	chest_map[cell] = chest
+
 func _pick_chest_cell(start: Vector2i) -> Vector2i:
 	var candidates: Array = []
 	for dy in range(-1, 2):
@@ -248,7 +282,7 @@ func _spawn_npcs() -> void:
 		var color: Color = npc_colors[i % npc_colors.size()]
 		var display_name: String = npc_names[i % npc_names.size()]
 		var start_cell: Vector2i = start_cells[i]
-		npc.setup(start_cell, exit_cell, grid, CELL_SIZE, color, display_name, enemy_map, chest_map, shop_map)
+		npc.setup(start_cell, exit_cell, grid, CELL_SIZE, color, display_name, enemy_map, chest_map, shop_map, player_map)
 		npc.reached_exit.connect(_on_npc_reached_exit)
 		npc.leveled_up.connect(_on_npc_leveled_up)
 		npc.died.connect(_on_npc_died)
@@ -264,6 +298,7 @@ func _on_npc_reached_exit(npc: NpcAgent) -> void:
 func _on_npc_died(npc: NpcAgent) -> void:
 	npcs.erase(npc)
 	hud.mark_dead(npc)
+	_place_death_chest(npc.cell_pos, npc.stats.inventory.duplicate(), npc.stats.gold)
 	if npcs.is_empty() and winner == null:
 		hud.announce_no_winner()
 

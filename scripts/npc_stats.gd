@@ -17,6 +17,16 @@ extends Resource
 @export var wisdom: int = 10
 @export var charisma: int = 10
 
+const ALIGNMENT_GOOD := "Good"
+const ALIGNMENT_NEUTRAL := "Neutral"
+const ALIGNMENT_EVIL := "Evil"
+const ALIGNMENTS := [ALIGNMENT_GOOD, ALIGNMENT_NEUTRAL, ALIGNMENT_EVIL]
+
+@export var alignment: String = ALIGNMENT_NEUTRAL
+
+static func random_alignment() -> String:
+	return ALIGNMENTS[randi() % ALIGNMENTS.size()]
+
 @export var gold: int = 0
 
 ## Item name -> copies held (worn or not).

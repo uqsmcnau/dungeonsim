@@ -40,6 +40,13 @@ var visited: Dictionary = {}
 var enemies: Dictionary = {}
 var chests: Dictionary = {}
 var chest_goal: Vector2i = MazeQuery.NONE
+## Every living player, by current cell — shared across all NPCs, the same
+## way `enemies` is, so each can see where the others are.
+var players: Dictionary = {}
+## True while locked in a fight against another player. Unlike `is_moving`,
+## this also has to freeze the OTHER side's own _process, since a PvP fight
+## is driven entirely from one side's turn loop (see _run_pvp_combat_turn).
+var in_pvp_combat: bool = false
 ## Every shop in the world, and the ones this character has actually laid
 ## eyes on (it only makes trips to shops it knows about).
 var shops: Dictionary = {}
@@ -53,7 +60,7 @@ var current_action: String = "Exploring"
 @onready var visual: Polygon2D = $Visual
 @onready var name_label: Label = $NameLabel
 
-func setup(spawn_cell: Vector2i, target_cell: Vector2i, maze_grid: Array, cs: float, color: Color, display_name: String, enemy_map: Dictionary, chest_map: Dictionary, shop_map: Dictionary) -> void:
+func setup(spawn_cell: Vector2i, target_cell: Vector2i, maze_grid: Array, cs: float, color: Color, display_name: String, enemy_map: Dictionary, chest_map: Dictionary, shop_map: Dictionary, player_map: Dictionary) -> void:
 	cell_pos = spawn_cell
 	exit_cell = target_cell
 	grid = maze_grid
@@ -62,11 +69,14 @@ func setup(spawn_cell: Vector2i, target_cell: Vector2i, maze_grid: Array, cs: fl
 	enemies = enemy_map
 	chests = chest_map
 	shops = shop_map
+	players = player_map
 	stats = NpcStats.new()
 	stats.roll_ability_scores()
+	stats.alignment = NpcStats.random_alignment()
 	visited[cell_pos] = true
 	visual.color = color
 	position = _cell_to_world(cell_pos)
+	players[cell_pos] = self
 	_update_label()
 	_check_for_chest()
 
@@ -74,7 +84,7 @@ func _process(delta: float) -> void:
 	if dead:
 		return
 	stats.regen_mp(delta)
-	if finished or is_moving:
+	if finished or is_moving or in_pvp_combat:
 		return
 	## Safety net: if a live enemy is ever standing on our own cell (e.g. one
 	## wandered into our destination while we were mid-transit), resolve that
@@ -83,12 +93,24 @@ func _process(delta: float) -> void:
 		var enemy: EnemyAgent = enemies[cell_pos]
 		if enemy.in_combat:
 			return
-		if _decide_fight(enemy):
+		if _decide_fight(enemy.stats):
 			_engage(cell_pos, enemy)
 			return
 		_retreat()
 		if is_moving:
 			return
+	## Same safety net for another player ending up on our cell. Whether we
+	## throw the first punch is up to alignment (see _decide_pvp_fight); if
+	## not, we just step away and leave them be.
+	if _has_live_player(cell_pos):
+		var opponent: NpcAgent = players[cell_pos]
+		if not opponent.in_pvp_combat:
+			if _decide_pvp_fight(opponent):
+				_engage_player(cell_pos, opponent)
+				return
+			_retreat()
+			if is_moving:
+				return
 	var pending_tome := _pending_tome()
 	if pending_tome != "":
 		_consume_item_idle(pending_tome)
@@ -279,49 +301,89 @@ func _has_live_enemy(cell: Vector2i) -> bool:
 	var enemy = enemies[cell]
 	return enemy != null and is_instance_valid(enemy) and enemy.alive
 
+func _has_live_player(cell: Vector2i) -> bool:
+	if not players.has(cell):
+		return false
+	var other = players[cell]
+	return other != null and is_instance_valid(other) and not other.dead and other != self
+
 ## If the destination holds a live enemy, decide whether to fight (a battle
 ## fought in 1-second turns) or flee (retreat toward already-explored ground
 ## instead). A live enemy always blocks the cell until it's defeated. If
-## another NPC is already fighting it, wait it out.
+## another NPC is already fighting it, wait it out. The same goes for another
+## player standing there, except whether to fight is governed by alignment
+## rather than combat odds alone (see _decide_pvp_fight).
 func _attempt_move(next_cell: Vector2i) -> void:
 	if _has_live_enemy(next_cell):
 		var enemy: EnemyAgent = enemies[next_cell]
 		if enemy.in_combat:
 			_retreat()
-		elif _decide_fight(enemy):
+		elif _decide_fight(enemy.stats):
 			_engage(next_cell, enemy)
+		else:
+			_retreat()
+		return
+	if _has_live_player(next_cell):
+		var opponent: NpcAgent = players[next_cell]
+		if opponent.in_pvp_combat:
+			_retreat()
+		elif _decide_pvp_fight(opponent):
+			_engage_player(next_cell, opponent)
 		else:
 			_retreat()
 		return
 	_move_to(next_cell)
 
-func _player_hit_chance(enemy: EnemyAgent) -> float:
-	return CombatRules.hit_chance(stats.accuracy(), enemy.stats.evasion())
+## These take an opponent's stat block directly (rather than an EnemyAgent)
+## so the same math works for a monster fight and a player-vs-player one.
+func _hit_chance_against(opponent_stats: NpcStats) -> float:
+	return CombatRules.hit_chance(stats.accuracy(), opponent_stats.evasion())
 
-func _enemy_hit_chance(enemy: EnemyAgent) -> float:
-	return CombatRules.hit_chance(enemy.stats.accuracy(), stats.evasion())
+func _hit_chance_from(opponent_stats: NpcStats) -> float:
+	return CombatRules.hit_chance(opponent_stats.accuracy(), stats.evasion())
 
 ## Average damage of one of our hits / one of theirs, assuming it lands.
-func _damage_per_hit_dealt(enemy: EnemyAgent) -> float:
-	return max(1.0, stats.attack_power() + 1.5 - enemy.stats.defense())
+func _damage_per_hit_dealt(opponent_stats: NpcStats) -> float:
+	return max(1.0, stats.attack_power() + 1.5 - opponent_stats.defense())
 
-func _damage_per_hit_taken(enemy: EnemyAgent) -> float:
-	return max(1.0, enemy.stats.attack_power() + 1.0 - stats.defense())
+func _damage_per_hit_taken(opponent_stats: NpcStats) -> float:
+	return max(1.0, opponent_stats.attack_power() + 1.0 - stats.defense())
 
 ## Average damage per turn, counting the turns an attack misses.
-func _expected_damage_dealt(enemy: EnemyAgent) -> float:
-	return _player_hit_chance(enemy) * _damage_per_hit_dealt(enemy)
+func _expected_damage_dealt(opponent_stats: NpcStats) -> float:
+	return _hit_chance_against(opponent_stats) * _damage_per_hit_dealt(opponent_stats)
 
-func _expected_damage_taken(enemy: EnemyAgent) -> float:
-	return _enemy_hit_chance(enemy) * _damage_per_hit_taken(enemy)
+func _expected_damage_taken(opponent_stats: NpcStats) -> float:
+	return _hit_chance_from(opponent_stats) * _damage_per_hit_taken(opponent_stats)
 
-## Compares how many turns it'd take to kill the enemy against how many it
-## would take to be killed, and fights with a probability that reflects it.
-func _decide_fight(enemy: EnemyAgent) -> bool:
-	var turns_to_kill: float = max(enemy.stats.hp, 1) / _expected_damage_dealt(enemy)
-	var turns_to_die: float = max(stats.hp, 1) / _expected_damage_taken(enemy)
-	var win_chance: float = clampf(turns_to_die / (turns_to_die + turns_to_kill), 0.05, 0.95)
-	return randf() < win_chance
+## Compares how many turns it'd take to kill the opponent against how many it
+## would take to be killed ourselves — the same estimate both a monster
+## fight's coin-flip and a player's "can I win this" judgment are based on.
+func _win_chance_against(opponent_stats: NpcStats) -> float:
+	var turns_to_kill: float = max(opponent_stats.hp, 1) / _expected_damage_dealt(opponent_stats)
+	var turns_to_die: float = max(stats.hp, 1) / _expected_damage_taken(opponent_stats)
+	return clampf(turns_to_die / (turns_to_die + turns_to_kill), 0.05, 0.95)
+
+## Fights a monster with a probability that reflects the odds — even a
+## long-shot occasionally gets taken.
+func _decide_fight(opponent_stats: NpcStats) -> bool:
+	return randf() < _win_chance_against(opponent_stats)
+
+## Whether to throw the first punch at another player — governed by
+## alignment, not just the odds: Evil attacks anyone it thinks it can beat,
+## Good only attacks an Evil opponent it thinks it can beat, and Neutral
+## never starts one. Once a fight is actually underway (_run_pvp_combat_turn)
+## alignment no longer matters — everyone defends themselves regardless.
+func _decide_pvp_fight(opponent: NpcAgent) -> bool:
+	match stats.alignment:
+		NpcStats.ALIGNMENT_EVIL:
+			pass
+		NpcStats.ALIGNMENT_GOOD:
+			if opponent.stats.alignment != NpcStats.ALIGNMENT_EVIL:
+				return false
+		_:
+			return false
+	return _win_chance_against(opponent.stats) > 0.5
 
 ## Breaks off a fight that's turning dangerous. Damage already dealt stays on
 ## the enemy, so a character can retreat, recover, and come back to finish it.
@@ -346,7 +408,7 @@ func _engage(next_cell: Vector2i, enemy: EnemyAgent) -> void:
 ## out-damages a fresh character is often no longer the better choice once
 ## they've leveled up or found a sword — this compares them fresh each turn
 ## rather than always preferring magic once it's known.
-func _choose_combat_action(enemy: EnemyAgent) -> String:
+func _choose_combat_action(opponent_stats: NpcStats) -> String:
 	if stats.hp < int(stats.max_hp * IN_COMBAT_HEAL_THRESHOLD):
 		if stats.mp >= RECOVER_MP_COST:
 			return "recover"
@@ -354,7 +416,7 @@ func _choose_combat_action(enemy: EnemyAgent) -> String:
 			return "potion_hp"
 
 	var best_action := "attack"
-	var best_damage: float = _expected_damage_dealt(enemy)
+	var best_damage: float = _expected_damage_dealt(opponent_stats)
 	# Never spend the last of its mana on offense — always keep enough in
 	# reserve for one emergency Recover, so a spellcaster can't run itself
 	# out of healing by attacking too aggressively.
@@ -373,11 +435,11 @@ func _run_combat_turn(next_cell: Vector2i, enemy: EnemyAgent) -> void:
 		_move_to(next_cell)
 		return
 
-	if stats.hp <= _damage_per_hit_taken(enemy) * FLEE_DANGER_TURNS:
+	if stats.hp <= _damage_per_hit_taken(enemy.stats) * FLEE_DANGER_TURNS:
 		_disengage(enemy)
 		return
 
-	var action := _choose_combat_action(enemy)
+	var action := _choose_combat_action(enemy.stats)
 	match action:
 		"recover":
 			current_action = "Casting Recover"
@@ -398,13 +460,10 @@ func _run_combat_turn(next_cell: Vector2i, enemy: EnemyAgent) -> void:
 	var timer := get_tree().create_timer(TURN_SECONDS)
 	timer.timeout.connect(_resolve_combat_turn.bind(next_cell, enemy, action))
 
-func _resolve_combat_turn(next_cell: Vector2i, enemy: EnemyAgent, action: String) -> void:
-	if not is_instance_valid(enemy) or not enemy.alive:
-		is_moving = false
-		_update_label()
-		_move_to(next_cell)
-		return
-
+## Applies one chosen combat action (a plain attack, a spell, a potion, or
+## Recover) against an opponent's stat block. Shared between a monster fight
+## and a player-vs-player one — only what each side does with it differs.
+func _apply_combat_action(action: String, opponent_stats: NpcStats) -> void:
 	match action:
 		"recover":
 			stats.mp -= RECOVER_MP_COST
@@ -413,13 +472,22 @@ func _resolve_combat_turn(next_cell: Vector2i, enemy: EnemyAgent, action: String
 			_apply_consumable_effect("Health Potion")
 		"fireball":
 			stats.mp -= NpcStats.FIREBALL_MP_COST
-			enemy.stats.hp -= max(1, stats.fireball_power())
+			opponent_stats.hp -= max(1, stats.fireball_power())
 		"spark":
 			stats.mp -= NpcStats.SPARK_MP_COST
-			enemy.stats.hp -= max(1, stats.spark_power())
+			opponent_stats.hp -= max(1, stats.spark_power())
 		_:
-			if randf() < _player_hit_chance(enemy):
-				enemy.stats.hp -= max(1, stats.attack_power() + randi() % 4 - enemy.stats.defense())
+			if randf() < _hit_chance_against(opponent_stats):
+				opponent_stats.hp -= max(1, stats.attack_power() + randi() % 4 - opponent_stats.defense())
+
+func _resolve_combat_turn(next_cell: Vector2i, enemy: EnemyAgent, action: String) -> void:
+	if not is_instance_valid(enemy) or not enemy.alive:
+		is_moving = false
+		_update_label()
+		_move_to(next_cell)
+		return
+
+	_apply_combat_action(action, enemy.stats)
 
 	if enemy.stats.hp <= 0:
 		enemies.erase(next_cell)
@@ -433,7 +501,7 @@ func _resolve_combat_turn(next_cell: Vector2i, enemy: EnemyAgent, action: String
 		_move_to(next_cell)
 		return
 
-	if randf() < _enemy_hit_chance(enemy):
+	if randf() < _hit_chance_from(enemy.stats):
 		var damage: int = max(1, enemy.stats.attack_power() + randi() % 3 - stats.defense())
 		if randf() < ENEMY_CRIT_CHANCE:
 			damage = int(ceil(damage * ENEMY_CRIT_MULTIPLIER))
@@ -446,6 +514,96 @@ func _resolve_combat_turn(next_cell: Vector2i, enemy: EnemyAgent, action: String
 
 	_run_combat_turn(next_cell, enemy)
 
+## Starts a player-vs-player fight: both sides are locked out of their own
+## idle AI while whichever side initiated drives the turn-by-turn resolution,
+## calling into the opponent's own _choose_combat_action/_apply_combat_action
+## so each side fights with its own tactics rather than a dumb retaliation.
+func _engage_player(next_cell: Vector2i, opponent: NpcAgent) -> void:
+	is_moving = true
+	in_pvp_combat = true
+	opponent.in_pvp_combat = true
+	_run_pvp_combat_turn(next_cell, opponent)
+
+func _run_pvp_combat_turn(next_cell: Vector2i, opponent: NpcAgent) -> void:
+	if not is_instance_valid(opponent) or opponent.dead:
+		in_pvp_combat = false
+		is_moving = false
+		_update_label()
+		_move_to(next_cell)
+		return
+
+	if stats.hp <= _damage_per_hit_taken(opponent.stats) * FLEE_DANGER_TURNS:
+		_disengage_pvp(opponent)
+		return
+
+	if opponent.stats.hp <= opponent._damage_per_hit_taken(stats) * FLEE_DANGER_TURNS:
+		opponent._disengage_pvp(self)
+		is_moving = false
+		in_pvp_combat = false
+		_update_label()
+		return
+
+	var my_action := _choose_combat_action(opponent.stats)
+	var their_action: String = opponent._choose_combat_action(stats)
+
+	var my_display := _describe_combat_action(my_action, opponent.npc_name)
+	current_action = my_display["action_text"]
+	name_label.text = my_display["label_text"]
+	var their_display: Dictionary = opponent._describe_combat_action(their_action, npc_name)
+	opponent.current_action = their_display["action_text"]
+	opponent.name_label.text = their_display["label_text"]
+
+	var timer := get_tree().create_timer(TURN_SECONDS)
+	timer.timeout.connect(_resolve_pvp_combat_turn.bind(next_cell, opponent, my_action, their_action))
+
+func _resolve_pvp_combat_turn(next_cell: Vector2i, opponent: NpcAgent, my_action: String, their_action: String) -> void:
+	if not is_instance_valid(opponent) or opponent.dead:
+		in_pvp_combat = false
+		is_moving = false
+		_update_label()
+		_move_to(next_cell)
+		return
+
+	_apply_combat_action(my_action, opponent.stats)
+	if opponent.stats.hp <= 0:
+		in_pvp_combat = false
+		opponent.in_pvp_combat = false
+		opponent._die()
+		is_moving = false
+		_update_label()
+		_move_to(next_cell)
+		return
+
+	opponent._apply_combat_action(their_action, stats)
+	if stats.hp <= 0:
+		opponent.in_pvp_combat = false
+		_die()
+		return
+
+	_run_pvp_combat_turn(next_cell, opponent)
+
+func _describe_combat_action(action: String, opponent_name: String) -> Dictionary:
+	match action:
+		"recover":
+			return {"action_text": "Casting Recover", "label_text": "%s ✨ Recover" % npc_name}
+		"potion_hp":
+			return {"action_text": "Drinking Health Potion", "label_text": "%s Health Potion" % npc_name}
+		"fireball":
+			return {"action_text": "Casting Fireball", "label_text": "%s 🔥 Fireball" % npc_name}
+		"spark":
+			return {"action_text": "Casting Spark", "label_text": "%s ⚡ Spark" % npc_name}
+		_:
+			return {"action_text": "Fighting %s" % opponent_name, "label_text": "%s ⚔ vs %s" % [npc_name, opponent_name]}
+
+## Breaks off a player-vs-player fight that's turning dangerous for this
+## character specifically — the other side is freed to resume its own AI too.
+func _disengage_pvp(opponent: NpcAgent) -> void:
+	in_pvp_combat = false
+	opponent.in_pvp_combat = false
+	is_moving = false
+	_update_label()
+	_retreat()
+
 ## HP hitting 0 is final: the character dies, is hidden from the maze, and
 ## stops doing anything further. game_manager listens for `died` to drop it
 ## from the active roster and grey out its HUD panel.
@@ -454,13 +612,14 @@ func _die() -> void:
 	stats.hp = 0
 	current_action = "Defeated"
 	visible = false
+	players.erase(cell_pos)
 	died.emit(self)
 
 func _retreat() -> void:
 	var open_dirs := MazeQuery.open_neighbors(grid, cell_pos)
 	var retreat_options: Array = []
 	for c in open_dirs:
-		if visited.has(c) and not _has_live_enemy(c):
+		if visited.has(c) and not _has_live_enemy(c) and not _has_live_player(c):
 			retreat_options.append(c)
 	if retreat_options.is_empty():
 		return
@@ -497,12 +656,14 @@ func _move_to(next_cell: Vector2i) -> void:
 	tween.finished.connect(_on_move_finished.bind(next_cell))
 
 func _on_move_finished(next_cell: Vector2i) -> void:
+	players.erase(cell_pos)
 	cell_pos = next_cell
 	is_moving = false
 	_on_enter_cell()
 
 func _on_enter_cell() -> void:
 	visited[cell_pos] = true
+	players[cell_pos] = self
 	_check_for_chest()
 	if cell_pos == exit_cell and not finished:
 		finished = true
@@ -513,10 +674,11 @@ func _on_enter_cell() -> void:
 	if shops.has(cell_pos) and stats.has_shop_business():
 		_start_shopping()
 
-## Picks up any equipment sitting on our current cell. First come, first
-## served — the chest is removed from the shared map the moment it's
-## collected, so nobody else can also grab it. Only the first copy of a given
-## item takes effect; a duplicate is kept as a spare to sell.
+## Picks up anything sitting on our current cell. First come, first served —
+## the chest is removed from the shared map the moment it's collected, so
+## nobody else can also grab it. Only the first copy of a given item takes
+## effect; a duplicate is kept as a spare to sell. A death drop can hand over
+## several items plus gold at once.
 func _check_for_chest() -> void:
 	if not chests.has(cell_pos):
 		return
@@ -524,9 +686,21 @@ func _check_for_chest() -> void:
 	chests.erase(cell_pos)
 	if chest == null or not is_instance_valid(chest):
 		return
-	var item_name: String = chest.collect()
-	var worn := stats.acquire_item(item_name)
-	name_label.text = "%s found %s%s!" % [npc_name, item_name, "" if worn else " (spare)"]
+	var result: Dictionary = chest.collect()
+	var loot: Dictionary = result["loot"]
+	var gold: int = int(result["gold"])
+	var parts: Array = []
+	for item_name in loot:
+		var count: int = int(loot[item_name])
+		for i in range(count):
+			stats.acquire_item(item_name)
+		parts.append("%s x%d" % [item_name, count] if count > 1 else item_name)
+	stats.gold += gold
+	if gold > 0:
+		parts.append("%dg" % gold)
+	if parts.is_empty():
+		return
+	name_label.text = "%s found %s!" % [npc_name, ", ".join(parts)]
 	var timer := get_tree().create_timer(1.5)
 	timer.timeout.connect(_update_label)
 

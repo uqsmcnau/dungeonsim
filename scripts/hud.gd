@@ -1,9 +1,14 @@
 class_name Hud
 extends Control
 
+## Forwarded from the fog-of-war checkbox so GameManager can wire it
+## straight to MazeView without Hud needing to know about MazeView at all.
+signal fog_toggled(enabled: bool)
+
 @onready var left_container: VBoxContainer = $LeftStats
 @onready var right_container: VBoxContainer = $RightStats
 @onready var winner_label: Label = $WinnerLabel
+@onready var fog_toggle: CheckBox = $FogToggle
 
 var rows: Dictionary = {}
 var left_count: int = 0
@@ -13,6 +18,7 @@ func _ready() -> void:
 	winner_label.visible = false
 	left_container.add_theme_constant_override("separation", 2)
 	right_container.add_theme_constant_override("separation", 2)
+	fog_toggle.toggled.connect(func(pressed: bool): fog_toggled.emit(pressed))
 
 ## A single cell for the equipment/potions/spells grid: a fixed-width,
 ## word-wrapping label, so two long entries sharing a row wrap instead of
@@ -167,7 +173,7 @@ func _refresh_row(npc: NpcAgent) -> void:
 	var r: Dictionary = rows[npc]
 	var s: NpcStats = npc.stats
 
-	r["header"].text = "%s — Lv.%d (%d/%d XP)  %dg" % [npc.npc_name, s.level, s.xp, s.xp_to_next, s.gold]
+	r["header"].text = "%s [%s] — Lv.%d (%d/%d XP)  %dg" % [npc.npc_name, s.alignment, s.level, s.xp, s.xp_to_next, s.gold]
 	r["action"].text = "Action: %s" % npc.current_action
 
 	var hp_bar: ProgressBar = r["hp_bar"]
