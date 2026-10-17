@@ -48,6 +48,11 @@ var players: Dictionary = {}
 ## this also has to freeze the OTHER side's own _process, since a PvP fight
 ## is driven entirely from one side's turn loop (see _run_group_pvp_turn).
 var in_pvp_combat: bool = false
+## Mid-fight against a monster pack (see _engage). The is_moving lock is what
+## actually holds the party still; this records *why*, so a lock taken for
+## some other reason (e.g. PartyOps.relocate_to_party's walk-in) knows not
+## to release it when it finishes.
+var in_pack_combat: bool = false
 ## Start zones, shop zones, mini boss rooms and the boss room — no PvP may
 ## be started on any of these cells, on top of the existing rule that no
 ## monsters ever spawn there.
@@ -112,6 +117,7 @@ func _process(delta: float) -> void:
 	if _has_live_enemy(cell_pos):
 		var enemy: EnemyAgent = enemies[cell_pos]
 		if enemy.in_combat:
+			_try_join_fight_against(enemy)
 			return
 		if CombatMath.decide_fight(stats, enemy.stats):
 			_engage(cell_pos, enemy)
@@ -126,7 +132,13 @@ func _process(delta: float) -> void:
 	## we consider teaming up instead, and failing that just step away.
 	if _has_live_player(cell_pos):
 		var opponent: NpcAgent = players[cell_pos]
-		if not opponent.in_pvp_combat:
+		if opponent.is_in_combat():
+			# Never attacked mid-fight, but they can be joined -- and it's
+			# us who joins them, since their fight can't be interrupted.
+			if PartyOps.can_form_party_with(self, opponent):
+				PartyOps.join_party_of(self, opponent)
+				return
+		else:
 			if not safe_cells.has(cell_pos) and _decide_pvp_fight(opponent):
 				_engage_player(cell_pos, opponent)
 				return
@@ -335,16 +347,21 @@ func _has_live_player(cell: Vector2i) -> bool:
 ## If the destination holds a live enemy, decide whether to fight (a battle
 ## fought in 1-second turns) or flee (retreat toward already-explored ground
 ## instead). A live enemy always blocks the cell until it's defeated. If
-## another NPC is already fighting it, wait it out. The same goes for another
+## another party is already fighting it, join them if the two parties could
+## team up (see _try_join_fight_against), or back off if not. The same goes for another
 ## player standing there, except whether to fight is governed by alignment
 ## rather than combat odds alone (see _decide_pvp_fight), and never allowed
 ## at all in a safe room — and if neither side wants to fight, they may band
-## together into one party instead.
+## together into one party instead. A player already mid-fight (with
+## monsters or other players) is never attacked, but can still be joined:
+## this party merges into theirs and fights alongside them from the next
+## turn on, without their fight being interrupted.
 func _attempt_move(next_cell: Vector2i) -> void:
 	if _has_live_enemy(next_cell):
 		var enemy: EnemyAgent = enemies[next_cell]
 		if enemy.in_combat:
-			_retreat()
+			if not _try_join_fight_against(enemy):
+				_retreat()
 		elif CombatMath.decide_fight(stats, enemy.stats):
 			_engage(next_cell, enemy)
 		else:
@@ -352,8 +369,11 @@ func _attempt_move(next_cell: Vector2i) -> void:
 		return
 	if _has_live_player(next_cell):
 		var opponent: NpcAgent = players[next_cell]
-		if opponent.in_pvp_combat:
-			_retreat()
+		if opponent.is_in_combat():
+			if PartyOps.can_form_party_with(self, opponent):
+				PartyOps.join_party_of(self, opponent)
+			else:
+				_retreat()
 		elif not safe_cells.has(next_cell) and _decide_pvp_fight(opponent):
 			_engage_player(next_cell, opponent)
 		elif PartyOps.can_form_party_with(self, opponent):
@@ -391,6 +411,23 @@ func _weakest(combatants: Array):
 			weakest_hp = c.stats.hp
 	return weakest
 
+func is_in_combat() -> bool:
+	return in_pvp_combat or in_pack_combat
+
+## Approached from the monster side of someone else's fight: finds whoever's
+## currently leading the party fighting `enemy` and, if the two parties could
+## team up, joins them -- moving over to stand with them on their side
+## (see PartyOps.relocate_to_party) rather than wading in onto the
+## monster's cell. Returns whether it joined.
+func _try_join_fight_against(enemy: EnemyAgent) -> bool:
+	var fighter: NpcAgent = _current_party_leader(enemy.fighting_party)
+	if fighter == null or fighter == self or not fighter.in_pack_combat:
+		return false
+	if not PartyOps.can_form_party_with(self, fighter):
+		return false
+	PartyOps.join_party_of(self, fighter)
+	return true
+
 ## Every living member of this character's party, including itself.
 func living_party() -> Array:
 	var result: Array = []
@@ -410,8 +447,10 @@ func living_party() -> Array:
 func _engage(next_cell: Vector2i, enemy: EnemyAgent) -> void:
 	for ally in living_party():
 		ally.is_moving = true
+		ally.in_pack_combat = true
 	for pack_member in enemy.living_pack():
 		pack_member.in_combat = true
+		pack_member.fighting_party = party
 	_run_group_combat_turn(cell_pos, next_cell)
 
 ## Survival first (Recover, or a Health Potion if it can't afford that), then
@@ -560,6 +599,7 @@ func _conclude_group_combat(enemy_cell: Vector2i) -> void:
 	for member in party:
 		if is_instance_valid(member):
 			member.is_moving = false
+			member.in_pack_combat = false
 	_update_label()
 	_move_to(enemy_cell)
 
@@ -572,6 +612,7 @@ func _disengage_group_combat(enemy_cell: Vector2i) -> void:
 	for member in party:
 		if is_instance_valid(member):
 			member.is_moving = false
+			member.in_pack_combat = false
 	_update_label()
 	_retreat()
 
@@ -728,6 +769,7 @@ func _die() -> void:
 	current_action = "Defeated"
 	visible = false
 	in_pvp_combat = false
+	in_pack_combat = false
 	players.erase(cell_pos)
 	party.erase(self)
 	if is_party_leader and not party.is_empty():

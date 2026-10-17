@@ -63,6 +63,12 @@ static func can_form_party_with(npc: NpcAgent, opponent: NpcAgent) -> bool:
 
 ## Merges `joiner`'s whole party into `host`'s (host remains the leader) —
 ## used when the two decide not to fight, instead.
+##
+## Works the same if `host` is mid-fight: both fight loops re-read the
+## host's shared party array every turn, so the newcomers simply start
+## taking turns (and taking hits) from the next one on, and the fight
+## itself carries on uninterrupted. They just need the same combat flags
+## as everyone already in it.
 static func join_party_of(joiner: NpcAgent, host: NpcAgent) -> void:
 	var joining: Array = joiner.party.duplicate()
 	joiner.players.erase(joiner.cell_pos)
@@ -71,12 +77,17 @@ static func join_party_of(joiner: NpcAgent, host: NpcAgent) -> void:
 			continue
 		member.is_party_leader = false
 		member.party = host.party
+		member.in_pvp_combat = host.in_pvp_combat
+		member.in_pack_combat = host.in_pack_combat
 		if not host.party.has(member):
 			host.party.append(member)
 	assign_party_offsets(host)
 	for member in joining:
 		if is_instance_valid(member) and not member.dead:
 			relocate_to_party(member, host)
+	# Mid-fight, the host's label is busy showing the fight -- don't clobber it.
+	if host.is_in_combat():
+		return
 	host.current_action = "Party formed (%d members)" % host.party.size()
 	host.name_label.text = "%s's party grew to %d!" % [host.npc_name, host.party.size()]
 	var timer := joiner.get_tree().create_timer(1.5, false)
@@ -92,7 +103,10 @@ static func relocate_to_party(member: NpcAgent, host: NpcAgent) -> void:
 	var tween := member.create_tween()
 	tween.tween_property(member, "position", target_world, duration)
 	tween.finished.connect(func():
-		member.is_moving = false
+		# Joined a monster fight in progress: stay locked like the rest of
+		# the party (see NpcAgent._engage) -- checked now, not at join time,
+		# in case the fight already ended during the walk over.
+		member.is_moving = member.in_pack_combat
 		member.cell_pos = host.cell_pos
 		member.visited[member.cell_pos] = true
 		member._update_label()

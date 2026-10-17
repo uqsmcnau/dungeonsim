@@ -27,6 +27,11 @@ var home_cell: Vector2i = Vector2i.ZERO
 var stats: NpcStats
 var alive: bool = true
 var in_combat: bool = false
+## The shared party array of whoever this pack is fighting (set alongside
+## in_combat by NpcAgent._engage, and only meaningful while that's true) --
+## lets a player who walks up to the monster side of a fight find the
+## fighters and join them.
+var fighting_party: Array = []
 var is_moving: bool = false
 var is_mini_boss: bool = false
 ## Stationary bosses never chase or wander, but still tick for HP regen. A
