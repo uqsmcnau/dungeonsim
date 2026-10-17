@@ -22,6 +22,10 @@ const CHEST_PATH_DEPTH := 24
 ## off and explore elsewhere, short enough to come back for it once the
 ## monster in the way has moved on.
 const CHEST_SKIP_STEPS := 12
+## How far a character will plan a route to another party it wants to team
+## up with. They're within SIGHT_RANGE in a straight line, so this mostly
+## leaves room for detours around monsters.
+const PARTY_PATH_DEPTH := 18
 ## A shop trip is only worth it if the shop is within this many steps.
 const SHOP_PATH_DEPTH := 80
 const SHOPPING_SECONDS := 1.0
@@ -237,9 +241,17 @@ func _finish_consume_idle(item_name: String) -> void:
 func _take_step() -> void:
 	_notice_shops()
 
-	# Priorities: a shop worth visiting, then a chest in sight, then exploring
-	# — and neither is worth picking a fight over, so an enemy in the way
-	# means carrying on with the next option instead.
+	# Priorities: teaming up with another party in sight that's up for it,
+	# then a shop worth visiting, then a chest in sight, then exploring --
+	# and none of these is worth picking a fight over, so an enemy in the
+	# way means carrying on with the next option instead.
+	var party_step := _party_up_step()
+	if party_step != cell_pos:
+		# Not _move_to: the step may well be onto the other party's cell,
+		# and _attempt_move is what merges the two on arrival.
+		_attempt_move(party_step)
+		return
+
 	var shop_step := _shop_step()
 	if shop_step != cell_pos and not _has_live_enemy(shop_step):
 		_move_to(shop_step)
@@ -257,6 +269,43 @@ func _take_step() -> void:
 	if candidate == cell_pos:
 		return
 	_attempt_move(candidate)
+
+## Next step toward the nearest other party leader in line of sight that
+## this party wants to team up with (see _wants_to_party_with), routed
+## around monsters -- or our own cell if there's no one. Both sides run
+## this, so two parties that spot each other close the gap from both ends;
+## one stuck in a fight can't move, so the other comes to it.
+func _party_up_step() -> Vector2i:
+	var candidates: Dictionary = {}
+	for c in players:
+		if _wants_to_party_with(players[c]):
+			candidates[c] = true
+	if candidates.is_empty():
+		return cell_pos
+	var target := MazeQuery.nearest_visible(grid, cell_pos, SIGHT_RANGE, candidates)
+	if target == MazeQuery.NONE:
+		return cell_pos
+	var step := MazeQuery.step_toward(grid, cell_pos, target, PARTY_PATH_DEPTH, _live_enemy_cells())
+	if step != cell_pos:
+		current_action = "Heading to join %s" % players[target].npc_name
+	return step
+
+## Whether this party and `other`'s would both rather band together than
+## not: the usual merge rules allow it (PartyOps.can_form_party_with), and
+## neither side would throw the first punch on contact -- otherwise walking
+## over "to team up" would really be walking into a fight. Someone already
+## mid-fight can't be attacked (see _attempt_move), so for them only the
+## merge rules matter.
+func _wants_to_party_with(other) -> bool:
+	if other == null or not is_instance_valid(other) or other == self:
+		return false
+	if other.dead or other.finished or other.party == party:
+		return false
+	if not PartyOps.can_form_party_with(self, other):
+		return false
+	if other.is_in_combat():
+		return true
+	return not _decide_pvp_fight(other) and not other._decide_pvp_fight(self)
 
 ## Remembers any shop currently in sight.
 func _notice_shops() -> void:

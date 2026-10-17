@@ -72,6 +72,10 @@ static func can_form_party_with(npc: NpcAgent, opponent: NpcAgent) -> bool:
 static func join_party_of(joiner: NpcAgent, host: NpcAgent) -> void:
 	var joining: Array = joiner.party.duplicate()
 	joiner._unregister()
+	# If the two shared a cell (e.g. both stepped onto the same one at once),
+	# whichever arrived second overwrote the other's registration -- make
+	# sure it's the host who's left on the map.
+	host.players[host.cell_pos] = host
 	for member in joining:
 		if not is_instance_valid(member) or member.dead:
 			continue
