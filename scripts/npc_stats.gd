@@ -233,6 +233,19 @@ func would_equip(item_name: String) -> bool:
 		return true
 	return ItemCatalog.value_of(item_name) > ItemCatalog.value_of(_weakest_in(slot))
 
+## How much better off wearing this item would leave this character: its
+## full worth if its slot has room, the gain over the weakest item it would
+## displace otherwise, or 0 if it wouldn't be worn at all (see would_equip)
+## -- which includes every consumable. Used to hand items to whichever party
+## member gains the most from them (PartyOps.best_wearer).
+func upgrade_value(item_name: String) -> float:
+	if not would_equip(item_name):
+		return 0.0
+	var slot: String = ItemCatalog.find(item_name)["slot"]
+	if equipped_in(slot).size() < int(ItemCatalog.SLOT_CAPACITY[slot]):
+		return ItemCatalog.value_of(item_name)
+	return ItemCatalog.value_of(item_name) - ItemCatalog.value_of(_weakest_in(slot))
+
 ## Takes a copy of an item into the inventory and tries to wear it. Only one
 ## of each item can be worn, and each slot holds a limited number: a free slot
 ## takes it, a full slot swaps out its weakest item if this one is better, and

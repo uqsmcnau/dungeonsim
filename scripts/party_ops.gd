@@ -159,3 +159,62 @@ static func promote_next_leader(former_leader: NpcAgent) -> void:
 			if owner == null or owner == former_leader:
 				former_leader.players[former_leader.cell_pos] = member
 			return
+
+# ============================ Sharing items ===============================
+
+## Which of `members` an item should go to, rather than always to whoever
+## happened to open the chest. `members[0]` is the opener and the fallback
+## when nobody stands out; ties go to whoever comes first in the list.
+## - Equipment: whoever it's the biggest upgrade for (see best_wearer).
+## - A spell tome: whoever doesn't know that spell yet and isn't already
+##   holding a copy, smartest first -- spell damage scales with
+##   intelligence.
+## - Anything else (potions): whoever holds the fewest of it.
+static func best_recipient(members: Array, item_name: String) -> NpcAgent:
+	var item := ItemCatalog.find(item_name)
+	if item.get("kind") == ItemCatalog.KIND_EQUIPMENT:
+		var wearer := best_wearer(members, item_name)
+		return wearer if wearer != null else members[0]
+	if item.get("effect") == "learn_spell":
+		var reader: NpcAgent = null
+		for m in members:
+			if m.stats.knows_spell(item["spell"]) or m.stats.has_item(item_name):
+				continue
+			if reader == null or m.stats.intelligence > reader.stats.intelligence:
+				reader = m
+		return reader if reader != null else members[0]
+	var keeper: NpcAgent = members[0]
+	for m in members:
+		if int(m.stats.inventory.get(item_name, 0)) < int(keeper.stats.inventory.get(item_name, 0)):
+			keeper = m
+	return keeper
+
+## Whichever of `members` would gain the most from wearing this item (see
+## NpcStats.upgrade_value), or null if none of them would wear it at all.
+static func best_wearer(members: Array, item_name: String) -> NpcAgent:
+	var best: NpcAgent = null
+	var best_gain := 0.0
+	for m in members:
+		var gain: float = m.stats.upgrade_value(item_name)
+		if gain > best_gain:
+			best = m
+			best_gain = gain
+	return best
+
+## At a shop, before anyone sells: hands each spare piece of equipment a
+## member is carrying to whichever party-mate would actually wear it, so
+## the party doesn't sell off something one of its own could use. Returns
+## how many items changed hands.
+static func pass_spares_around(members: Array) -> int:
+	var passed := 0
+	for giver in members:
+		for item_name in giver.stats.inventory.keys():
+			while giver.stats.spare_count(item_name) > 0:
+				var others: Array = members.filter(func(m): return m != giver)
+				var taker := best_wearer(others, item_name)
+				if taker == null:
+					break
+				giver.stats.consume_item(item_name)
+				taker.receive_item(item_name)
+				passed += 1
+	return passed

@@ -435,7 +435,7 @@ func _notice_shops() -> void:
 ## Next step toward the nearest known shop — but only while there's something
 ## to do there (spare items to sell, or gold for an item we don't have yet).
 func _shop_step() -> Vector2i:
-	if known_shops.is_empty() or not stats.has_shop_business():
+	if known_shops.is_empty() or not _party_has_shop_business():
 		return cell_pos
 	var nearest := MazeQuery.NONE
 	var nearest_dist := 1 << 30
@@ -446,7 +446,16 @@ func _shop_step() -> Vector2i:
 			nearest_dist = d
 	return MazeQuery.step_toward(grid, cell_pos, nearest, SHOP_PATH_DEPTH)
 
-## Sells spares and buys anything missing that the gold stretches to.
+## Whether a shop visit would do anything for anyone in the party -- the
+## whole party shops together (see _finish_shopping).
+func _party_has_shop_business() -> bool:
+	for member in living_party():
+		if member.stats.has_shop_business():
+			return true
+	return false
+
+## The whole party shops: spares go to party-mates who'd wear them first,
+## then everyone sells what's left and buys what their own gold stretches to.
 func _start_shopping() -> void:
 	is_moving = true
 	current_action = "Shopping"
@@ -457,12 +466,17 @@ func _start_shopping() -> void:
 func _finish_shopping() -> void:
 	if dead:
 		return
-	var sold := stats.sell_spares()
-	var bought := stats.buy_missing()
-	bought.append_array(stats.buy_potions())
+	var members := _self_first_party()
+	PartyOps.pass_spares_around(members)
+	var sold := 0
+	var bought := 0
+	for member in members:
+		sold += member.stats.sell_spares()
+		bought += member.stats.buy_missing().size()
+		bought += member.stats.buy_potions().size()
 	is_moving = false
-	if sold > 0 or not bought.is_empty():
-		name_label.text = "%s sold %d, bought %d" % [npc_name, sold, bought.size()]
+	if sold > 0 or bought > 0:
+		name_label.text = "%s sold %d, bought %d" % [npc_name, sold, bought]
 		var timer := get_tree().create_timer(1.5, false)
 		timer.timeout.connect(_update_label)
 	else:
@@ -656,9 +670,7 @@ func share_gold_with_party(amount: int) -> void:
 ## with this character, so none is lost to rounding. Members whose share
 ## comes to nothing are left out.
 func _split_evenly(amount: int) -> Dictionary:
-	var members: Array = living_party()
-	members.erase(self)
-	members.push_front(self)
+	var members := _self_first_party()
 	@warning_ignore("integer_division")
 	var share: int = amount / members.size()
 	var remainder: int = amount % members.size()
@@ -668,6 +680,24 @@ func _split_evenly(amount: int) -> Dictionary:
 		if gain > 0:
 			split[members[i]] = gain
 	return split
+
+## This character's living party with itself first -- the order shares are
+## handed out in, so ties and leftovers favour whoever did the deed.
+func _self_first_party() -> Array:
+	var members: Array = living_party()
+	members.erase(self)
+	members.push_front(self)
+	return members
+
+## Takes an item handed over from a chest or a party-mate (see
+## PartyOps.best_recipient). Followers never get idle moments of their own
+## -- only the leader's AI runs -- so a follower given a spell tome it can
+## use reads it on the spot, rather than carrying it around unread forever.
+func receive_item(item_name: String) -> void:
+	stats.acquire_item(item_name)
+	var item := ItemCatalog.find(item_name)
+	if not is_party_leader and item.get("effect") == "learn_spell" and not stats.knows_spell(item["spell"]):
+		_apply_consumable_effect(item_name)
 
 ## Every living member of this character's party, including itself.
 func living_party() -> Array:
@@ -1113,15 +1143,16 @@ func _on_enter_cell() -> void:
 	_update_label()
 	if finished:
 		current_action = "Finished the maze!"
-	if shops.has(cell_pos) and stats.has_shop_business():
+	if shops.has(cell_pos) and _party_has_shop_business():
 		_start_shopping()
 
 ## Picks up anything sitting on our current cell. First come, first served —
 ## the chest is removed from the shared map the moment it's collected, so
-## nobody else can also grab it. Only the first copy of a given item takes
-## effect; a duplicate is kept as a spare to sell. A death drop can hand over
-## several items plus gold at once. The items go to whoever opened it; the
-## gold is split evenly across their party (see share_gold_with_party).
+## nobody else can also grab it. A death drop can hand over several items
+## plus gold at once. Each item goes to whichever party member it helps most
+## (see PartyOps.best_recipient) -- the opener keeps anything nobody can
+## use, as a spare to sell -- and the gold is split evenly across the party
+## (see share_gold_with_party).
 func _check_for_chest() -> void:
 	if not chests.has(cell_pos):
 		return
@@ -1132,12 +1163,18 @@ func _check_for_chest() -> void:
 	var result: Dictionary = chest.collect()
 	var loot: Dictionary = result["loot"]
 	var gold: int = int(result["gold"])
-	var parts: Array = []
+	var members := _self_first_party()
+	# "Helmet" if the opener kept it, "Helmet → Bram" if it went to a mate.
+	var given: Dictionary = {}
 	for item_name in loot:
-		var count: int = int(loot[item_name])
-		for i in range(count):
-			stats.acquire_item(item_name)
-		parts.append("%s x%d" % [item_name, count] if count > 1 else item_name)
+		for i in range(int(loot[item_name])):
+			var recipient := PartyOps.best_recipient(members, item_name)
+			recipient.receive_item(item_name)
+			var entry: String = item_name if recipient == self else "%s → %s" % [item_name, recipient.npc_name]
+			given[entry] = int(given.get(entry, 0)) + 1
+	var parts: Array = []
+	for entry in given:
+		parts.append("%s x%d" % [entry, given[entry]] if given[entry] > 1 else entry)
 	share_gold_with_party(gold)
 	if gold > 0:
 		parts.append("%dg" % gold)
