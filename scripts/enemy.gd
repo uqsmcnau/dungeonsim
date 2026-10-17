@@ -29,8 +29,17 @@ var alive: bool = true
 var in_combat: bool = false
 var is_moving: bool = false
 var is_mini_boss: bool = false
-## Stationary bosses never chase or wander, but still tick for HP regen.
+## Stationary bosses never chase or wander, but still tick for HP regen. A
+## pack's non-leader members also have this false, for the same reason.
 var wanders: bool = true
+## Other enemies sharing this same encounter (a pack of 2-3 weaker enemies
+## in place of one full-strength one), including self. Only the leader
+## wanders/chases/registers in `enemies`; followers are stationary (like a
+## boss) and just tag along visually, but the whole living pack joins any
+## fight against it. Solo enemies just have themselves in this list.
+var pack: Array = []
+var is_pack_leader: bool = true
+var pack_offset: Vector2 = Vector2.ZERO
 
 var grid: Array = []
 var cell_size: float = 40.0
@@ -57,15 +66,66 @@ func setup(cell: Vector2i, cs: float, enemy_level: int, maze_grid: Array, enemy_
 	visual.color = Color(1.0, clampf(0.6 - stats.level * 0.08, 0.05, 0.6), 0.05, 1.0)
 	label.text = "%d" % stats.level
 	enemies[cell_pos] = self
+	pack = [self]
 	if wanders:
 		_wander_cooldown = randf_range(WANDER_MIN_WAIT, WANDER_MAX_WAIT)
 	_schedule_next_think(randf_range(0.0, THINK_SECONDS))
+
+## Links several already-set-up enemies into one pack sharing a single
+## encounter: only the first keeps wandering/chasing and blocking the cell
+## for movement purposes; the rest become stationary followers (just like a
+## stationary boss — still regenerating HP, just never acting on their own)
+## that visually tag along and join any fight the pack gets into.
+static func form_pack(members: Array) -> void:
+	if members.size() < 2:
+		return
+	for m in members:
+		m.pack = members
+	var leader: EnemyAgent = members[0]
+	var offsets := [Vector2(-7, -7), Vector2(7, -7), Vector2(-7, 7)]
+	for i in range(1, members.size()):
+		var follower: EnemyAgent = members[i]
+		follower.is_pack_leader = false
+		follower.wanders = false
+		follower.cell_pos = leader.cell_pos
+		follower.pack_offset = offsets[(i - 1) % offsets.size()]
+		follower.position = leader.position + follower.pack_offset
+	leader.enemies[leader.cell_pos] = leader
+
+## Every living member of this enemy's pack, including itself.
+func living_pack() -> Array:
+	var result: Array = []
+	for m in pack:
+		if is_instance_valid(m) and m.alive:
+			result.append(m)
+	return result
 
 func defeat() -> void:
 	alive = false
 	if is_mini_boss:
 		mini_boss_defeated.emit(cell_pos)
+	pack.erase(self)
+	if is_pack_leader:
+		if pack.is_empty():
+			enemies.erase(cell_pos)
+		else:
+			_promote_next_pack_leader()
 	queue_free()
+
+## If the pack's leader falls but others survive, one of them takes over
+## wandering/chasing and blocking the cell — otherwise the rest of the pack
+## would be stuck doing nothing forever, with nobody driving the pack.
+func _promote_next_pack_leader() -> void:
+	for m in pack:
+		if is_instance_valid(m) and m.alive:
+			m.is_pack_leader = true
+			m.wanders = true
+			m.pack_offset = Vector2.ZERO
+			m.position = position
+			m.cell_pos = cell_pos
+			enemies[cell_pos] = m
+			return
+	enemies.erase(cell_pos)
 
 func _schedule_next_think(wait_time: float = THINK_SECONDS) -> void:
 	var timer := get_tree().create_timer(wait_time)
@@ -158,3 +218,14 @@ func _move_to(target: Vector2i, seconds: float = WANDER_MOVE_SECONDS) -> void:
 	var tween := create_tween()
 	tween.tween_property(self, "position", target_world, seconds)
 	tween.finished.connect(func(): is_moving = false)
+	for member in pack:
+		if member != self and is_instance_valid(member) and member.alive:
+			member._follow_pack_move(target, seconds)
+
+## A pack follower tagging along with its leader's move, offset slightly so
+## the whole pack stays visible as distinct enemies.
+func _follow_pack_move(target: Vector2i, seconds: float) -> void:
+	cell_pos = target
+	var target_world := Vector2((target.x + 0.5) * cell_size, (target.y + 0.5) * cell_size) + pack_offset
+	var tween := create_tween()
+	tween.tween_property(self, "position", target_world, seconds)

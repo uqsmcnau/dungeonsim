@@ -23,6 +23,8 @@ const SHOPPING_SECONDS := 1.0
 const CONSUME_SECONDS := 1.0
 ## Below this fraction of max MP, top up with a Mana Potion if carrying one.
 const LOW_MANA_FRACTION := 0.3
+const MAX_PARTY_SIZE := 4
+const PARTY_OFFSETS := [Vector2.ZERO, Vector2(10, -10), Vector2(-10, 10), Vector2(10, 10)]
 
 signal reached_exit(npc: NpcAgent)
 signal leveled_up(npc: NpcAgent)
@@ -41,12 +43,17 @@ var enemies: Dictionary = {}
 var chests: Dictionary = {}
 var chest_goal: Vector2i = MazeQuery.NONE
 ## Every living player, by current cell — shared across all NPCs, the same
-## way `enemies` is, so each can see where the others are.
+## way `enemies` is, so each can see where the others are. Only ever holds
+## PARTY LEADERS; a party's followers are found via `party`, not this dict.
 var players: Dictionary = {}
 ## True while locked in a fight against another player. Unlike `is_moving`,
 ## this also has to freeze the OTHER side's own _process, since a PvP fight
-## is driven entirely from one side's turn loop (see _run_pvp_combat_turn).
+## is driven entirely from one side's turn loop (see _run_group_pvp_turn).
 var in_pvp_combat: bool = false
+## Start zones, shop zones, mini boss rooms and the boss room — no PvP may
+## be started on any of these cells, on top of the existing rule that no
+## monsters ever spawn there.
+var safe_cells: Dictionary = {}
 ## Every shop in the world, and the ones this character has actually laid
 ## eyes on (it only makes trips to shops it knows about).
 var shops: Dictionary = {}
@@ -56,11 +63,19 @@ var finished: bool = false
 var dead: bool = false
 ## What this character is doing right now, in plain words, for the HUD.
 var current_action: String = "Exploring"
+## Party of up to MAX_PARTY_SIZE characters (including self), sharing the
+## same array once merged — mirroring how `pack` works for enemy groups.
+## Only the leader (is_party_leader) runs its own idle AI, decides whether to
+## fight or form a party, and picks where to explore; followers just tag
+## along (see _follow_to) and fight alongside whenever the leader does.
+var party: Array = []
+var is_party_leader: bool = true
+var party_offset: Vector2 = Vector2.ZERO
 
 @onready var visual: Polygon2D = $Visual
 @onready var name_label: Label = $NameLabel
 
-func setup(spawn_cell: Vector2i, target_cell: Vector2i, maze_grid: Array, cs: float, color: Color, display_name: String, enemy_map: Dictionary, chest_map: Dictionary, shop_map: Dictionary, player_map: Dictionary) -> void:
+func setup(spawn_cell: Vector2i, target_cell: Vector2i, maze_grid: Array, cs: float, color: Color, display_name: String, enemy_map: Dictionary, chest_map: Dictionary, shop_map: Dictionary, player_map: Dictionary, restricted_cells: Dictionary = {}) -> void:
 	cell_pos = spawn_cell
 	exit_cell = target_cell
 	grid = maze_grid
@@ -70,6 +85,8 @@ func setup(spawn_cell: Vector2i, target_cell: Vector2i, maze_grid: Array, cs: fl
 	chests = chest_map
 	shops = shop_map
 	players = player_map
+	safe_cells = restricted_cells
+	party = [self]
 	stats = NpcStats.new()
 	stats.roll_ability_scores()
 	stats.alignment = NpcStats.random_alignment()
@@ -84,6 +101,11 @@ func _process(delta: float) -> void:
 	if dead:
 		return
 	stats.regen_mp(delta)
+	## Followers don't act independently at all — they just tag along with
+	## the leader (movement) and fight alongside it (combat), both driven
+	## entirely from the leader's own logic.
+	if not is_party_leader:
+		return
 	if finished or is_moving or in_pvp_combat:
 		return
 	## Safety net: if a live enemy is ever standing on our own cell (e.g. one
@@ -100,13 +122,18 @@ func _process(delta: float) -> void:
 		if is_moving:
 			return
 	## Same safety net for another player ending up on our cell. Whether we
-	## throw the first punch is up to alignment (see _decide_pvp_fight); if
-	## not, we just step away and leave them be.
+	## throw the first punch is up to alignment (see _decide_pvp_fight) —
+	## unless we're in a safe room (a start zone, shop, mini boss room or the
+	## boss room), where PvP can never be started at all. If not fighting,
+	## we consider teaming up instead, and failing that just step away.
 	if _has_live_player(cell_pos):
 		var opponent: NpcAgent = players[cell_pos]
 		if not opponent.in_pvp_combat:
-			if _decide_pvp_fight(opponent):
+			if not safe_cells.has(cell_pos) and _decide_pvp_fight(opponent):
 				_engage_player(cell_pos, opponent)
+				return
+			if _can_form_party_with(opponent):
+				opponent._join_party_of(self)
 				return
 			_retreat()
 			if is_moving:
@@ -312,7 +339,9 @@ func _has_live_player(cell: Vector2i) -> bool:
 ## instead). A live enemy always blocks the cell until it's defeated. If
 ## another NPC is already fighting it, wait it out. The same goes for another
 ## player standing there, except whether to fight is governed by alignment
-## rather than combat odds alone (see _decide_pvp_fight).
+## rather than combat odds alone (see _decide_pvp_fight), and never allowed
+## at all in a safe room — and if neither side wants to fight, they may band
+## together into one party instead.
 func _attempt_move(next_cell: Vector2i) -> void:
 	if _has_live_enemy(next_cell):
 		var enemy: EnemyAgent = enemies[next_cell]
@@ -327,8 +356,10 @@ func _attempt_move(next_cell: Vector2i) -> void:
 		var opponent: NpcAgent = players[next_cell]
 		if opponent.in_pvp_combat:
 			_retreat()
-		elif _decide_pvp_fight(opponent):
+		elif not safe_cells.has(next_cell) and _decide_pvp_fight(opponent):
 			_engage_player(next_cell, opponent)
+		elif _can_form_party_with(opponent):
+			_join_party_of(opponent)
 		else:
 			_retreat()
 		return
@@ -372,7 +403,7 @@ func _decide_fight(opponent_stats: NpcStats) -> bool:
 ## Whether to throw the first punch at another player — governed by
 ## alignment, not just the odds: Evil attacks anyone it thinks it can beat,
 ## Good only attacks an Evil opponent it thinks it can beat, and Neutral
-## never starts one. Once a fight is actually underway (_run_pvp_combat_turn)
+## never starts one. Once a fight is actually underway (_run_group_pvp_turn)
 ## alignment no longer matters — everyone defends themselves regardless.
 func _decide_pvp_fight(opponent: NpcAgent) -> bool:
 	match stats.alignment:
@@ -385,21 +416,121 @@ func _decide_pvp_fight(opponent: NpcAgent) -> bool:
 			return false
 	return _win_chance_against(opponent.stats) > 0.5
 
-## Breaks off a fight that's turning dangerous. Damage already dealt stays on
-## the enemy, so a character can retreat, recover, and come back to finish it.
-func _disengage(enemy: EnemyAgent) -> void:
-	enemy.in_combat = false
-	is_moving = false
-	_update_label()
-	_retreat()
+## The living member of `combatants` (an Array of anything exposing `.stats`)
+## with the lowest current HP — used so a group fight naturally focuses fire
+## on whoever's closest to falling.
+func _weakest(combatants: Array):
+	var weakest = null
+	var weakest_hp := 1 << 30
+	for c in combatants:
+		if c.stats.hp < weakest_hp:
+			weakest = c
+			weakest_hp = c.stats.hp
+	return weakest
 
-## Starts a battle fought in 1-second turns: the NPC is locked in place for
-## the duration of each turn, and the fight keeps going (attack, spell,
-## potion or Recover, chosen fresh each turn) until one side falls.
+## Every living member of this character's party, including itself.
+func living_party() -> Array:
+	var result: Array = []
+	for member in party:
+		if is_instance_valid(member) and not member.dead:
+			result.append(member)
+	return result
+
+func _assign_party_offsets() -> void:
+	for i in range(party.size()):
+		if is_instance_valid(party[i]):
+			party[i].party_offset = PARTY_OFFSETS[i % PARTY_OFFSETS.size()]
+
+## A meaningfully higher bar than the 50/50 "thinks it can probably win" used
+## to decide whether to throw a punch at all — "confident" means a clear
+## edge, not a coin flip. This also matters because the damage formulas give
+## the attacker a slightly higher bonus than the defender's counter (+1.5 vs
+## +1.0), so even two IDENTICAL characters compute themselves as having a
+## razor-thin edge over one another; a bar of 0.5 would make this check
+## nearly always true and the "form a party" rule nearly vacuous.
+const SOLO_CONFIDENCE_THRESHOLD := 0.65
+
+## Whether this Evil character is confident it could take on everyone else in
+## a prospective merge all by itself — checked against the toughest of them
+## by level, since if it can't beat the strongest, it can't beat them all.
+func _confident_solo_against(others: Array) -> bool:
+	if others.is_empty():
+		return false
+	var toughest: NpcAgent = others[0]
+	for o in others:
+		if o.stats.level > toughest.stats.level:
+			toughest = o
+	return _win_chance_against(toughest.stats) > SOLO_CONFIDENCE_THRESHOLD
+
+## Whether this character's party and `opponent`'s party can merge instead of
+## fighting. Good and Neutral characters always band together with each
+## other (and with each other's parties); Good and Evil never band together,
+## matching the fact that Good actively hunts Evil; Evil only bands together
+## with other Evil, and only if nobody in the combined group is confident it
+## could take everyone else by itself — otherwise it'd rather go it alone (or
+## try its luck fighting) than share the spoils.
+func _can_form_party_with(opponent: NpcAgent) -> bool:
+	if party.size() + opponent.party.size() > MAX_PARTY_SIZE:
+		return false
+
+	var i_am_evil := stats.alignment == NpcStats.ALIGNMENT_EVIL
+	var they_are_evil := opponent.stats.alignment == NpcStats.ALIGNMENT_EVIL
+	if i_am_evil != they_are_evil:
+		return false
+
+	if i_am_evil:
+		var everyone: Array = party + opponent.party
+		for member in everyone:
+			var others: Array = everyone.filter(func(m): return m != member)
+			if member._confident_solo_against(others):
+				return false
+
+	return true
+
+## Merges this character's whole party into `host`'s (host remains the
+## leader) — used when the two decide not to fight, instead.
+func _join_party_of(host: NpcAgent) -> void:
+	var joining: Array = party.duplicate()
+	players.erase(cell_pos)
+	for member in joining:
+		if not is_instance_valid(member) or member.dead:
+			continue
+		member.is_party_leader = false
+		member.party = host.party
+		if not host.party.has(member):
+			host.party.append(member)
+	host._assign_party_offsets()
+	for member in joining:
+		if is_instance_valid(member) and not member.dead:
+			member._relocate_to_party(host)
+	host.current_action = "Party formed (%d members)" % host.party.size()
+	host.name_label.text = "%s's party grew to %d!" % [host.npc_name, host.party.size()]
+	var timer := get_tree().create_timer(1.5)
+	timer.timeout.connect(host._update_label)
+
+## A one-time relocation onto a new host's cell for a character that just
+## joined that party, as opposed to _follow_to's every-step tagging along.
+func _relocate_to_party(host: NpcAgent) -> void:
+	is_moving = true
+	var duration: float = move_seconds_base / max(stats.move_speed(), 0.1)
+	var target_world: Vector2 = host.position + party_offset
+	var tween := create_tween()
+	tween.tween_property(self, "position", target_world, duration)
+	tween.finished.connect(func():
+		is_moving = false
+		cell_pos = host.cell_pos
+		visited[cell_pos] = true
+		_update_label()
+	)
+
+## Starts a fight between this character's whole party and an enemy pack —
+## every living member on both sides joins in, each fighting with their own
+## tactics each turn (see _resolve_group_combat_turn).
 func _engage(next_cell: Vector2i, enemy: EnemyAgent) -> void:
 	is_moving = true
-	enemy.in_combat = true
-	_run_combat_turn(next_cell, enemy)
+	for pack_member in enemy.living_pack():
+		pack_member.in_combat = true
+	_run_group_combat_turn(cell_pos, next_cell)
 
 ## Survival first (Recover, or a Health Potion if it can't afford that), then
 ## whichever of its attack spells or a plain attack actually deals the most
@@ -428,38 +559,6 @@ func _choose_combat_action(opponent_stats: NpcStats) -> String:
 		best_damage = stats.fireball_power()
 	return best_action
 
-func _run_combat_turn(next_cell: Vector2i, enemy: EnemyAgent) -> void:
-	if not is_instance_valid(enemy) or not enemy.alive:
-		is_moving = false
-		_update_label()
-		_move_to(next_cell)
-		return
-
-	if stats.hp <= _damage_per_hit_taken(enemy.stats) * FLEE_DANGER_TURNS:
-		_disengage(enemy)
-		return
-
-	var action := _choose_combat_action(enemy.stats)
-	match action:
-		"recover":
-			current_action = "Casting Recover"
-			name_label.text = "%s ✨ Recover" % npc_name
-		"potion_hp":
-			current_action = "Drinking Health Potion"
-			name_label.text = "%s Health Potion" % npc_name
-		"fireball":
-			current_action = "Casting Fireball"
-			name_label.text = "%s 🔥 Fireball" % npc_name
-		"spark":
-			current_action = "Casting Spark"
-			name_label.text = "%s ⚡ Spark" % npc_name
-		_:
-			current_action = "Fighting a level %d enemy" % enemy.stats.level
-			name_label.text = "%s ⚔ Lv.%d" % [npc_name, enemy.stats.level]
-
-	var timer := get_tree().create_timer(TURN_SECONDS)
-	timer.timeout.connect(_resolve_combat_turn.bind(next_cell, enemy, action))
-
 ## Applies one chosen combat action (a plain attack, a spell, a potion, or
 ## Recover) against an opponent's stat block. Shared between a monster fight
 ## and a player-vs-player one — only what each side does with it differs.
@@ -480,140 +579,270 @@ func _apply_combat_action(action: String, opponent_stats: NpcStats) -> void:
 			if randf() < _hit_chance_against(opponent_stats):
 				opponent_stats.hp -= max(1, stats.attack_power() + randi() % 4 - opponent_stats.defense())
 
-func _resolve_combat_turn(next_cell: Vector2i, enemy: EnemyAgent, action: String) -> void:
-	if not is_instance_valid(enemy) or not enemy.alive:
-		is_moving = false
-		_update_label()
-		_move_to(next_cell)
+## One turn of a party-vs-pack fight. `my_cell`/`enemy_cell` are the fixed
+## cells the two sides are anchored at for the whole fight; who specifically
+## is "driving" it (picked fresh each turn via the shared `players`/`enemies`
+## maps) can change mid-fight if whoever was driving falls and others on
+## their side survive — those maps are always kept pointing at a living
+## representative (see _die() and EnemyAgent.defeat()), so this never gets
+## stuck on a stale reference.
+func _run_group_combat_turn(my_cell: Vector2i, enemy_cell: Vector2i) -> void:
+	var me: NpcAgent = players.get(my_cell)
+	if me == null:
+		return
+	var enemy: EnemyAgent = enemies.get(enemy_cell)
+	var foes: Array = enemy.living_pack() if enemy != null and is_instance_valid(enemy) else []
+	if foes.is_empty():
+		me._conclude_group_combat(enemy_cell)
+		return
+	if me.living_party().is_empty():
 		return
 
-	_apply_combat_action(action, enemy.stats)
-
-	if enemy.stats.hp <= 0:
-		enemies.erase(next_cell)
-		stats.gold += enemy.stats.gold
-		var xp_gain: int = enemy.stats.xp
-		enemy.defeat()
-		if stats.add_xp(xp_gain):
-			leveled_up.emit(self)
-		is_moving = false
-		_update_label()
-		_move_to(next_cell)
+	var target: EnemyAgent = me._weakest(foes)
+	if me.stats.hp <= me._damage_per_hit_taken(target.stats) * FLEE_DANGER_TURNS:
+		me._disengage_group_combat(enemy_cell)
 		return
 
-	if randf() < _hit_chance_from(enemy.stats):
-		var damage: int = max(1, enemy.stats.attack_power() + randi() % 3 - stats.defense())
-		if randf() < ENEMY_CRIT_CHANCE:
-			damage = int(ceil(damage * ENEMY_CRIT_MULTIPLIER))
-		stats.hp -= damage
+	me.current_action = "Fighting a level %d enemy" % target.stats.level
+	me.name_label.text = "%s ⚔ Lv.%d" % [me.npc_name, target.stats.level]
+	var timer := me.get_tree().create_timer(TURN_SECONDS)
+	timer.timeout.connect(_resolve_group_combat_turn.bind(my_cell, enemy_cell))
 
-	if stats.hp <= 0:
+func _resolve_group_combat_turn(my_cell: Vector2i, enemy_cell: Vector2i) -> void:
+	var me: NpcAgent = players.get(my_cell)
+	if me == null:
+		return
+	var enemy: EnemyAgent = enemies.get(enemy_cell)
+	if enemy == null or not is_instance_valid(enemy):
+		me._conclude_group_combat(enemy_cell)
+		return
+
+	var foes: Array = enemy.living_pack()
+	for ally in me.living_party():
+		if foes.is_empty():
+			break
+		var target: EnemyAgent = me._weakest(foes)
+		var action: String = ally._choose_combat_action(target.stats)
+		ally._apply_combat_action(action, target.stats)
+		if target.stats.hp <= 0:
+			foes.erase(target)
+			ally.stats.gold += target.stats.gold
+			if ally.stats.add_xp(target.stats.xp):
+				ally.leveled_up.emit(ally)
+			target.defeat()
+
+	if foes.is_empty():
+		me._conclude_group_combat(enemy_cell)
+		return
+
+	for foe in foes:
+		var allies: Array = me.living_party()
+		if allies.is_empty():
+			break
+		var victim: NpcAgent = allies[randi() % allies.size()]
+		if randf() < victim._hit_chance_from(foe.stats):
+			var damage: int = max(1, foe.stats.attack_power() + randi() % 3 - victim.stats.defense())
+			if randf() < ENEMY_CRIT_CHANCE:
+				damage = int(ceil(damage * ENEMY_CRIT_MULTIPLIER))
+			victim.stats.hp -= damage
+			if victim.stats.hp <= 0:
+				victim._die()
+
+	if me.living_party().is_empty():
 		enemy.in_combat = false
-		_die()
 		return
 
-	_run_combat_turn(next_cell, enemy)
+	var next_driver: NpcAgent = players.get(my_cell)
+	if next_driver == null:
+		enemy.in_combat = false
+		return
+	next_driver._run_group_combat_turn(my_cell, enemy_cell)
 
-## Starts a player-vs-player fight: both sides are locked out of their own
-## idle AI while whichever side initiated drives the turn-by-turn resolution,
-## calling into the opponent's own _choose_combat_action/_apply_combat_action
-## so each side fights with its own tactics rather than a dumb retaliation.
+## Ends a party-vs-pack fight once the pack is wiped out: moves the
+## surviving party onto the now-empty cell.
+func _conclude_group_combat(enemy_cell: Vector2i) -> void:
+	is_moving = false
+	_update_label()
+	_move_to(enemy_cell)
+
+## Breaks off a fight that's turning dangerous for the character driving it.
+## Damage already dealt stays on the pack, so the party can retreat, recover,
+## and come back to finish it.
+func _disengage_group_combat(enemy_cell: Vector2i) -> void:
+	var enemy: EnemyAgent = enemies.get(enemy_cell)
+	if enemy != null and is_instance_valid(enemy):
+		enemy.in_combat = false
+	is_moving = false
+	_update_label()
+	_retreat()
+
+## Starts a player-vs-player fight between this character's whole party and
+## another leader's whole party — every living member on both sides joins
+## in, each fighting with their own tactics each turn (see
+## _resolve_group_pvp_turn).
 func _engage_player(next_cell: Vector2i, opponent: NpcAgent) -> void:
 	is_moving = true
-	in_pvp_combat = true
-	opponent.in_pvp_combat = true
-	_run_pvp_combat_turn(next_cell, opponent)
+	for member in living_party():
+		member.in_pvp_combat = true
+	for member in opponent.living_party():
+		member.in_pvp_combat = true
+	_run_group_pvp_turn(party, opponent.party, cell_pos, next_cell)
 
-func _run_pvp_combat_turn(next_cell: Vector2i, opponent: NpcAgent) -> void:
-	if not is_instance_valid(opponent) or opponent.dead:
-		in_pvp_combat = false
-		is_moving = false
-		_update_label()
-		_move_to(next_cell)
+## Whoever in `party_ref` is currently the registered leader (re-checked
+## fresh each call, since a fallen driver is replaced by a promoted
+## party-mate — see _die()). Falls back to any living member defensively,
+## though _die()'s promotion should mean that's never actually needed.
+func _current_party_leader(party_ref: Array) -> NpcAgent:
+	for member in party_ref:
+		if is_instance_valid(member) and not member.dead and member.is_party_leader:
+			return member
+	for member in party_ref:
+		if is_instance_valid(member) and not member.dead:
+			return member
+	return null
+
+## One turn of a party-vs-party fight. `my_party`/`their_party` are the two
+## sides' shared party arrays — a stable identity even when (as when this
+## fight was triggered by one side finding the other already on its own
+## cell) both sides occupy the exact same cell, which a cell-keyed lookup
+## couldn't tell apart. `my_cell`/`their_cell` are only kept around for the
+## final move onto the loser's position once the fight ends.
+func _run_group_pvp_turn(my_party: Array, their_party: Array, my_cell: Vector2i, their_cell: Vector2i) -> void:
+	var me: NpcAgent = _current_party_leader(my_party)
+	var them: NpcAgent = _current_party_leader(their_party)
+	if me == null or them == null:
+		_release_pvp_locks(my_party, their_party)
+		return
+	var foes: Array = them.living_party()
+	var allies: Array = me.living_party()
+	if foes.is_empty() or allies.is_empty():
+		_conclude_group_pvp(my_party, their_party, my_cell, their_cell)
 		return
 
-	if stats.hp <= _damage_per_hit_taken(opponent.stats) * FLEE_DANGER_TURNS:
-		_disengage_pvp(opponent)
+	var my_target: NpcAgent = me._weakest(foes)
+	if me.stats.hp <= me._damage_per_hit_taken(my_target.stats) * FLEE_DANGER_TURNS:
+		me._disengage_group_pvp(my_party, their_party)
+		return
+	var their_target: NpcAgent = them._weakest(allies)
+	if them.stats.hp <= them._damage_per_hit_taken(their_target.stats) * FLEE_DANGER_TURNS:
+		them._disengage_group_pvp(their_party, my_party)
 		return
 
-	if opponent.stats.hp <= opponent._damage_per_hit_taken(stats) * FLEE_DANGER_TURNS:
-		opponent._disengage_pvp(self)
-		is_moving = false
-		in_pvp_combat = false
-		_update_label()
+	me.current_action = "Fighting %s" % them.npc_name
+	me.name_label.text = "%s ⚔ vs %s" % [me.npc_name, them.npc_name]
+	them.current_action = "Fighting %s" % me.npc_name
+	them.name_label.text = "%s ⚔ vs %s" % [them.npc_name, me.npc_name]
+
+	var timer := me.get_tree().create_timer(TURN_SECONDS)
+	timer.timeout.connect(_resolve_group_pvp_turn.bind(my_party, their_party, my_cell, their_cell))
+
+func _resolve_group_pvp_turn(my_party: Array, their_party: Array, my_cell: Vector2i, their_cell: Vector2i) -> void:
+	var me: NpcAgent = _current_party_leader(my_party)
+	var them: NpcAgent = _current_party_leader(their_party)
+	if me == null or them == null:
+		_release_pvp_locks(my_party, their_party)
 		return
 
-	var my_action := _choose_combat_action(opponent.stats)
-	var their_action: String = opponent._choose_combat_action(stats)
+	var foes: Array = them.living_party()
+	for ally in me.living_party():
+		if foes.is_empty():
+			break
+		var target: NpcAgent = me._weakest(foes)
+		var action: String = ally._choose_combat_action(target.stats)
+		ally._apply_combat_action(action, target.stats)
+		if target.stats.hp <= 0:
+			foes.erase(target)
+			target._die()
 
-	var my_display := _describe_combat_action(my_action, opponent.npc_name)
-	current_action = my_display["action_text"]
-	name_label.text = my_display["label_text"]
-	var their_display: Dictionary = opponent._describe_combat_action(their_action, npc_name)
-	opponent.current_action = their_display["action_text"]
-	opponent.name_label.text = their_display["label_text"]
-
-	var timer := get_tree().create_timer(TURN_SECONDS)
-	timer.timeout.connect(_resolve_pvp_combat_turn.bind(next_cell, opponent, my_action, their_action))
-
-func _resolve_pvp_combat_turn(next_cell: Vector2i, opponent: NpcAgent, my_action: String, their_action: String) -> void:
-	if not is_instance_valid(opponent) or opponent.dead:
-		in_pvp_combat = false
-		is_moving = false
-		_update_label()
-		_move_to(next_cell)
+	var allies: Array = me.living_party()
+	if foes.is_empty() or allies.is_empty():
+		_conclude_group_pvp(my_party, their_party, my_cell, their_cell)
 		return
 
-	_apply_combat_action(my_action, opponent.stats)
-	if opponent.stats.hp <= 0:
-		in_pvp_combat = false
-		opponent.in_pvp_combat = false
-		opponent._die()
-		is_moving = false
-		_update_label()
-		_move_to(next_cell)
+	for foe in foes:
+		allies = me.living_party()
+		if allies.is_empty():
+			break
+		var target: NpcAgent = foe._weakest(allies)
+		var action: String = foe._choose_combat_action(target.stats)
+		foe._apply_combat_action(action, target.stats)
+		if target.stats.hp <= 0:
+			target._die()
+
+	if me.living_party().is_empty() or them.living_party().is_empty():
+		_conclude_group_pvp(my_party, their_party, my_cell, their_cell)
 		return
 
-	opponent._apply_combat_action(their_action, stats)
-	if stats.hp <= 0:
-		opponent.in_pvp_combat = false
-		_die()
+	var next_driver: NpcAgent = _current_party_leader(my_party)
+	if next_driver == null:
+		_release_pvp_locks(my_party, their_party)
 		return
+	next_driver._run_group_pvp_turn(my_party, their_party, my_cell, their_cell)
 
-	_run_pvp_combat_turn(next_cell, opponent)
+## Ends a party-vs-party fight once one side (or both) has no one left
+## standing: releases both sides' combat locks, and if exactly one side
+## still has survivors, moves them onto the other's cell to claim it (and
+## any death-chest loot left behind) — a no-op move if the two were already
+## sharing the same cell.
+func _conclude_group_pvp(my_party: Array, their_party: Array, my_cell: Vector2i, their_cell: Vector2i) -> void:
+	_release_pvp_locks(my_party, their_party)
+	var my_side: NpcAgent = _current_party_leader(my_party)
+	var their_side: NpcAgent = _current_party_leader(their_party)
+	if my_side != null and their_side == null:
+		my_side.is_moving = false
+		my_side._update_label()
+		my_side._move_to(their_cell)
+	elif their_side != null and my_side == null:
+		their_side.is_moving = false
+		their_side._update_label()
+		their_side._move_to(my_cell)
 
-func _describe_combat_action(action: String, opponent_name: String) -> Dictionary:
-	match action:
-		"recover":
-			return {"action_text": "Casting Recover", "label_text": "%s ✨ Recover" % npc_name}
-		"potion_hp":
-			return {"action_text": "Drinking Health Potion", "label_text": "%s Health Potion" % npc_name}
-		"fireball":
-			return {"action_text": "Casting Fireball", "label_text": "%s 🔥 Fireball" % npc_name}
-		"spark":
-			return {"action_text": "Casting Spark", "label_text": "%s ⚡ Spark" % npc_name}
-		_:
-			return {"action_text": "Fighting %s" % opponent_name, "label_text": "%s ⚔ vs %s" % [npc_name, opponent_name]}
+func _release_pvp_locks(party_a: Array, party_b: Array) -> void:
+	for party_ref in [party_a, party_b]:
+		for member in party_ref:
+			if is_instance_valid(member):
+				member.in_pvp_combat = false
 
-## Breaks off a player-vs-player fight that's turning dangerous for this
-## character specifically — the other side is freed to resume its own AI too.
-func _disengage_pvp(opponent: NpcAgent) -> void:
-	in_pvp_combat = false
-	opponent.in_pvp_combat = false
+## Breaks off a player-vs-player fight that's turning dangerous for the
+## character driving this side of it — both sides are freed to resume their
+## own AI, and this side's party retreats together.
+func _disengage_group_pvp(my_party: Array, their_party: Array) -> void:
+	_release_pvp_locks(my_party, their_party)
 	is_moving = false
 	_update_label()
 	_retreat()
 
 ## HP hitting 0 is final: the character dies, is hidden from the maze, and
 ## stops doing anything further. game_manager listens for `died` to drop it
-## from the active roster and grey out its HUD panel.
+## from the active roster and grey out its HUD panel. If this was the party
+## leader and others survive, one of them is promoted so the party keeps
+## acting rather than freezing with no one driving it.
+##
+## Clears in_pvp_combat on itself rather than leaving that to whatever
+## called _die() (e.g. _release_pvp_locks, which walks the party array to
+## find everyone to unlock) — party.erase(self) just below mutates that same
+## shared array in place, so a cleanup pass running afterward would no
+## longer find this character in it at all.
 func _die() -> void:
 	dead = true
 	stats.hp = 0
 	current_action = "Defeated"
 	visible = false
+	in_pvp_combat = false
 	players.erase(cell_pos)
+	party.erase(self)
+	if is_party_leader and not party.is_empty():
+		_promote_next_party_leader()
 	died.emit(self)
+
+func _promote_next_party_leader() -> void:
+	for member in party:
+		if is_instance_valid(member) and not member.dead:
+			member.is_party_leader = true
+			member.cell_pos = cell_pos
+			member.position = position
+			players[cell_pos] = member
+			return
 
 func _retreat() -> void:
 	var open_dirs := MazeQuery.open_neighbors(grid, cell_pos)
@@ -654,6 +883,18 @@ func _move_to(next_cell: Vector2i) -> void:
 	var tween := create_tween()
 	tween.tween_property(self, "position", target_world, duration)
 	tween.finished.connect(_on_move_finished.bind(next_cell))
+	for member in party:
+		if member != self and is_instance_valid(member) and not member.dead:
+			member._follow_to(next_cell, duration)
+
+## Every step the leader takes, each follower tags along to the same cell,
+## offset slightly so the whole party stays visible as distinct members.
+func _follow_to(next_cell: Vector2i, duration: float) -> void:
+	cell_pos = next_cell
+	var target_world: Vector2 = _cell_to_world(next_cell) + party_offset
+	var tween := create_tween()
+	tween.tween_property(self, "position", target_world, duration)
+	tween.finished.connect(func(): visited[cell_pos] = true)
 
 func _on_move_finished(next_cell: Vector2i) -> void:
 	players.erase(cell_pos)
@@ -667,6 +908,9 @@ func _on_enter_cell() -> void:
 	_check_for_chest()
 	if cell_pos == exit_cell and not finished:
 		finished = true
+		for member in party:
+			if is_instance_valid(member):
+				member.finished = true
 		reached_exit.emit(self)
 	_update_label()
 	if finished:

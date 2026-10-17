@@ -173,7 +173,8 @@ func _refresh_row(npc: NpcAgent) -> void:
 	var r: Dictionary = rows[npc]
 	var s: NpcStats = npc.stats
 
-	r["header"].text = "%s [%s] — Lv.%d (%d/%d XP)  %dg" % [npc.npc_name, s.alignment, s.level, s.xp, s.xp_to_next, s.gold]
+	var party_tag: String = " (Party of %d)" % npc.party.size() if npc.party.size() > 1 else ""
+	r["header"].text = "%s [%s]%s — Lv.%d (%d/%d XP)  %dg" % [npc.npc_name, s.alignment, party_tag, s.level, s.xp, s.xp_to_next, s.gold]
 	r["action"].text = "Action: %s" % npc.current_action
 
 	var hp_bar: ProgressBar = r["hp_bar"]

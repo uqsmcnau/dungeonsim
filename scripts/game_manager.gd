@@ -16,6 +16,11 @@ const BOSS_SCALE := 1.5
 const MINI_BOSS_COUNT := 3
 const MINI_BOSS_LEVEL := 8
 const MINI_BOSS_SCALE := 1.3
+## Some encounters spawn as a pack of 2-3 individually weaker enemies
+## instead of one at full strength, so a party has multiple bodies to work
+## through rather than always a single, tougher target.
+const PACK_ENCOUNTER_CHANCE := 0.3
+const PACK_LEVEL_SCALE := 0.65
 const NPC_SCENE: PackedScene = preload("res://scenes/NPC.tscn")
 const ENEMY_SCENE: PackedScene = preload("res://scenes/Enemy.tscn")
 const CHEST_SCENE: PackedScene = preload("res://scenes/Chest.tscn")
@@ -198,9 +203,26 @@ func _spawn_enemies() -> void:
 		# sharply in the last stretch approaching the boss room.
 		closeness = pow(clampf(closeness, 0.0, 1.0), LEVEL_CURVE_EXPONENT)
 		var level: int = 1 + int(round(closeness * 5.0))
+		if randf() < PACK_ENCOUNTER_CHANCE:
+			_spawn_enemy_pack(cell, level)
+		else:
+			var enemy: EnemyAgent = ENEMY_SCENE.instantiate()
+			enemy_container.add_child(enemy)
+			enemy.setup(cell, CELL_SIZE, level, grid, enemy_map, restricted_cells, npcs)
+
+## A handful of individually weaker enemies sharing one encounter in place
+## of a single enemy at full strength — fights the same way a lone enemy
+## does, just with more bodies for a party to work through.
+func _spawn_enemy_pack(cell: Vector2i, base_level: int) -> void:
+	var pack_size: int = 2 + (1 if randf() < 0.5 else 0)
+	var pack_level: int = max(1, int(round(base_level * PACK_LEVEL_SCALE)))
+	var members: Array = []
+	for i in range(pack_size):
 		var enemy: EnemyAgent = ENEMY_SCENE.instantiate()
 		enemy_container.add_child(enemy)
-		enemy.setup(cell, CELL_SIZE, level, grid, enemy_map, restricted_cells, npcs)
+		enemy.setup(cell, CELL_SIZE, pack_level, grid, enemy_map, restricted_cells, npcs)
+		members.append(enemy)
+	EnemyAgent.form_pack(members)
 
 ## A single stationary, much stronger enemy guards the exit cell. Since a
 ## live enemy always blocks its cell until defeated, nobody can set foot on
@@ -282,7 +304,7 @@ func _spawn_npcs() -> void:
 		var color: Color = npc_colors[i % npc_colors.size()]
 		var display_name: String = npc_names[i % npc_names.size()]
 		var start_cell: Vector2i = start_cells[i]
-		npc.setup(start_cell, exit_cell, grid, CELL_SIZE, color, display_name, enemy_map, chest_map, shop_map, player_map)
+		npc.setup(start_cell, exit_cell, grid, CELL_SIZE, color, display_name, enemy_map, chest_map, shop_map, player_map, restricted_cells)
 		npc.reached_exit.connect(_on_npc_reached_exit)
 		npc.leveled_up.connect(_on_npc_leveled_up)
 		npc.died.connect(_on_npc_died)
