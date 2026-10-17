@@ -249,3 +249,116 @@ func test_pvp_does_not_freeze_when_both_sides_share_a_cell():
 	assert_true(a.dead or b.dead, "the fight should reach a real conclusion within a reasonable number of turns")
 	assert_false(a.in_pvp_combat, "both combat locks should be released once it's over")
 	assert_false(b.in_pvp_combat)
+
+# ============ Regression: party frozen by a stuck pack mid-fight ===========
+#
+# Real reported bug: a pack-fighting party's leader could die mid-fight,
+# get replaced by a promoted follower (see PartyOps.promote_next_leader),
+# but that follower's own is_moving was never set true -- only the
+# *original* driver got that lock in _engage. That let the promoted
+# follower's own idle _process wander off exploring while the combat-turn
+# loop (bound to the *cell*, not to a specific character) was still
+# supposedly driving it. If its own movement unregistered it from the
+# fight's anchor cell before the next scheduled turn fired, the turn loop
+# found nobody there and silently gave up -- without ever clearing the
+# pack's enemy.in_combat flag. A pack stuck "in combat" forever is
+# permanently un-fightable AND un-passable (_process/_attempt_move both
+# retreat from a cell whose enemy.in_combat is true rather than walking
+# past it) -- exactly a party (or anyone else who runs into that pack
+# afterward) rendered unable to move through it.
+
+func test_engaging_a_pack_locks_is_moving_for_every_party_member_not_just_the_driver():
+	var leader: NpcAgent = main.npcs[0]
+	var follower: NpcAgent = main.npcs[1]
+	leader.party = [leader]
+	leader.is_party_leader = true
+	follower.party = leader.party
+	follower.is_party_leader = false
+	leader.party.append(follower)
+	follower.is_moving = false  # sanity: a follower's own flag starts false
+
+	var enemy := _new_enemy()
+	var cell: Vector2i = _clear_cell()
+	enemy.setup(cell, main.CELL_SIZE, 1, main.grid, main.enemy_map, {}, [])
+
+	leader._engage(cell, enemy)
+
+	assert_true(leader.is_moving, "the driver should be locked, as before")
+	assert_true(follower.is_moving, "the follower must be locked too -- otherwise it's free to wander off the moment it gets promoted to leader")
+
+func test_a_follower_promoted_mid_fight_cannot_act_independently():
+	var leader: NpcAgent = main.npcs[0]
+	var follower: NpcAgent = main.npcs[1]
+	leader.party = [leader]
+	leader.is_party_leader = true
+	follower.party = leader.party
+	follower.is_party_leader = false
+	leader.party.append(follower)
+	_set_stats(follower, 5, 100, 15, 15)
+	follower.stats.inventory.clear()
+
+	var enemy := _new_enemy()
+	var cell: Vector2i = _clear_cell()
+	enemy.setup(cell, main.CELL_SIZE, 1, main.grid, main.enemy_map, {}, [])
+
+	leader._engage(cell, enemy)
+	leader._die()  # forces the promotion mid-fight
+
+	assert_true(follower.is_party_leader, "sanity: the follower should be promoted")
+	assert_true(follower.is_moving, "the promoted follower must still be locked out of its own idle AI")
+
+	var cell_before: Vector2i = follower.cell_pos
+	follower._process(0.0)  # if the lock failed, this would try to explore/move
+	assert_eq(follower.cell_pos, cell_before, "a locked character's _process must not move it")
+	assert_true(follower.is_moving, "the lock should still be in place -- _process should have returned immediately")
+
+func test_enemy_in_combat_is_released_if_the_fight_loop_finds_no_one_left_at_its_anchor_cell():
+	# Reproduces the exact leak: simulate the fight's anchor cell no longer
+	# having anyone registered there (as if the driver had wandered off, or
+	# the whole party vanished) and confirm the pack's in_combat flag gets
+	# cleared rather than staying stuck forever.
+	var leader: NpcAgent = main.npcs[0]
+	var enemy := _new_enemy()
+	var cell: Vector2i = _clear_cell()
+	enemy.setup(cell, main.CELL_SIZE, 1, main.grid, main.enemy_map, {}, [])
+	var my_cell: Vector2i = leader.cell_pos
+
+	leader._engage(cell, enemy)
+	assert_true(enemy.in_combat, "sanity: engaging should mark the pack in_combat")
+
+	main.player_map.erase(my_cell)  # simulate nobody being registered there any more
+	leader._run_group_combat_turn(my_cell, cell)
+
+	assert_false(enemy.in_combat, "the pack must not stay permanently marked in_combat with no one left to resolve the fight")
+
+func test_a_pack_freed_this_way_can_be_fought_normally_afterwards():
+	var leader: NpcAgent = main.npcs[0]
+	var enemy := _new_enemy()
+	var cell: Vector2i = _clear_cell()
+	enemy.setup(cell, main.CELL_SIZE, 1, main.grid, main.enemy_map, {}, [])
+	enemy.stats.hp = 5
+	enemy.stats.max_hp = 5
+	var my_cell: Vector2i = leader.cell_pos
+
+	leader._engage(cell, enemy)
+	main.player_map.erase(my_cell)
+	leader._run_group_combat_turn(my_cell, cell)
+	assert_false(enemy.in_combat)
+
+	# A second, fresh character should be able to engage the now-freed pack
+	# normally, rather than being forced to retreat from it forever.
+	var newcomer: NpcAgent = main.npcs[1]
+	_set_stats(newcomer, 20, 200, 40, 40)
+	newcomer.stats.inventory.clear()
+	main.player_map[newcomer.cell_pos] = newcomer
+	var newcomer_cell: Vector2i = newcomer.cell_pos
+
+	assert_true(CombatMath.decide_fight(newcomer.stats, enemy.stats), "sanity: the newcomer should be confident against this weak enemy")
+	newcomer._engage(cell, enemy)
+	assert_true(enemy.in_combat, "the pack should be engageable again, not stuck refusing all future fights")
+
+	var guard := 0
+	while main.enemy_map.has(cell) and guard < 30:
+		newcomer._resolve_group_combat_turn(newcomer_cell, cell)
+		guard += 1
+	assert_false(main.enemy_map.has(cell), "the newcomer should be able to actually finish off the freed pack")

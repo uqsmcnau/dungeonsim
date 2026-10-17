@@ -401,9 +401,15 @@ func living_party() -> Array:
 
 ## Starts a fight between this character's whole party and an enemy pack —
 ## every living member on both sides joins in, each fighting with their own
-## tactics each turn (see _resolve_group_combat_turn).
+## tactics each turn (see _resolve_group_combat_turn). Every party member
+## (not just whoever's driving right now) gets is_moving locked for the
+## whole fight, the same way _engage_player locks in_pvp_combat on everyone
+## upfront -- otherwise a follower promoted to leader mid-fight (see _die())
+## would still have is_moving false and could wander off exploring on its
+## own while the fight it's now supposedly driving is still going.
 func _engage(next_cell: Vector2i, enemy: EnemyAgent) -> void:
-	is_moving = true
+	for ally in living_party():
+		ally.is_moving = true
 	for pack_member in enemy.living_pack():
 		pack_member.in_combat = true
 	_run_group_combat_turn(cell_pos, next_cell)
@@ -465,6 +471,7 @@ func _apply_combat_action(action: String, opponent_stats: NpcStats) -> void:
 func _run_group_combat_turn(my_cell: Vector2i, enemy_cell: Vector2i) -> void:
 	var me: NpcAgent = players.get(my_cell)
 	if me == null:
+		_release_group_combat_lock(enemy_cell)
 		return
 	var enemy: EnemyAgent = enemies.get(enemy_cell)
 	var foes: Array = enemy.living_pack() if enemy != null and is_instance_valid(enemy) else []
@@ -487,6 +494,7 @@ func _run_group_combat_turn(my_cell: Vector2i, enemy_cell: Vector2i) -> void:
 func _resolve_group_combat_turn(my_cell: Vector2i, enemy_cell: Vector2i) -> void:
 	var me: NpcAgent = players.get(my_cell)
 	if me == null:
+		_release_group_combat_lock(enemy_cell)
 		return
 	var enemy: EnemyAgent = enemies.get(enemy_cell)
 	if enemy == null or not is_instance_valid(enemy):
@@ -534,21 +542,36 @@ func _resolve_group_combat_turn(my_cell: Vector2i, enemy_cell: Vector2i) -> void
 		return
 	next_driver._run_group_combat_turn(my_cell, enemy_cell)
 
-## Ends a party-vs-pack fight once the pack is wiped out: moves the
-## surviving party onto the now-empty cell.
+## Releases the pack's in_combat flag when a party-vs-pack fight ends
+## abruptly with no living representative left to drive it to a proper
+## conclusion (e.g. the whole party died). Without this the pack would stay
+## permanently marked as mid-fight, and nobody could ever engage -- or even
+## walk past -- it again (see _process/_attempt_move, which both retreat
+## from a cell whose enemy.in_combat is true rather than passing it).
+func _release_group_combat_lock(enemy_cell: Vector2i) -> void:
+	var enemy: EnemyAgent = enemies.get(enemy_cell)
+	if enemy != null and is_instance_valid(enemy):
+		enemy.in_combat = false
+
+## Ends a party-vs-pack fight once the pack is wiped out: frees every party
+## member's is_moving lock (see _engage) and moves the surviving party onto
+## the now-empty cell.
 func _conclude_group_combat(enemy_cell: Vector2i) -> void:
-	is_moving = false
+	for member in party:
+		if is_instance_valid(member):
+			member.is_moving = false
 	_update_label()
 	_move_to(enemy_cell)
 
 ## Breaks off a fight that's turning dangerous for the character driving it.
 ## Damage already dealt stays on the pack, so the party can retreat, recover,
-## and come back to finish it.
+## and come back to finish it. Frees every party member's is_moving lock
+## (see _engage), not just the one calling this.
 func _disengage_group_combat(enemy_cell: Vector2i) -> void:
-	var enemy: EnemyAgent = enemies.get(enemy_cell)
-	if enemy != null and is_instance_valid(enemy):
-		enemy.in_combat = false
-	is_moving = false
+	_release_group_combat_lock(enemy_cell)
+	for member in party:
+		if is_instance_valid(member):
+			member.is_moving = false
 	_update_label()
 	_retreat()
 
