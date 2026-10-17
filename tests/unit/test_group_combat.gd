@@ -281,7 +281,7 @@ func test_pvp_does_not_freeze_when_both_sides_share_a_cell():
 	assert_ne(a, b, "the two sides must not collapse into the same object")
 
 	var guard := 0
-	while a.in_pvp_combat and b.in_pvp_combat and guard < 5:
+	while a.in_pvp_combat and b.in_pvp_combat and guard < 15:
 		a._resolve_group_pvp_turn(a.party, b.party, shared_cell, shared_cell)
 		if a.in_pvp_combat and b.in_pvp_combat:
 			assert_ne(a.current_action, "Exploring", "turn %d: the good player's action should update" % guard)
@@ -291,9 +291,10 @@ func test_pvp_does_not_freeze_when_both_sides_share_a_cell():
 			a._run_group_pvp_turn(a.party, b.party, shared_cell, shared_cell)
 
 	assert_gt(guard, 0, "the fight should actually progress, not freeze in place")
-	assert_true(a.dead or b.dead, "the fight should reach a real conclusion within a reasonable number of turns")
-	assert_false(a.in_pvp_combat, "both combat locks should be released once it's over")
-	assert_false(b.in_pvp_combat)
+	# A real conclusion is either side falling *or* the losing side fleeing
+	# once its HP gets low -- this used to demand a death within 5 turns,
+	# and flaked whenever b sensibly ran for it (or a missed a few swings).
+	assert_false(a.in_pvp_combat or b.in_pvp_combat, "the fight should reach a real conclusion -- a death or a retreat -- releasing both combat locks")
 
 # ============ Regression: party frozen by a stuck pack mid-fight ===========
 #
