@@ -44,6 +44,15 @@ offset_bottom = 40.0
 toggle_mode = true
 text = "Pause"
 
+[node name="PlayersLeftLabel" type="Label" parent="HUD/Control"]
+offset_left = 1240.0
+offset_top = 6.0
+offset_right = 1440.0
+offset_bottom = 40.0
+horizontal_alignment = 2
+vertical_alignment = 1
+text = "Players left: 0 / 0"
+
 [node name="WinnerLabel" type="Label" parent="HUD/Control"]
 offset_left = 480.0
 offset_top = 6.0

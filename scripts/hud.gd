@@ -12,6 +12,7 @@ signal fog_toggled(enabled: bool)
 ## Pauses the whole SceneTree. It (and the fog toggle) run with
 ## PROCESS_MODE_ALWAYS so they stay clickable while everything else freezes.
 @onready var pause_button: Button = $PauseButton
+@onready var players_left_label: Label = $PlayersLeftLabel
 
 ## Only this many HUD panels are ever shown at once -- whichever characters
 ## currently rank highest by combat power (see NpcStats.combat_power),
@@ -185,9 +186,19 @@ func refresh_npc(npc: NpcAgent) -> void:
 	_refresh_row(npc)
 
 func update_positions(npcs: Array) -> void:
+	_update_players_left(npcs)
 	_update_leaderboard(npcs)
 	for npc in npcs:
 		_refresh_row(npc)
+
+## `rows` keeps every character ever registered (dead ones included), so it
+## doubles as the starting headcount.
+func _update_players_left(npcs: Array) -> void:
+	var alive := 0
+	for npc in npcs:
+		if not npc.dead:
+			alive += 1
+	players_left_label.text = "Players left: %d / %d" % [alive, rows.size()]
 
 ## Ranks every living character (dead ones are already excluded from
 ## `npcs` by the time this is called -- see GameManager._on_npc_died) plus
