@@ -81,33 +81,35 @@ func test_merge_refused_once_it_would_exceed_the_party_size_cap():
 	var extra1: NpcAgent = main.npcs[2]
 	var extra2: NpcAgent = main.npcs[3]
 	var extra3: NpcAgent = main.npcs[4]
-	for n in [a, b, extra1, extra2, extra3]:
+	var extra4: NpcAgent = main.npcs[5]
+	for n in [a, b, extra1, extra2, extra3, extra4]:
 		n.stats.alignment = NpcStats.ALIGNMENT_EVIL
 		_set_stats(n, 5, 50, 10, 10)
 
-	a.party = [a, extra1, extra2]  # a already leads a party of 3
+	a.party = [a, extra1, extra2, extra4]  # a already leads a party of 4
 	for m in a.party:
 		m.is_party_leader = (m == a)
-	b.party = [b, extra3]  # b already leads a party of 2 -- 3+2=5 > cap of 4
+	b.party = [b, extra3]  # b already leads a party of 2 -- 4+2=6 > cap of 5
 	extra3.party = b.party
 	extra3.is_party_leader = false
 
 	assert_false(PartyOps.can_form_party_with(a, b))
-	assert_eq(PartyOps.MAX_PARTY_SIZE, 4)
+	assert_eq(PartyOps.MAX_PARTY_SIZE, 5)
 
 func test_merge_allowed_exactly_at_the_party_size_cap():
 	var a: NpcAgent = main.npcs[0]
 	var b: NpcAgent = main.npcs[1]
 	var extra1: NpcAgent = main.npcs[2]
 	var extra2: NpcAgent = main.npcs[3]
-	for n in [a, b, extra1, extra2]:
+	var extra3: NpcAgent = main.npcs[4]
+	for n in [a, b, extra1, extra2, extra3]:
 		n.stats.alignment = NpcStats.ALIGNMENT_GOOD
 		_set_stats(n, 5, 50, 10, 10)
 
-	a.party = [a, extra1, extra2]  # party of 3
+	a.party = [a, extra1, extra2, extra3]  # party of 4
 	for m in a.party:
 		m.is_party_leader = (m == a)
-	# b is solo -- 3 + 1 = 4, exactly at the cap, not over it.
+	# b is solo -- 4 + 1 = 5, exactly at the cap, not over it.
 	assert_true(PartyOps.can_form_party_with(a, b))
 
 func test_join_party_of_merges_arrays_and_demotes_the_joiner():

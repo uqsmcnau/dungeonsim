@@ -8,7 +8,7 @@ extends RefCounted
 ## "self" would otherwise be ambiguous between (for example) the character
 ## joining a party and the party it's joining.
 
-const MAX_PARTY_SIZE := 4
+const MAX_PARTY_SIZE := 5
 ## A meaningfully higher bar than the 50/50 "thinks it can probably win" used
 ## to decide whether to throw a punch at all — "confident" means a clear
 ## edge, not a coin flip. This also matters because of CombatMath's
@@ -17,7 +17,7 @@ const MAX_PARTY_SIZE := 4
 ## another; a bar of 0.5 would make this check nearly always true and the
 ## "form a party" rule nearly vacuous.
 const SOLO_CONFIDENCE_THRESHOLD := 0.65
-const PARTY_OFFSETS := [Vector2.ZERO, Vector2(10, -10), Vector2(-10, 10), Vector2(10, 10)]
+const PARTY_OFFSETS := [Vector2.ZERO, Vector2(10, -10), Vector2(-10, 10), Vector2(10, 10), Vector2(-10, -10)]
 
 static func assign_party_offsets(leader: NpcAgent) -> void:
 	for i in range(leader.party.size()):

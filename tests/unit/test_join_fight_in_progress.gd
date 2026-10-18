@@ -123,7 +123,7 @@ func test_incompatible_newcomer_retreats_instead_of_joining_or_attacking():
 
 func test_newcomer_cannot_join_when_it_would_exceed_the_party_cap():
 	_start_monster_fight()
-	for i in range(3, 6):
+	for i in range(3, 2 + PartyOps.MAX_PARTY_SIZE):
 		var extra: NpcAgent = main.npcs[i]
 		host.party.append(extra)
 		extra.party = host.party
