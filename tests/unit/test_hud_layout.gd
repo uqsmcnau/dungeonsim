@@ -198,6 +198,19 @@ func test_deselecting_clears_the_left_column_even_while_paused():
 	main.hud.inspector["close_button"].pressed.emit()
 	assert_eq(_selection_panels().size(), 0)
 
+func test_discarded_panels_are_freed_not_leaked():
+	# Panels leave the column at once (so the next selection lays out
+	# cleanly) and are freed at the end of the frame -- GUT's orphan count,
+	# taken straight after a test, sees them in between.
+	var leader: NpcAgent = main.npcs[0]
+	PartyOps.join_party_of(main.npcs[1], leader)
+	main.hud.inspect(leader)
+	var panels := _selection_panels()
+	main.hud.close_inspector()
+	await get_tree().process_frame
+	for p in panels:
+		assert_false(is_instance_valid(p))
+
 func test_selecting_while_paused_lists_the_party_straight_away():
 	var leader: NpcAgent = main.npcs[0]
 	PartyOps.join_party_of(main.npcs[1], leader)
