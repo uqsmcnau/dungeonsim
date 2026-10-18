@@ -34,6 +34,8 @@ var in_combat: bool = false
 var fighting_party: Array = []
 var is_moving: bool = false
 var is_mini_boss: bool = false
+## The one guarding the exit (see GameManager._spawn_boss).
+var is_boss: bool = false
 ## Stationary bosses never chase or wander, but still tick for HP regen. A
 ## pack's non-leader members also have this false, for the same reason.
 var wanders: bool = true
@@ -98,6 +100,19 @@ static func form_pack(members: Array) -> void:
 	leader.enemies[leader.cell_pos] = leader
 
 ## Every living member of this enemy's pack, including itself.
+## How this monster reads as a player's killer, for their HUD panel (see
+## NpcAgent.killed_by): "the Boss (Lv.12)", "a Mini Boss (Lv.8)", or "a level
+## 3 monster" -- noting the pack it was part of, if any.
+func killer_description() -> String:
+	if is_boss:
+		return "the Boss (Lv.%d)" % stats.level
+	if is_mini_boss:
+		return "a Mini Boss (Lv.%d)" % stats.level
+	var desc := "a level %d monster" % stats.level
+	if pack.size() > 1:
+		desc += " (one of a pack of %d)" % pack.size()
+	return desc
+
 func living_pack() -> Array:
 	var result: Array = []
 	for m in pack:

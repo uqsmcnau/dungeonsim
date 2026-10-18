@@ -105,6 +105,11 @@ var party_name: String = ""
 ## merges into another (PartyOps.join_party_of) -- that one isn't ours to
 ## steer.
 var guidance_target: Vector2i = MazeQuery.NONE
+## Who or what killed this character, and how -- e.g. "Bram (Lv.4 Evil)"
+## and "Fireball for 12 damage" -- recorded by whoever lands the killing
+## blow (see _die) for their HUD panel. Both "" while alive.
+var killed_by: String = ""
+var death_method: String = ""
 var is_party_leader: bool = true
 var party_offset: Vector2 = Vector2.ZERO
 
@@ -815,11 +820,12 @@ func _resolve_group_combat_turn(my_party: Array, enemy_cell: Vector2i) -> void:
 		var victim: NpcAgent = allies[randi() % allies.size()]
 		if randf() < CombatMath.hit_chance_against(foe.stats, victim.stats):
 			var damage: int = max(1, foe.stats.attack_power() + randi() % 3 - victim.stats.defense())
-			if randf() < ENEMY_CRIT_CHANCE:
+			var crit := randf() < ENEMY_CRIT_CHANCE
+			if crit:
 				damage = int(ceil(damage * ENEMY_CRIT_MULTIPLIER))
 			victim.stats.hp -= damage
 			if victim.stats.hp <= 0:
-				victim._die()
+				victim._die(foe.killer_description(), "%s for %d damage" % ["A critical hit" if crit else "A hit", damage])
 
 	# If the whole party fell, release the pack via _release_group_combat_lock,
 	# not `enemy.in_combat = false`: `enemy` is whoever led the pack at the
@@ -947,10 +953,11 @@ func _resolve_group_pvp_turn(my_party: Array, their_party: Array, my_cell: Vecto
 			break
 		var target: NpcAgent = me._weakest(foes)
 		var action: String = ally._choose_combat_action(target.stats)
+		var hp_before: int = target.stats.hp
 		ally._apply_combat_action(action, target.stats)
 		if target.stats.hp <= 0:
 			foes.erase(target)
-			target._die()
+			target._die(ally.killer_description(), ally._killing_blow(action, hp_before - target.stats.hp))
 
 	var allies: Array = me.living_party()
 	if foes.is_empty() or allies.is_empty():
@@ -963,9 +970,10 @@ func _resolve_group_pvp_turn(my_party: Array, their_party: Array, my_cell: Vecto
 			break
 		var target: NpcAgent = foe._weakest(allies)
 		var action: String = foe._choose_combat_action(target.stats)
+		var hp_before: int = target.stats.hp
 		foe._apply_combat_action(action, target.stats)
 		if target.stats.hp <= 0:
-			target._die()
+			target._die(foe.killer_description(), foe._killing_blow(action, hp_before - target.stats.hp))
 
 	if me.living_party().is_empty() or them.living_party().is_empty():
 		_conclude_group_pvp(my_party, their_party, my_cell, their_cell)
@@ -1026,7 +1034,12 @@ func _disengage_group_pvp(my_party: Array, their_party: Array) -> void:
 ## find everyone to unlock) — party.erase(self) just below mutates that same
 ## shared array in place, so a cleanup pass running afterward would no
 ## longer find this character in it at all.
-func _die() -> void:
+##
+## `by` and `how` record who or what killed them and with what (see
+## killed_by / death_method).
+func _die(by: String = "", how: String = "") -> void:
+	killed_by = by
+	death_method = how
 	dead = true
 	stats.hp = 0
 	current_action = "Defeated"
@@ -1038,6 +1051,31 @@ func _die() -> void:
 	if is_party_leader and not party.is_empty():
 		PartyOps.promote_next_leader(self)
 	died.emit(self)
+
+## How this character reads as someone's killer: "Bram (Lv.4 Evil)", plus
+## " of <party>" if they're in one.
+func killer_description() -> String:
+	var desc := "%s (Lv.%d %s)" % [npc_name, stats.level, stats.alignment]
+	if party.size() > 1 and party_name != "":
+		desc += " of %s" % party_name
+	return desc
+
+## A combat action (see _apply_combat_action) as a killing blow: the spell
+## cast, or whatever weapon they're wielding -- "Fireball for 12 damage",
+## "Iron Sword for 6 damage", "Bare hands for 3 damage".
+func _killing_blow(action: String, damage: int) -> String:
+	var weapon := "Bare hands"
+	match action:
+		"fireball":
+			weapon = "Fireball"
+		"spark":
+			weapon = "Spark"
+		_:
+			for item_name in stats.equipped_in("hand"):
+				if ItemCatalog.find(item_name).get("effects", {}).has("attack"):
+					weapon = item_name
+					break
+	return "%s for %d damage" % [weapon, damage]
 
 func _retreat() -> void:
 	var open_dirs := MazeQuery.open_neighbors(grid, cell_pos)

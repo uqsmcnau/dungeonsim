@@ -212,6 +212,15 @@ func _build_panel(npc: NpcAgent) -> Dictionary:
 	action_label.add_theme_color_override("font_color", Color(0.85, 0.85, 0.6, 1.0))
 	vbox.add_child(action_label)
 
+	# Once dead, the action line says who or what killed them, and this one
+	# says how (see _fill_panel). Hidden while alive.
+	var death_label := Label.new()
+	death_label.add_theme_font_size_override("font_size", 12)
+	death_label.add_theme_color_override("font_color", Color(1.0, 0.6, 0.55, 1.0))
+	death_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	death_label.visible = false
+	vbox.add_child(death_label)
+
 	var hp_widget := _make_stat_bar(Color(0.2, 0.8, 0.3))
 	vbox.add_child(hp_widget["container"])
 
@@ -264,6 +273,7 @@ func _build_panel(npc: NpcAgent) -> Dictionary:
 		"party": party_label,
 		"rank": 0,
 		"action": action_label,
+		"death": death_label,
 		"hp_bar": hp_widget["bar"],
 		"hp_fill": hp_widget["fill"],
 		"hp_text": hp_widget["label"],
@@ -418,6 +428,10 @@ func _fill_panel(r: Dictionary, npc: NpcAgent) -> void:
 	if in_party:
 		r["party"].text = "Party: %s (%d)" % [npc.party_name, npc.party.size()]
 	r["action"].text = "Action: %s" % npc.current_action
+	r["death"].visible = npc.dead
+	if npc.dead:
+		r["action"].text = "Killed by: %s" % (npc.killed_by if npc.killed_by != "" else "unknown")
+		r["death"].text = "How: %s" % (npc.death_method if npc.death_method != "" else "unknown")
 
 	var hp_bar: ProgressBar = r["hp_bar"]
 	hp_bar.max_value = s.max_hp

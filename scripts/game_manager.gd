@@ -30,9 +30,12 @@ const GUIDANCE_COOLDOWN := 15.0
 ## How far the selection ring sits beyond the outermost member's icon
 ## centre -- a touch more than half the 16px icon's diagonal.
 const SELECTION_ICON_MARGIN := 13.0
+## The selection ring's radius around a gravestone -- just clear of its icon.
+const GRAVE_RING_RADIUS := 12.0
 const NPC_SCENE: PackedScene = preload("res://scenes/NPC.tscn")
 const ENEMY_SCENE: PackedScene = preload("res://scenes/Enemy.tscn")
 const CHEST_SCENE: PackedScene = preload("res://scenes/Chest.tscn")
+const GRAVE_SCENE: PackedScene = preload("res://scenes/Gravestone.tscn")
 
 ## Party Vision: while a character is selected, the fog of war shows only
 ## what their party knows -- the cells its members can see right now, and
@@ -78,11 +81,16 @@ var restricted_cells: Dictionary = {}
 ## Seconds until Guidance can be used again (0 = ready). Ticked down in
 ## _process, so it freezes while the game is paused.
 var guidance_cooldown_left: float = 0.0
+## A gravestone for every character who's died, by character, standing
+## where they fell. Clicking one brings up their final HUD panel, with how
+## they died.
+var graves: Dictionary = {}
 
 @onready var maze_view: MazeView = $World/MazeView
 @onready var npc_container: Node2D = $World/NPCs
 @onready var enemy_container: Node2D = $World/Enemies
 @onready var chest_container: Node2D = $World/Chests
+@onready var grave_container: Node2D = $World/Graves
 @onready var hud: Hud = $HUD/Control
 
 func _ready() -> void:
@@ -131,10 +139,13 @@ func _on_party_vision_toggled(enabled: bool) -> void:
 	_sync_fog()
 
 ## Clicking a character's icon selects them -- opening their inspector panel
-## and highlighting their party on the map; clicking anywhere else on the
-## map deselects them.
+## and highlighting their party on the map -- as does clicking a fallen
+## character's gravestone (a living character standing over one wins);
+## clicking anywhere else on the map deselects them.
 func _on_world_clicked(world_pos: Vector2) -> void:
 	var npc: NpcAgent = npc_at(world_pos)
+	if npc == null:
+		npc = grave_at(world_pos)
 	if npc != null:
 		hud.inspect(npc)
 	else:
@@ -176,12 +187,19 @@ func world_to_cell(world_pos: Vector2) -> Vector2i:
 ## Rings the selected character's whole party on the map, following them as
 ## they move -- centred on the leader, wide enough to take in every member's
 ## icon (party members stand slightly offset from the leader, see
-## PartyOps.PARTY_OFFSETS). Nothing's ringed when nobody's selected, or the
-## selected character has died.
+## PartyOps.PARTY_OFFSETS). A dead character's gravestone is ringed
+## instead; nothing is when nobody's selected.
 func _sync_selection_highlight() -> void:
 	var npc: NpcAgent = hud.inspected
-	if npc == null or npc.dead:
+	if npc == null:
 		maze_view.set_selection_highlight(Vector2.ZERO, 0.0)
+		return
+	if npc.dead:
+		var grave: Node2D = graves.get(npc)
+		if grave == null:
+			maze_view.set_selection_highlight(Vector2.ZERO, 0.0)
+		else:
+			maze_view.set_selection_highlight(grave.position, GRAVE_RING_RADIUS)
 		return
 	var leader: NpcAgent = npc._current_party_leader(npc.party)
 	if leader == null:
@@ -220,6 +238,21 @@ func npc_at(world_pos: Vector2) -> NpcAgent:
 			best_dist = dist
 	return best
 
+## The fallen character whose gravestone is nearest `world_pos`, within
+## PICK_RADIUS, or null. Only gravestones showing on the map count.
+func grave_at(world_pos: Vector2) -> NpcAgent:
+	var best: NpcAgent = null
+	var best_dist := PICK_RADIUS
+	for npc in graves:
+		var grave: Node2D = graves[npc]
+		if not grave.visible:
+			continue
+		var dist: float = grave.global_position.distance_to(world_pos)
+		if dist <= best_dist:
+			best = npc
+			best_dist = dist
+	return best
+
 func _sync_fog() -> void:
 	for npc in npcs:
 		npc.look_around()
@@ -235,6 +268,10 @@ func _sync_fog() -> void:
 	for cell in chest_map:
 		var chest: ChestAgent = chest_map[cell]
 		chest.visible = maze_view.is_currently_visible(cell)
+	# Landmarks, like shops: shown wherever the map's been discovered (by
+	# the selected party, under Party Vision), not only while in sight.
+	for npc in graves:
+		graves[npc].visible = maze_view.is_discovered(npc.cell_pos)
 
 ## Walks the border of the maze and picks `count` evenly spaced cells along
 ## it, so however many NPCs there are, each begins from a distinct point
@@ -380,6 +417,7 @@ func _spawn_boss() -> void:
 	var boss: EnemyAgent = ENEMY_SCENE.instantiate()
 	enemy_container.add_child(boss)
 	boss.setup(exit_cell, CELL_SIZE, BOSS_LEVEL, grid, enemy_map, {}, npcs, false)
+	boss.is_boss = true
 	boss.visual.color = Color(0.55, 0.02, 0.05, 1.0)
 	boss.scale = Vector2(BOSS_SCALE, BOSS_SCALE)
 
@@ -466,10 +504,19 @@ func _on_npc_reached_exit(npc: NpcAgent) -> void:
 
 func _on_npc_died(npc: NpcAgent) -> void:
 	npcs.erase(npc)
+	_place_grave(npc)
 	hud.mark_dead(npc)
 	_place_death_chest(npc.cell_pos, npc.stats.inventory.duplicate(), npc.stats.gold)
 	if npcs.is_empty() and winner == null:
 		hud.announce_no_winner()
+
+## A gravestone exactly where `npc`'s icon stood when they fell.
+func _place_grave(npc: NpcAgent) -> void:
+	var grave: Node2D = GRAVE_SCENE.instantiate()
+	grave.position = npc.position
+	grave_container.add_child(grave)
+	graves[npc] = grave
+	_sync_selection_highlight()  # in case they were selected: ring the grave now
 
 func _on_npc_leveled_up(npc: NpcAgent) -> void:
 	hud.refresh_npc(npc)
