@@ -21,6 +21,18 @@ const MINI_BOSS_SCALE := 1.3
 ## through rather than always a single, tougher target.
 const PACK_ENCOUNTER_CHANCE := 0.3
 const PACK_LEVEL_SCALE := 0.65
+## Monster respawning: the maze is split into AREA_SIZE x AREA_SIZE-cell
+## areas, each remembering how many monsters it started with (see
+## area_capacity). An area that's lost some slowly gets them back -- one
+## encounter every RESPAWN_SECONDS of game time -- but never past its
+## original count, and only out of sight of every player and at least
+## RESPAWN_MIN_PLAYER_DISTANCE cells (in either direction) from all of
+## them. If there's nowhere hidden to put one, it tries again every
+## RESPAWN_RETRY_SECONDS. Bosses and mini bosses never come back.
+const AREA_SIZE := 8
+const RESPAWN_SECONDS := 40.0
+const RESPAWN_RETRY_SECONDS := 2.0
+const RESPAWN_MIN_PLAYER_DISTANCE := 9
 ## How far (in pixels) from a character's icon center a click still selects
 ## it -- about half a cell, matching the 16px icon.
 const PICK_RADIUS := 10.0
@@ -81,6 +93,13 @@ var restricted_cells: Dictionary = {}
 ## Seconds until Guidance can be used again (0 = ready). Ticked down in
 ## _process, so it freezes while the game is paused.
 var guidance_cooldown_left: float = 0.0
+## How many monsters each area (see area_of) started out with -- the most
+## respawning will ever bring it back up to. Monsters belong to the area of
+## their home cell: they're leashed close to it (see EnemyAgent), so they
+## never really leave.
+var area_capacity: Dictionary = {}
+## For each area that's below its capacity, seconds until its next respawn.
+var area_respawn_timers: Dictionary = {}
 ## A gravestone for every character who's died, by character, standing
 ## where they fell. Clicking one brings up their final HUD panel, with how
 ## they died.
@@ -115,12 +134,14 @@ func _ready() -> void:
 	hud.selection_changed.connect(_sync_selection_highlight)
 	hud.selection_changed.connect(_sync_fog)
 	_spawn_enemies()
+	area_capacity = area_populations()
 	_spawn_boss()
 	_spawn_chests()
 	_spawn_npcs()
 
 func _process(delta: float) -> void:
 	hud.update_positions(npcs)
+	_tick_respawns(delta)
 	_sync_fog()
 	_sync_guidance_marker()
 	_sync_selection_highlight()
@@ -373,32 +394,40 @@ func _on_mini_boss_defeated(cell: Vector2i) -> void:
 ## stronger the closer their cell is to the center.
 func _spawn_enemies() -> void:
 	var open_cells: Array = _unrestricted_cells()
-
-	var center := Vector2i(MAZE_WIDTH / 2, MAZE_HEIGHT / 2)
-	var max_distance: int = max(center.x, MAZE_WIDTH - center.x) + max(center.y, MAZE_HEIGHT - center.y)
 	var count: int = int(MAZE_WIDTH * MAZE_HEIGHT * ENEMY_DENSITY)
 
 	for i in range(min(count, open_cells.size())):
 		var cell: Vector2i = open_cells[i]
-		var distance: int = abs(cell.x - center.x) + abs(cell.y - center.y)
-		var closeness: float = 1.0 - float(distance) / float(max(max_distance, 1))
-		# Raising to a power > 1 keeps closeness (and thus level) low across
-		# most of the outer maze near the start points, only ramping up
-		# sharply in the last stretch approaching the boss room.
-		closeness = pow(clampf(closeness, 0.0, 1.0), LEVEL_CURVE_EXPONENT)
-		var level: int = 1 + int(round(closeness * 5.0))
+		var level := enemy_level_for(cell)
 		if randf() < PACK_ENCOUNTER_CHANCE:
 			_spawn_enemy_pack(cell, level)
 		else:
-			var enemy: EnemyAgent = ENEMY_SCENE.instantiate()
-			enemy_container.add_child(enemy)
-			enemy.setup(cell, CELL_SIZE, level, grid, enemy_map, restricted_cells, npcs)
+			_spawn_enemy(cell, level)
+
+## How strong a monster spawning on `cell` is: stronger the closer it is to
+## the center.
+func enemy_level_for(cell: Vector2i) -> int:
+	var center := Vector2i(MAZE_WIDTH / 2, MAZE_HEIGHT / 2)
+	var max_distance: int = max(center.x, MAZE_WIDTH - center.x) + max(center.y, MAZE_HEIGHT - center.y)
+	var distance: int = abs(cell.x - center.x) + abs(cell.y - center.y)
+	var closeness: float = 1.0 - float(distance) / float(max(max_distance, 1))
+	# Raising to a power > 1 keeps closeness (and thus level) low across
+	# most of the outer maze near the start points, only ramping up
+	# sharply in the last stretch approaching the boss room.
+	closeness = pow(clampf(closeness, 0.0, 1.0), LEVEL_CURVE_EXPONENT)
+	return 1 + int(round(closeness * 5.0))
+
+func _spawn_enemy(cell: Vector2i, level: int) -> void:
+	var enemy: EnemyAgent = ENEMY_SCENE.instantiate()
+	enemy_container.add_child(enemy)
+	enemy.setup(cell, CELL_SIZE, level, grid, enemy_map, restricted_cells, npcs)
 
 ## A handful of individually weaker enemies sharing one encounter in place
 ## of a single enemy at full strength — fights the same way a lone enemy
-## does, just with more bodies for a party to work through.
-func _spawn_enemy_pack(cell: Vector2i, base_level: int) -> void:
-	var pack_size: int = 2 + (1 if randf() < 0.5 else 0)
+## does, just with more bodies for a party to work through. At most
+## `max_size` strong (respawning uses it to stay within an area's capacity).
+func _spawn_enemy_pack(cell: Vector2i, base_level: int, max_size: int = 3) -> void:
+	var pack_size: int = mini(2 + (1 if randf() < 0.5 else 0), max_size)
 	var pack_level: int = max(1, int(round(base_level * PACK_LEVEL_SCALE)))
 	var members: Array = []
 	for i in range(pack_size):
@@ -407,6 +436,82 @@ func _spawn_enemy_pack(cell: Vector2i, base_level: int) -> void:
 		enemy.setup(cell, CELL_SIZE, pack_level, grid, enemy_map, restricted_cells, npcs)
 		members.append(enemy)
 	EnemyAgent.form_pack(members)
+
+# ============================== Respawning ================================
+
+## Which area (see AREA_SIZE) a cell belongs to.
+func area_of(cell: Vector2i) -> Vector2i:
+	return Vector2i(cell.x / AREA_SIZE, cell.y / AREA_SIZE)
+
+## How many living monsters belong to each area right now (by home cell),
+## leaving out bosses and mini bosses, which never respawn.
+func area_populations() -> Dictionary:
+	var counts: Dictionary = {}
+	for enemy in enemy_container.get_children():
+		if not enemy is EnemyAgent or not enemy.alive or enemy.is_boss or enemy.is_mini_boss:
+			continue
+		var area := area_of(enemy.home_cell)
+		counts[area] = int(counts.get(area, 0)) + 1
+	return counts
+
+## Counts down each area that's short of monsters, and gives it one more
+## encounter when its time's up (see AREA_SIZE). Runs from _process, so it
+## stops while the game's paused.
+func _tick_respawns(delta: float) -> void:
+	var populations := area_populations()
+	for area in area_capacity:
+		var missing: int = int(area_capacity[area]) - int(populations.get(area, 0))
+		if missing <= 0:
+			area_respawn_timers.erase(area)
+			continue
+		var left: float = float(area_respawn_timers.get(area, RESPAWN_SECONDS)) - delta
+		if left > 0.0:
+			area_respawn_timers[area] = left
+		elif _respawn_in(area, missing):
+			area_respawn_timers[area] = RESPAWN_SECONDS
+		else:
+			area_respawn_timers[area] = RESPAWN_RETRY_SECONDS
+
+## Spawns one encounter -- a lone monster, or a pack no bigger than `room`
+## -- on a hidden cell in `area`. False if there's nowhere hidden to put it.
+func _respawn_in(area: Vector2i, room: int) -> bool:
+	var cell := hidden_spawn_cell(area)
+	if cell == MazeQuery.NONE:
+		return false
+	var level := enemy_level_for(cell)
+	if room >= 2 and randf() < PACK_ENCOUNTER_CHANCE:
+		_spawn_enemy_pack(cell, level, room)
+	else:
+		_spawn_enemy(cell, level)
+	return true
+
+## A random cell in `area` where a monster could appear without anyone
+## seeing it happen: outside safe zones, with nothing already on it, out of
+## every living player's sight and at least RESPAWN_MIN_PLAYER_DISTANCE
+## from all of them -- or NONE if there's no such cell.
+func hidden_spawn_cell(area: Vector2i) -> Vector2i:
+	var candidates: Array = []
+	for y in range(area.y * AREA_SIZE, mini((area.y + 1) * AREA_SIZE, MAZE_HEIGHT)):
+		for x in range(area.x * AREA_SIZE, mini((area.x + 1) * AREA_SIZE, MAZE_WIDTH)):
+			var c := Vector2i(x, y)
+			if restricted_cells.has(c) or enemy_map.has(c) or chest_map.has(c) or player_map.has(c):
+				continue
+			if _seen_or_near_a_player(c):
+				continue
+			candidates.append(c)
+	if candidates.is_empty():
+		return MazeQuery.NONE
+	return candidates[randi() % candidates.size()]
+
+func _seen_or_near_a_player(cell: Vector2i) -> bool:
+	for npc in npcs:
+		if npc.dead:
+			continue
+		if npc.sight_cells.has(cell):
+			return true
+		if max(abs(cell.x - npc.cell_pos.x), abs(cell.y - npc.cell_pos.y)) < RESPAWN_MIN_PLAYER_DISTANCE:
+			return true
+	return false
 
 ## A single stationary, much stronger enemy guards the exit cell. Since a
 ## live enemy always blocks its cell until defeated, nobody can set foot on
