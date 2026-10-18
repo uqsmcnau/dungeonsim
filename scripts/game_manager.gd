@@ -33,6 +33,9 @@ const AREA_SIZE := 8
 const RESPAWN_SECONDS := 40.0
 const RESPAWN_RETRY_SECONDS := 2.0
 const RESPAWN_MIN_PLAYER_DISTANCE := 9
+## How often respawning is checked on -- counting every area's monsters
+## each frame would be wasted work for timers measured in tens of seconds.
+const RESPAWN_CHECK_SECONDS := 1.0
 ## How far (in pixels) from a character's icon center a click still selects
 ## it -- about half a cell, matching the 16px icon.
 const PICK_RADIUS := 10.0
@@ -100,6 +103,8 @@ var guidance_cooldown_left: float = 0.0
 var area_capacity: Dictionary = {}
 ## For each area that's below its capacity, seconds until its next respawn.
 var area_respawn_timers: Dictionary = {}
+## Game time gone by since respawning was last checked on.
+var _respawn_check_elapsed: float = 0.0
 ## A gravestone for every character who's died, by character, standing
 ## where they fell. Clicking one brings up their final HUD panel, with how
 ## they died.
@@ -141,7 +146,10 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	hud.update_positions(npcs)
-	_tick_respawns(delta)
+	_respawn_check_elapsed += delta
+	if _respawn_check_elapsed >= RESPAWN_CHECK_SECONDS:
+		_tick_respawns(_respawn_check_elapsed)
+		_respawn_check_elapsed = 0.0
 	_sync_fog()
 	_sync_guidance_marker()
 	_sync_selection_highlight()
@@ -455,8 +463,9 @@ func area_populations() -> Dictionary:
 	return counts
 
 ## Counts down each area that's short of monsters, and gives it one more
-## encounter when its time's up (see AREA_SIZE). Runs from _process, so it
-## stops while the game's paused.
+## encounter when its time's up (see AREA_SIZE). Runs from _process every
+## RESPAWN_CHECK_SECONDS, with all the time gone by since, so it stops while
+## the game's paused.
 func _tick_respawns(delta: float) -> void:
 	var populations := area_populations()
 	for area in area_capacity:

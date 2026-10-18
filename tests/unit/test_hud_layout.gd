@@ -71,6 +71,18 @@ func test_order_is_kept_as_rankings_change():
 	assert_eq(_visible_in(main.hud.leaderboard_container)[0], _panel(underdog), "the new #1 goes to the top")
 	assert_eq(_visible_in(main.hud.leaderboard_container).size(), 6)
 
+func test_a_panel_is_up_to_date_the_moment_it_joins_the_six():
+	var n: int = main.npcs.size()
+	_rank_npcs_by_index(n)
+	main._process(0.0)
+	var underdog: NpcAgent = main.npcs[0]
+	underdog.stats.hp = 7
+	main._process(0.0)  # still off the board
+	underdog.stats.attack_bonus = 1000
+	underdog.stats.max_hp = 1000
+	main._process(0.0)
+	assert_eq(main.hud.rows[underdog]["hp_text"].text, "HP 7/1000")
+
 func test_a_dying_leader_keeps_its_slot_in_the_six():
 	var n: int = main.npcs.size()
 	_rank_npcs_by_index(n)

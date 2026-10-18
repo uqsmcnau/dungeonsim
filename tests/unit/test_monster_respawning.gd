@@ -127,6 +127,16 @@ func test_respawned_monsters_are_as_strong_as_the_area_calls_for():
 			level = max(1, int(round(level * main.PACK_LEVEL_SCALE)))
 		assert_eq(m.stats.level, level)
 
+func test_respawning_is_checked_once_a_second_without_losing_time():
+	var area := _busiest_area()
+	_park_players_far_from(area)
+	_kill(_monsters_in(area))
+	main._process(main.RESPAWN_SECONDS - 0.5)
+	main._process(0.4)  # not yet a second since the last check
+	assert_eq(_population(area), 0)
+	main._process(0.6)  # the check now counts both frames' time
+	assert_gt(_population(area), 0)
+
 func test_respawning_stops_while_paused():
 	var area := _busiest_area()
 	_park_players_far_from(area)

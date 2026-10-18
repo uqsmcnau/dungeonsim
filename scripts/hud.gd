@@ -297,11 +297,14 @@ func refresh_npc(npc: NpcAgent) -> void:
 	if npc == inspected:
 		_refresh_inspector()
 
+## Called every frame. Only the leaderboard panels actually on show are
+## refreshed -- a hidden one is filled in afresh the frame it's shown.
 func update_positions(npcs: Array) -> void:
 	_update_players_left(npcs)
 	_update_leaderboard(npcs)
 	for npc in npcs:
-		_refresh_row(npc)
+		if rows.has(npc) and rows[npc]["panel"].visible:
+			_refresh_row(npc)
 	_refresh_inspector()
 
 ## Opens (or switches) the inspector to show `npc` at the top of the left
