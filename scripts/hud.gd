@@ -11,8 +11,11 @@ signal party_vision_toggled(enabled: bool)
 ## while paused (when its _process isn't running).
 signal selection_changed
 
-@onready var left_container: VBoxContainer = $LeftStats
-@onready var right_container: VBoxContainer = $RightStats
+## The left column: the selected character's panel on top, then one for
+## each other living member of their party (see _sync_party_panels).
+@onready var selection_container: VBoxContainer = $SelectionStats
+## The right column: the leaderboard (see _update_leaderboard).
+@onready var leaderboard_container: VBoxContainer = $LeaderboardStats
 @onready var winner_label: Label = $WinnerLabel
 @onready var fog_toggle: CheckBox = $FogToggle
 @onready var party_vision_toggle: CheckBox = $PartyVisionToggle
@@ -34,7 +37,7 @@ const GUIDANCE_COOLING_COLOR := Color(0.4, 0.45, 0.55)
 ## period (below). A dying character keeps occupying its slot until that
 ## grace period actually ends, so a lower-ranked living character isn't
 ## promoted into its place early.
-const VISIBLE_HUD_COUNT := 10
+const VISIBLE_HUD_COUNT := 6
 ## A character that was on the leaderboard at the moment it died keeps its
 ## panel on screen (playing the death flash, then sitting frozen and grey)
 ## for this long before actually dropping off, rather than vanishing the
@@ -47,16 +50,19 @@ var rows: Dictionary = {}
 ## a slot until the grace timer actually removes them.
 var dying: Dictionary = {}
 
-## The character shown in the bottom-right inspector (opened by clicking
-## their icon in the maze), or null, plus that panel's widgets.
+## The selected character (opened by clicking their icon or gravestone in
+## the maze), or null, plus their panel's widgets -- the inspector, at the
+## top of the left column.
 var inspected: NpcAgent = null
 var inspector: Dictionary = {}
-const INSPECTOR_MARGIN := 20.0
+## Panels for the rest of the selected character's party, by character,
+## listed below the inspector.
+var party_panels: Dictionary = {}
 
 func _ready() -> void:
 	winner_label.visible = false
-	left_container.add_theme_constant_override("separation", 2)
-	right_container.add_theme_constant_override("separation", 2)
+	selection_container.add_theme_constant_override("separation", 2)
+	leaderboard_container.add_theme_constant_override("separation", 2)
 	fog_toggle.toggled.connect(func(pressed: bool): fog_toggled.emit(pressed))
 	party_vision_toggle.toggled.connect(func(pressed: bool): party_vision_toggled.emit(pressed))
 	pause_button.toggled.connect(set_paused)
@@ -157,12 +163,9 @@ func _make_stat_bar(fill_color: Color) -> Dictionary:
 
 	return {"container": container, "bar": bar, "label": label, "fill": fill}
 
-## New panels start in the left column -- _balance_columns reassigns them
-## (along with everyone else) the moment the leaderboard next updates, so
-## where they start doesn't matter.
 func register_npc(npc: NpcAgent) -> void:
 	var r := _build_panel(npc)
-	left_container.add_child(r["panel"])
+	leaderboard_container.add_child(r["panel"])
 	rows[npc] = r
 	_refresh_row(npc)
 
@@ -297,28 +300,14 @@ func update_positions(npcs: Array) -> void:
 		_refresh_row(npc)
 	_refresh_inspector()
 
-## Opens (or switches) the bottom-right inspector to show `npc`, independent
-## of whether they're currently on the leaderboard.
+## Opens (or switches) the inspector to show `npc` at the top of the left
+## column, independent of whether they're on the leaderboard, with the rest
+## of their party listed below it.
 func inspect(npc: NpcAgent) -> void:
 	close_inspector()
 	inspected = npc
 	inspector = _build_panel(npc)
 	var panel: PanelContainer = inspector["panel"]
-	panel.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	# Pinned by its bottom-right corner, growing up and left as its contents
-	# (e.g. wrapped equipment lists) need more room.
-	panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-	panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	panel.offset_left = -INSPECTOR_MARGIN
-	panel.offset_top = -INSPECTOR_MARGIN
-	panel.offset_right = -INSPECTOR_MARGIN
-	panel.offset_bottom = -INSPECTOR_MARGIN
-	# Late in a run the right leaderboard column can grow down far enough to
-	# run underneath this panel -- pre-blend the translucent tint against
-	# the default clear color so it reads the same but hides what's below.
-	var style: StyleBoxFlat = panel.get_theme_stylebox("panel")
-	var tint: Color = style.bg_color
-	style.bg_color = RenderingServer.get_default_clear_color().lerp(Color(tint.r, tint.g, tint.b), tint.a)
 
 	var close_button := Button.new()
 	close_button.text = "✕"
@@ -330,16 +319,26 @@ func inspect(npc: NpcAgent) -> void:
 	inspector["header_row"].add_child(close_button)
 	inspector["close_button"] = close_button
 
-	add_child(panel)
+	selection_container.add_child(panel)
 	_refresh_inspector()
 	selection_changed.emit()
 
 func close_inspector() -> void:
 	if inspector.has("panel"):
-		inspector["panel"].queue_free()
+		_discard_panel(inspector["panel"])
+	for member in party_panels:
+		_discard_panel(party_panels[member]["panel"])
+	party_panels = {}
 	inspector = {}
 	inspected = null
 	selection_changed.emit()
+
+## Out of the column straight away (so a new selection lays out cleanly),
+## freed at the end of the frame.
+func _discard_panel(panel: Control) -> void:
+	if panel.get_parent() != null:
+		panel.get_parent().remove_child(panel)
+	panel.queue_free()
 
 ## Called every frame, but also straight from inspect() so a click while
 ## paused (when update_positions isn't running) still shows current stats.
@@ -353,6 +352,31 @@ func _refresh_inspector() -> void:
 	if inspected.dead:
 		inspector["header"].text += "  ☠ DEAD"
 		inspector["panel"].modulate = Color(0.5, 0.5, 0.5, 1.0)
+	_sync_party_panels()
+	for member in party_panels:
+		var r: Dictionary = party_panels[member]
+		r["rank"] = rows[member]["rank"] if rows.has(member) else 0
+		_fill_panel(r, member)
+
+## Keeps one panel below the inspector for each other living member of the
+## selected character's party, in party order -- adding them as they join,
+## dropping them as they fall or leave. None for a dead selection.
+func _sync_party_panels() -> void:
+	var members: Array = []
+	if not inspected.dead:
+		for m in inspected.living_party():
+			if m != inspected:
+				members.append(m)
+	for m in party_panels.keys():
+		if not members.has(m):
+			_discard_panel(party_panels[m]["panel"])
+			party_panels.erase(m)
+	for i in range(members.size()):
+		var m: NpcAgent = members[i]
+		if not party_panels.has(m):
+			party_panels[m] = _build_panel(m)
+			selection_container.add_child(party_panels[m]["panel"])
+		selection_container.move_child(party_panels[m]["panel"], i + 1)
 
 ## `rows` keeps every character ever registered (dead ones included), so it
 ## doubles as the starting headcount.
@@ -367,7 +391,7 @@ func _update_players_left(npcs: Array) -> void:
 ## `npcs` by the time this is called -- see GameManager._on_npc_died) plus
 ## anyone still serving out their death grace period (see mark_dead, using
 ## their frozen stats) together by combat power, and shows only the panels
-## for the top VISIBLE_HUD_COUNT. A dying character keeps occupying its
+## for the top VISIBLE_HUD_COUNT, in rank order. A dying character keeps occupying its
 ## slot in this combined ranking for as long as its grace period lasts, so
 ## a lower-ranked living character only gets promoted into view once that
 ## slot is actually freed up -- never while the dead one is still showing.
@@ -387,30 +411,14 @@ func _update_leaderboard(npcs: Array) -> void:
 		rows[npc]["rank"] = rank
 		rows[npc]["panel"].visible = rank > 0
 
-	_balance_columns(shown)
+	_order_leaderboard(shown)
 
-## Keeps the two columns balanced -- odd ranks in the left column, even
-## ranks in the right, so the normal 10-visible case always lands exactly
-## 5 and 5 -- rather than leaving each panel in whichever column it
-## happened to start in, which could leave one column crowded and the
-## other sparse once only a shifting subset of characters are ever shown.
-func _balance_columns(shown: Dictionary) -> void:
+## Stacks the shown panels at the top of the leaderboard column, #1 first.
+func _order_leaderboard(shown: Dictionary) -> void:
 	var ranked_shown: Array = shown.keys()
 	ranked_shown.sort_custom(func(a, b): return shown[a] < shown[b])
-	var left_index := 0
-	var right_index := 0
-	for npc in ranked_shown:
-		var panel: PanelContainer = rows[npc]["panel"]
-		if int(shown[npc]) % 2 == 1:
-			if panel.get_parent() != left_container:
-				panel.reparent(left_container)
-			left_container.move_child(panel, left_index)
-			left_index += 1
-		else:
-			if panel.get_parent() != right_container:
-				panel.reparent(right_container)
-			right_container.move_child(panel, right_index)
-			right_index += 1
+	for i in range(ranked_shown.size()):
+		leaderboard_container.move_child(rows[ranked_shown[i]]["panel"], i)
 
 func _refresh_row(npc: NpcAgent) -> void:
 	if not rows.has(npc):
@@ -509,6 +517,8 @@ func _flash(npc: NpcAgent, color: Color) -> void:
 		_flash_rect(rows[npc]["flash"], color)
 	if npc == inspected:
 		_flash_rect(inspector["flash"], color)
+	if party_panels.has(npc):
+		_flash_rect(party_panels[npc]["flash"], color)
 
 func _flash_rect(flash: ColorRect, color: Color) -> void:
 	flash.color = Color(color.r, color.g, color.b, 0.9)

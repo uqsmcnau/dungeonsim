@@ -1,7 +1,7 @@
 extends GutTest
 
 ## Covers clicking a character's icon in the maze to open their inspector
-## panel in the bottom-right, separate from the leaderboard.
+## panel at the top of the left column, separate from the leaderboard.
 
 var main: Node
 
@@ -50,13 +50,12 @@ func test_real_mouse_click_on_an_icon_opens_the_inspector():
 	_click_at_world(npc.global_position)
 	assert_eq(main.hud.inspected, npc)
 
-func test_inspector_shows_the_character_in_the_bottom_right():
+func test_inspector_shows_the_character_at_the_top_left():
 	var npc: NpcAgent = main.npcs[0]
 	main._on_world_clicked(npc.global_position)
 	var panel: PanelContainer = main.hud.inspector["panel"]
-	assert_eq(panel.get_parent(), main.hud, "separate from the leaderboard columns")
-	assert_eq(panel.anchor_left, 1.0)
-	assert_eq(panel.anchor_top, 1.0)
+	assert_eq(panel.get_parent(), main.hud.selection_container, "the left column, separate from the leaderboard")
+	assert_eq(panel.get_index(), 0, "at the top")
 	assert_string_contains(main.hud.inspector["header"].text, npc.npc_name)
 
 func test_clicking_another_character_switches_the_inspector():
@@ -91,7 +90,7 @@ func test_inspector_works_for_characters_off_the_leaderboard():
 		if int(main.hud.rows[npc]["rank"]) == 0:
 			off_board = npc
 			break
-	assert_not_null(off_board, "sanity: with 20 players only 10 are on the leaderboard")
+	assert_not_null(off_board, "sanity: with 20 players only 6 are on the leaderboard")
 	main._on_world_clicked(off_board.global_position)
 	assert_eq(main.hud.inspected, off_board)
 
