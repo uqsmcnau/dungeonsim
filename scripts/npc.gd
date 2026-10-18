@@ -301,72 +301,27 @@ func _take_step() -> void:
 		return
 	_attempt_move(candidate)
 
-## Guidance: sends this party to walk to `cell` (the spectator's right-click,
-## see GameManager._on_world_right_clicked for the cooldown). Parties
-## only travel through ground they've already explored, so a click on
-## unexplored or unreachable ground sends them to the closest spot they
-## know how to reach instead. Returns false if there's nowhere to go -- e.g.
-## they're already as close as they know how to get.
+## Guidance: sends this party to `cell` (the spectator's right-click, see
+## GameManager._on_world_right_clicked for the cooldown), anywhere in the
+## maze -- seen or not. They find their way there by A* (see
+## _guidance_step). Returns false if there's nowhere to go: they're
+## already there.
 func guide_to(cell: Vector2i) -> bool:
-	if dead or finished:
-		return false
-	var dest := _nearest_reachable_known(cell, _party_known_cells())
-	if dest == cell_pos:
+	if dead or finished or cell == cell_pos:
 		guidance_target = MazeQuery.NONE
 		return false
-	guidance_target = dest
+	guidance_target = cell
 	current_action = "Following guidance"
 	return true
 
-## Every cell anyone in this party has been to -- a party pools what its
-## members have explored.
+## Every cell anyone in this party has been to or seen -- a party pools
+## what its members know (see seen_cells).
 func _party_known_cells() -> Dictionary:
 	var known: Dictionary = {}
 	for member in living_party():
 		known.merge(member.visited)
+		known.merge(member.seen_cells)
 	return known
-
-## Of the known cells reachable from here (through known cells only), the
-## one closest to `target` -- `target` itself if it's among them.
-func _nearest_reachable_known(target: Vector2i, known: Dictionary) -> Vector2i:
-	var best := cell_pos
-	var best_dist: int = abs(cell_pos.x - target.x) + abs(cell_pos.y - target.y)
-	var seen: Dictionary = {cell_pos: true}
-	var queue: Array = [cell_pos]
-	while not queue.is_empty():
-		var cur: Vector2i = queue.pop_front()
-		for n in MazeQuery.open_neighbors(grid, cur):
-			if seen.has(n) or not known.has(n):
-				continue
-			seen[n] = true
-			queue.append(n)
-			var d: int = abs(n.x - target.x) + abs(n.y - target.y)
-			if d < best_dist:
-				best = n
-				best_dist = d
-	return best
-
-## First step of a shortest route to `target` through `known` cells, never
-## entering an `avoid` cell (other than `target` itself), or our own cell if
-## there's no such route.
-func _route_through_known(target: Vector2i, known: Dictionary, avoid: Dictionary) -> Vector2i:
-	var came_from: Dictionary = {cell_pos: cell_pos}
-	var queue: Array = [cell_pos]
-	while not queue.is_empty():
-		var cur: Vector2i = queue.pop_front()
-		for n in MazeQuery.open_neighbors(grid, cur):
-			if came_from.has(n) or not known.has(n):
-				continue
-			if avoid.has(n) and n != target:
-				continue
-			came_from[n] = cur
-			if n == target:
-				var step: Vector2i = n
-				while came_from[step] != cell_pos:
-					step = came_from[step]
-				return step
-			queue.append(n)
-	return cell_pos
 
 ## Takes the next step toward the Guidance target, returning whether it did
 ## anything (false once it's arrived, or the target's become unreachable,
@@ -383,14 +338,7 @@ func _follow_guidance() -> bool:
 		guidance_target = MazeQuery.NONE
 		_update_label()
 		return false
-	var known := _party_known_cells()
-	var avoid := _live_enemy_cells()
-	for c in players:
-		if c != cell_pos and _has_live_player(c):
-			avoid[c] = true
-	var step := _route_through_known(guidance_target, known, avoid)
-	if step == cell_pos:
-		step = _route_through_known(guidance_target, known, {})
+	var step := _guidance_step()
 	if step == cell_pos:
 		guidance_target = MazeQuery.NONE
 		return false
@@ -402,6 +350,21 @@ func _follow_guidance() -> bool:
 		guidance_target = MazeQuery.NONE
 		current_action = "Guidance blocked"
 	return true
+
+## The next cell toward the Guidance target, or our own cell if there's no
+## way there: the first step of an A* search over the party's pooled map
+## that treats passages nobody's seen as open (MazeQuery.explore_step),
+## re-planned every step as more of the maze comes into view.
+func _guidance_step() -> Vector2i:
+	var known := _party_known_cells()
+	var avoid := _live_enemy_cells()
+	for c in players:
+		if c != cell_pos and _has_live_player(c):
+			avoid[c] = true
+	var step := MazeQuery.explore_step(grid, cell_pos, guidance_target, known, avoid)
+	if step == cell_pos:
+		step = MazeQuery.explore_step(grid, cell_pos, guidance_target, known)
+	return step
 
 ## Next step toward the nearest other party leader in line of sight that
 ## this party wants to team up with (see _wants_to_party_with), routed

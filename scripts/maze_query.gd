@@ -103,6 +103,95 @@ static func step_toward(grid: Array, from: Vector2i, to: Vector2i, max_depth: in
 		depth += 1
 	return from
 
+## First step of an A* search from `from` to `to` across a maze that's only
+## partly known: a passage touching a `known` cell is as the grid says (seeing
+## a cell means seeing its walls), but between two unknown cells it's assumed
+## open until seen otherwise. That guess is optimistic, so the route is only
+## a best guess -- call this again after every step, as new walls come into
+## view, and the plan corrects itself. Never enters an `avoid` cell (other
+## than `to` itself). Returns `from` if there's no route at all.
+static func explore_step(grid: Array, from: Vector2i, to: Vector2i, known: Dictionary, avoid: Dictionary = {}) -> Vector2i:
+	if from == to:
+		return from
+	var width: int = grid[0].size()
+	var height: int = grid.size()
+	var came_from: Dictionary = {from: from}
+	var cost: Dictionary = {from: 0}
+	var heap := _Heap.new()
+	heap.push(_manhattan(from, to), from)
+	while not heap.is_empty():
+		var cur: Vector2i = heap.pop()
+		if cur == to:
+			var step: Vector2i = cur
+			while came_from[step] != from:
+				step = came_from[step]
+			return step
+		for dir in [Vector2i(0, -1), Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 0)]:
+			var n: Vector2i = cur + dir
+			if n.x < 0 or n.x >= width or n.y < 0 or n.y >= height:
+				continue
+			if avoid.has(n) and n != to:
+				continue
+			if (known.has(cur) or known.has(n)) and not _edge_open(grid, cur, n):
+				continue
+			var g: int = cost[cur] + 1
+			if cost.has(n) and cost[n] <= g:
+				continue
+			cost[n] = g
+			came_from[n] = cur
+			# Ties on f go to the deeper node (smaller h), so A* runs straight
+			# at the goal across open ground instead of fanning out sideways.
+			heap.push((g + _manhattan(n, to)) * 4096 - g, n)
+	return from
+
+static func _manhattan(a: Vector2i, b: Vector2i) -> int:
+	return abs(a.x - b.x) + abs(a.y - b.y)
+
+## Minimal binary min-heap of cells by integer priority, for explore_step.
+class _Heap:
+	var keys: Array[int] = []
+	var cells: Array[Vector2i] = []
+
+	func is_empty() -> bool:
+		return keys.is_empty()
+
+	func push(key: int, cell: Vector2i) -> void:
+		keys.append(key)
+		cells.append(cell)
+		var i := keys.size() - 1
+		while i > 0:
+			var parent := (i - 1) / 2
+			if keys[parent] <= keys[i]:
+				break
+			_swap(i, parent)
+			i = parent
+
+	func pop() -> Vector2i:
+		var top: Vector2i = cells[0]
+		var last := keys.size() - 1
+		_swap(0, last)
+		keys.resize(last)
+		cells.resize(last)
+		var i := 0
+		while true:
+			var smallest := i
+			for child in [2 * i + 1, 2 * i + 2]:
+				if child < last and keys[child] < keys[smallest]:
+					smallest = child
+			if smallest == i:
+				break
+			_swap(i, smallest)
+			i = smallest
+		return top
+
+	func _swap(a: int, b: int) -> void:
+		var k := keys[a]
+		keys[a] = keys[b]
+		keys[b] = k
+		var c := cells[a]
+		cells[a] = cells[b]
+		cells[b] = c
+
 static func _edge_open(grid: Array, a: Vector2i, b: Vector2i) -> bool:
 	var walls: int = grid[a.y][a.x]
 	if b.x > a.x:

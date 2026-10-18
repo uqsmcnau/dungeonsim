@@ -2,9 +2,11 @@ extends GutTest
 
 ## Covers Guidance: select a character (left-click), then right-click the
 ## maze to send their whole party there, once every GUIDANCE_COOLDOWN
-## seconds. Parties only route through ground they've explored, apply the
-## normal rules to anyone in the way, then carry on. Most tests use small
-## hand-built mazes with the character isolated on its own maps.
+## seconds. Parties find their way by A* over what they know of the maze,
+## assuming unseen passages are open and re-planning as they explore,
+## applying the normal rules to anyone in the way.
+## Most tests use small hand-built mazes with the character isolated on its
+## own maps.
 
 const ENEMY_SCENE: PackedScene = preload("res://scenes/Enemy.tscn")
 
@@ -37,6 +39,9 @@ func _isolate(g: Array, cell: Vector2i, explored: Array) -> void:
 	a.cell_pos = cell
 	a.position = a._cell_to_world(cell)
 	a.visited = {}
+	a.seen_cells = {}
+	a.sight_cells = {}
+	a._sight_cell = cell  # so nothing gets "seen" until it moves
 	for c in explored:
 		a.visited[c] = true
 	a.visited[cell] = true
@@ -96,33 +101,31 @@ func test_order_to_an_explored_cell_goes_exactly_there():
 	assert_true(a.guide_to(Vector2i(5, 0)))
 	assert_eq(a.guidance_target, Vector2i(5, 0))
 
-func test_order_into_unexplored_ground_stops_at_the_nearest_known_cell():
+func test_order_into_unexplored_ground_goes_exactly_there():
 	_isolate(_corridor(6), Vector2i(0, 0), _row(0, 2))
-	a.guide_to(Vector2i(5, 0))
-	assert_eq(a.guidance_target, Vector2i(2, 0), "only explored ground is routable")
+	assert_true(a.guide_to(Vector2i(5, 0)))
+	assert_eq(a.guidance_target, Vector2i(5, 0), "no stopping short at the edge of the known")
 
-func test_known_but_unreachable_cell_is_not_a_valid_destination():
-	# (4,0) has been seen before, but the cells joining it to here haven't.
-	_isolate(_corridor(6), Vector2i(0, 0), [Vector2i(1, 0), Vector2i(4, 0)])
-	a.guide_to(Vector2i(4, 0))
-	assert_eq(a.guidance_target, Vector2i(1, 0))
+func test_seen_cells_count_as_known():
+	_isolate(_corridor(6), Vector2i(0, 0), [])
+	a.seen_cells[Vector2i(3, 0)] = true
+	assert_true(a._party_known_cells().has(Vector2i(3, 0)), "seen but never walked is still known")
+
+func test_a_partys_pooled_map_counts():
+	_isolate(_corridor(6), Vector2i(0, 0), [])
+	var mate: NpcAgent = main.npcs[1]
+	a.party.append(mate)
+	mate.party = a.party
+	mate.is_party_leader = false
+	mate.visited = {Vector2i(4, 0): true}
+	mate.seen_cells = {Vector2i(5, 0): true}
+	var known: Dictionary = a._party_known_cells()
+	assert_true(known.has(Vector2i(4, 0)) and known.has(Vector2i(5, 0)), "what a party member has explored and seen counts too")
 
 func test_order_to_where_the_party_already_is_does_nothing():
 	_isolate(_corridor(6), Vector2i(2, 0), _row(0, 5))
 	assert_false(a.guide_to(Vector2i(2, 0)))
 	assert_eq(a.guidance_target, MazeQuery.NONE)
-
-func test_party_pools_what_its_members_have_explored():
-	_isolate(_corridor(6), Vector2i(0, 0), _row(0, 1))
-	var mate: NpcAgent = main.npcs[1]
-	a.party.append(mate)
-	mate.party = a.party
-	mate.is_party_leader = false
-	mate.visited = {}
-	for c in _row(2, 5):
-		mate.visited[c] = true
-	a.guide_to(Vector2i(5, 0))
-	assert_eq(a.guidance_target, Vector2i(5, 0), "a party member's exploring counts too")
 
 # ============================== Following it ==============================
 
@@ -139,7 +142,7 @@ func test_order_routes_around_a_monster():
 	var enemy: EnemyAgent = add_child_autofree(ENEMY_SCENE.instantiate())
 	enemy.setup(Vector2i(1, 0), main.CELL_SIZE, 1, a.grid, a.enemies, {}, [], false)
 	a.guide_to(Vector2i(2, 0))
-	assert_eq(a._route_through_known(a.guidance_target, a._party_known_cells(), a._live_enemy_cells()), Vector2i(0, 1))
+	assert_eq(a._guidance_step(), Vector2i(0, 1))
 
 func test_order_is_abandoned_if_the_party_backs_off_from_whoever_blocks_the_only_way():
 	_isolate(_corridor(5), Vector2i(1, 0), _row(0, 4))
@@ -170,6 +173,102 @@ func test_party_actually_walks_to_the_ordered_spot():
 			reached = true
 			break
 	assert_true(reached, "should have walked all the way back to (0,0)")
+
+# ======================= Searching unexplored ground ======================
+
+## Walks `a` one Guidance step at a time, synchronously (no tweens), seeing
+## what it can from each new cell -- the cells it stood on, in order.
+func _walk_guidance(max_steps: int) -> Array:
+	var path: Array = []
+	for i in range(max_steps):
+		if a.guidance_target == MazeQuery.NONE or a.cell_pos == a.guidance_target:
+			break
+		var step: Vector2i = a._guidance_step()
+		if step == a.cell_pos:
+			break
+		a.cell_pos = step
+		a.visited[step] = true
+		a.look_around()
+		path.append(step)
+	return path
+
+func _open_room(w: int, h: int) -> Array:
+	var g := _walled_grid(w, h)
+	for y in range(h):
+		for x in range(w):
+			if x < w - 1:
+				_open(g, Vector2i(x, y), Vector2i(x + 1, y))
+			if y < h - 1:
+				_open(g, Vector2i(x, y), Vector2i(x, y + 1))
+	return g
+
+## 5x5 room with a wall down between x=1 and x=2, open only at the bottom:
+## from the left half to the right, it's down, across and back up.
+func _divided_room() -> Array:
+	var g := _open_room(5, 5)
+	for y in range(4):
+		g[y][1] |= MazeGenerator.WALL_E
+		g[y][2] |= MazeGenerator.WALL_W
+	return g
+
+func test_search_heads_straight_across_unseen_ground():
+	assert_eq(MazeQuery.explore_step(_open_room(5, 5), Vector2i(0, 0), Vector2i(4, 0), {}), Vector2i(1, 0))
+
+func test_search_plans_around_walls_it_has_seen():
+	var known := {}
+	for y in range(5):
+		for x in range(2):
+			known[Vector2i(x, y)] = true
+	# Straight right is walled off -- and they've seen that.
+	assert_eq(MazeQuery.explore_step(_divided_room(), Vector2i(1, 0), Vector2i(3, 0), known), Vector2i(1, 1))
+
+func test_search_assumes_unseen_passages_are_open():
+	# Same wall, but nobody's seen it: worth trying the direct way.
+	assert_eq(MazeQuery.explore_step(_divided_room(), Vector2i(1, 0), Vector2i(3, 0), {}), Vector2i(2, 0))
+
+func test_search_never_plans_through_a_known_wall_even_onto_unseen_ground():
+	# (1,0) is known; (2,0) isn't -- but the wall between them belongs to
+	# (1,0) too, so it's been seen.
+	assert_eq(MazeQuery.explore_step(_divided_room(), Vector2i(1, 0), Vector2i(3, 0), {Vector2i(1, 0): true}), Vector2i(1, 1))
+
+func test_search_finds_a_way_round_once_its_guess_turns_out_wrong():
+	# Starts out having seen nothing, so its first guess is straight through
+	# the wall; it only learns otherwise by looking around as it goes.
+	_isolate(_divided_room(), Vector2i(0, 0), [])
+	a.guide_to(Vector2i(4, 0))
+	var path := _walk_guidance(40)
+	assert_eq(a.cell_pos, Vector2i(4, 0), "found it: %s" % [path])
+	assert_true(path.has(Vector2i(2, 4)), "through the only gap in the wall")
+
+func test_search_does_not_detour_to_the_nearest_known_cell_first():
+	# Open 6x6 room. It's explored the top row and down column 3, so the
+	# known cell nearest the target (0,5) is (3,4) -- off to one side...
+	var explored := _row(0, 5)
+	for y in range(1, 5):
+		explored.append(Vector2i(3, y))
+	_isolate(_open_room(6, 6), Vector2i(0, 0), explored)
+	a.guide_to(Vector2i(0, 5))
+	var path := _walk_guidance(20)
+	# ...but A* heads straight down the unexplored left side: 5 steps,
+	# rather than 7 to (3,4) and 4 more back across.
+	assert_eq(path.size(), 5, "shortest way: %s" % [path])
+	assert_eq(a.cell_pos, Vector2i(0, 5))
+	assert_false(path.has(Vector2i(3, 4)))
+
+func test_party_finds_an_unexplored_spot_in_the_real_maze():
+	# The far side of the real 48x48 maze, nowhere near anything it's seen.
+	var start: Vector2i = a.cell_pos
+	main.player_map.erase(start)
+	a.players = {}
+	a.enemies = {}
+	a.party = [a]
+	var target := Vector2i(main.MAZE_WIDTH - 1 - start.x, main.MAZE_HEIGHT - 1 - start.y)
+	if target == main.exit_cell:
+		target += Vector2i(2, 0)
+	assert_false(a._party_known_cells().has(target), "sanity: somewhere unexplored")
+	a.guide_to(target)
+	_walk_guidance(3000)
+	assert_eq(a.cell_pos, target)
 
 # =========================== Party bookkeeping ============================
 
