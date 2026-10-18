@@ -1,4 +1,4 @@
-extends GutTest
+extends DungeonTest
 
 ## Covers parties seeking each other out: two parties in line of sight that
 ## both want to team up head toward each other (ahead of shops, chests and
@@ -6,15 +6,12 @@ extends GutTest
 ## small hand-built mazes, with the two characters isolated on their own
 ## maps so the rest of the running simulation can't interfere.
 
-const ENEMY_SCENE: PackedScene = preload("res://scenes/Enemy.tscn")
-
-var main: Node
 var a: NpcAgent
 var b: NpcAgent
 var players: Dictionary = {}
 
 func before_each():
-	main = add_child_autofree(load("res://scenes/Main.tscn").instantiate())
+	load_main()
 	a = main.npcs[0]
 	b = main.npcs[1]
 	players = {}
@@ -34,45 +31,6 @@ func before_each():
 		npc.stats.alignment = NpcStats.ALIGNMENT_GOOD
 		npc.stats.inventory.clear()
 
-func _walled_grid(w: int, h: int) -> Array:
-	var g: Array = []
-	for y in range(h):
-		var row: Array = []
-		for x in range(w):
-			row.append(MazeGenerator.WALL_N | MazeGenerator.WALL_E | MazeGenerator.WALL_S | MazeGenerator.WALL_W)
-		g.append(row)
-	return g
-
-func _open(g: Array, p: Vector2i, q: Vector2i) -> void:
-	if q.x > p.x:
-		g[p.y][p.x] &= ~MazeGenerator.WALL_E
-		g[q.y][q.x] &= ~MazeGenerator.WALL_W
-	elif q.x < p.x:
-		_open(g, q, p)
-	elif q.y > p.y:
-		g[p.y][p.x] &= ~MazeGenerator.WALL_S
-		g[q.y][q.x] &= ~MazeGenerator.WALL_N
-	else:
-		_open(g, q, p)
-
-func _corridor(length: int) -> Array:
-	var g := _walled_grid(length, 1)
-	for x in range(length - 1):
-		_open(g, Vector2i(x, 0), Vector2i(x + 1, 0))
-	return g
-
-## A 3x2 ring: the top row is a straight line of sight from (0,0) to
-## (2,0), and the bottom row is the long way round.
-func _ring() -> Array:
-	var g := _walled_grid(3, 2)
-	_open(g, Vector2i(0, 0), Vector2i(1, 0))
-	_open(g, Vector2i(1, 0), Vector2i(2, 0))
-	_open(g, Vector2i(0, 0), Vector2i(0, 1))
-	_open(g, Vector2i(0, 1), Vector2i(1, 1))
-	_open(g, Vector2i(1, 1), Vector2i(2, 1))
-	_open(g, Vector2i(2, 1), Vector2i(2, 0))
-	return g
-
 func _place(npc: NpcAgent, cell: Vector2i, g: Array) -> void:
 	npc.grid = g
 	npc.cell_pos = cell
@@ -81,7 +39,7 @@ func _place(npc: NpcAgent, cell: Vector2i, g: Array) -> void:
 	players[cell] = npc
 
 func test_two_willing_parties_in_sight_head_toward_each_other():
-	var g := _corridor(5)
+	var g := corridor(5)
 	_place(a, Vector2i(0, 0), g)
 	_place(b, Vector2i(4, 0), g)
 
@@ -90,7 +48,7 @@ func test_two_willing_parties_in_sight_head_toward_each_other():
 
 func test_teaming_up_takes_priority_over_a_chest():
 	# Chest one way, a willing party the other.
-	var g := _corridor(7)
+	var g := corridor(7)
 	_place(a, Vector2i(3, 0), g)
 	_place(b, Vector2i(6, 0), g)
 	a.chests[Vector2i(0, 0)] = true
@@ -101,26 +59,26 @@ func test_teaming_up_takes_priority_over_a_chest():
 func test_teaming_up_takes_priority_over_exploring_a_side_branch():
 	# A T-junction: an unexplored branch right next to `a` going one way,
 	# the other party down the corridor the other way.
-	var t := _walled_grid(5, 2)
+	var t := walled_grid(5, 2)
 	for x in range(4):
-		_open(t, Vector2i(x, 0), Vector2i(x + 1, 0))
-	_open(t, Vector2i(0, 0), Vector2i(0, 1))
+		open_between(t, Vector2i(x, 0), Vector2i(x + 1, 0))
+	open_between(t, Vector2i(0, 0), Vector2i(0, 1))
 	_place(a, Vector2i(0, 0), t)
 	_place(b, Vector2i(4, 0), t)
 
 	assert_eq(a._party_up_step(), Vector2i(1, 0), "toward the other party, not into the unexplored branch")
 
 func test_routes_around_a_monster_between_them():
-	var g := _ring()
+	var g := ring_maze()
 	_place(a, Vector2i(0, 0), g)
 	_place(b, Vector2i(2, 0), g)
-	var enemy: EnemyAgent = add_child_autofree(ENEMY_SCENE.instantiate())
+	var enemy := new_enemy()
 	enemy.setup(Vector2i(1, 0), main.CELL_SIZE, 1, g, a.enemies, {}, [], false)
 
 	assert_eq(a._party_up_step(), Vector2i(0, 1), "the long way round, not through the monster")
 
 func test_ignores_parties_out_of_line_of_sight():
-	var g := _ring()
+	var g := ring_maze()
 	g[0][1] |= MazeGenerator.WALL_E  # wall off the straight line between them
 	g[0][2] |= MazeGenerator.WALL_W
 	_place(a, Vector2i(0, 0), g)
@@ -129,7 +87,7 @@ func test_ignores_parties_out_of_line_of_sight():
 	assert_eq(a._party_up_step(), a.cell_pos)
 
 func test_ignores_parties_that_could_not_merge():
-	var g := _corridor(5)
+	var g := corridor(5)
 	_place(a, Vector2i(0, 0), g)
 	_place(b, Vector2i(4, 0), g)
 	b.stats.alignment = NpcStats.ALIGNMENT_EVIL
@@ -137,7 +95,7 @@ func test_ignores_parties_that_could_not_merge():
 	assert_eq(a._party_up_step(), a.cell_pos, "Good and Evil never band together")
 
 func test_does_not_approach_when_either_side_would_rather_fight():
-	var g := _corridor(5)
+	var g := corridor(5)
 	_place(a, Vector2i(0, 0), g)
 	_place(b, Vector2i(4, 0), g)
 	a.stats.alignment = NpcStats.ALIGNMENT_EVIL
@@ -149,7 +107,7 @@ func test_does_not_approach_when_either_side_would_rather_fight():
 	assert_false(b._wants_to_party_with(a))
 
 func test_ignores_finished_characters():
-	var g := _corridor(5)
+	var g := corridor(5)
 	_place(a, Vector2i(0, 0), g)
 	_place(b, Vector2i(4, 0), g)
 	b.finished = true
@@ -157,7 +115,7 @@ func test_ignores_finished_characters():
 	assert_eq(a._party_up_step(), a.cell_pos)
 
 func test_heads_toward_a_party_stuck_in_a_fight():
-	var g := _corridor(5)
+	var g := corridor(5)
 	_place(a, Vector2i(0, 0), g)
 	_place(b, Vector2i(4, 0), g)
 	b.in_pack_combat = true
@@ -166,7 +124,7 @@ func test_heads_toward_a_party_stuck_in_a_fight():
 	assert_eq(a._party_up_step(), Vector2i(1, 0), "b can't come to a, so a goes to b")
 
 func test_two_parties_in_sight_actually_meet_and_merge():
-	var g := _corridor(6)
+	var g := corridor(6)
 	_place(a, Vector2i(0, 0), g)
 	_place(b, Vector2i(5, 0), g)
 	await wait_seconds(3.0)
@@ -174,7 +132,7 @@ func test_two_parties_in_sight_actually_meet_and_merge():
 	assert_same(a.party, b.party, "they should have met and merged into one party")
 
 func test_walks_over_and_joins_a_party_stuck_in_a_fight():
-	var g := _corridor(5)
+	var g := corridor(5)
 	_place(a, Vector2i(0, 0), g)
 	_place(b, Vector2i(4, 0), g)
 	b.in_pack_combat = true
@@ -189,7 +147,7 @@ func test_merging_on_a_shared_cell_leaves_the_host_registered():
 	# Both stepped onto the same cell at once: whoever arrived last
 	# overwrote the other's registration. Merging used to erase that
 	# entry and leave nobody registered there at all.
-	var g := _corridor(3)
+	var g := corridor(3)
 	_place(a, Vector2i(1, 0), g)
 	_place(b, Vector2i(1, 0), g)  # b's registration overwrites a's
 	PartyOps.join_party_of(b, a)

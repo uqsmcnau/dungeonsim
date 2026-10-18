@@ -1,15 +1,11 @@
-extends GutTest
+extends DungeonTest
 
 ## Covers gravestones: one marks where each fallen character died, clicking
 ## it brings up their final HUD panel, and that panel says who or what
 ## killed them and how.
 
-const ENEMY_SCENE: PackedScene = preload("res://scenes/Enemy.tscn")
-
-var main: Node
-
 func before_each():
-	main = add_child_autofree(load("res://scenes/Main.tscn").instantiate())
+	load_main()
 	# As in a real run, everyone's surroundings are discovered before
 	# anyone can die there.
 	main._process(0.0)
@@ -17,17 +13,8 @@ func before_each():
 func after_each():
 	get_tree().paused = false
 
-func _new_enemy() -> EnemyAgent:
-	return add_child_autofree(ENEMY_SCENE.instantiate())
-
 func _click(local_pos: Vector2) -> void:
 	main._on_world_clicked(main.npc_container.to_global(local_pos))
-
-func _clear_cell() -> Vector2i:
-	for c in main.world.unrestricted_cells():
-		if not main.enemy_map.has(c) and not main.chest_map.has(c):
-			return c
-	return Vector2i(-1, -1)
 
 func _solo(npc: NpcAgent) -> void:
 	npc.party = [npc]
@@ -131,8 +118,8 @@ func test_killed_by_a_monster_is_recorded():
 	player.stats.hp = 1
 	player.stats.max_hp = 1
 	player.stats.dexterity = 1
-	var cell := _clear_cell()
-	var monster := _new_enemy()
+	var cell := clear_cell()
+	var monster := new_enemy()
 	monster.setup(cell, main.CELL_SIZE, 4, main.grid, main.enemy_map, {}, [])
 	monster.stats.hp = 100000
 	monster.in_combat = true
@@ -185,8 +172,8 @@ func test_killing_blows_name_the_spell_or_weapon():
 	assert_eq(npc.killing_blow("attack", 6), "Iron Sword for 6 damage")
 
 func test_monster_killer_descriptions():
-	var monster := _new_enemy()
-	monster.setup(_clear_cell(), main.CELL_SIZE, 3, main.grid, {}, {}, [])
+	var monster := new_enemy()
+	monster.setup(clear_cell(), main.CELL_SIZE, 3, main.grid, {}, {}, [])
 	assert_eq(monster.killer_description(), "a level 3 monster")
 	monster.is_mini_boss = true
 	assert_eq(monster.killer_description(), "a Mini Boss (Lv.3)")
@@ -194,9 +181,9 @@ func test_monster_killer_descriptions():
 	assert_eq(monster.killer_description(), "the Boss (Lv.3)")
 
 func test_pack_monster_killer_description():
-	var cell := _clear_cell()
-	var a := _new_enemy()
-	var b := _new_enemy()
+	var cell := clear_cell()
+	var a := new_enemy()
+	var b := new_enemy()
 	a.setup(cell, main.CELL_SIZE, 2, main.grid, {}, {}, [])
 	b.setup(cell, main.CELL_SIZE, 2, main.grid, {}, {}, [])
 	EnemyAgent.form_pack([a, b])

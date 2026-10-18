@@ -1,12 +1,10 @@
-extends GutTest
+extends DungeonTest
 
 ## Covers clicking a character's icon in the maze to open their inspector
 ## panel at the top of the left column, separate from the leaderboard.
 
-var main: Node
-
 func before_each():
-	main = add_child_autofree(load("res://scenes/Main.tscn").instantiate())
+	load_main()
 
 func after_each():
 	get_tree().paused = false

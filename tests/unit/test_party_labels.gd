@@ -1,13 +1,11 @@
-extends GutTest
+extends DungeonTest
 
 ## Covers the labels above characters on the map once they team up: one
 ## label for the whole party, showing the party's name, rather than every
 ## member's own name and level.
 
-var main: Node
-
 func before_each():
-	main = add_child_autofree(load("res://scenes/Main.tscn").instantiate())
+	load_main()
 
 func _party_of(size: int) -> Array:
 	var leader: NpcAgent = main.npcs[0]

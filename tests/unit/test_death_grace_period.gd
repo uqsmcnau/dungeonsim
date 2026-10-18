@@ -1,4 +1,4 @@
-extends GutTest
+extends DungeonTest
 
 ## Covers the leaderboard's death grace period: a character that was
 ## visible on the leaderboard the moment it died keeps its (frozen, death-
@@ -6,27 +6,12 @@ extends GutTest
 ## dropping off, rather than vanishing the instant it's removed from the
 ## living roster.
 
-var main: Node
-
 func before_each():
-	main = add_child_autofree(load("res://scenes/Main.tscn").instantiate())
-
-func _rank_npcs_by_index(count: int) -> void:
-	for i in range(main.npcs.size()):
-		var npc: NpcAgent = main.npcs[i]
-		npc.stats.strength = 1
-		npc.stats.constitution = 1
-		npc.stats.attack_bonus = 0
-		npc.stats.defense_bonus = 0
-		npc.stats.max_hp = 1
-	for i in range(count):
-		var npc: NpcAgent = main.npcs[i]
-		npc.stats.attack_bonus = i * 10
-		npc.stats.max_hp = 10 + i * 10
+	load_main()
 
 func test_a_leaderboard_death_stays_visible_immediately_after_dying():
 	var n: int = main.npcs.size()
-	_rank_npcs_by_index(n)
+	rank_npcs_by_index(n)
 	main._process(0.0)
 	var champion: NpcAgent = main.npcs[n - 1]
 	assert_true(main.hud.rows[champion]["panel"].visible, "sanity: the champion should start out visible")
@@ -39,7 +24,7 @@ func test_a_leaderboard_death_stays_visible_immediately_after_dying():
 
 func test_leaderboard_updates_do_not_override_a_character_mid_grace_period():
 	var n: int = main.npcs.size()
-	_rank_npcs_by_index(n)
+	rank_npcs_by_index(n)
 	main._process(0.0)
 	var champion: NpcAgent = main.npcs[n - 1]
 	champion.die()
@@ -59,7 +44,7 @@ func test_dying_keeps_reserving_its_leaderboard_slot_until_the_grace_period_ends
 	# being promoted the instant the dead one is removed from the living
 	# roster (see Hud._update_leaderboard).
 	var n: int = main.npcs.size()
-	_rank_npcs_by_index(n)
+	rank_npcs_by_index(n)
 	main._process(0.0)
 	var champion: NpcAgent = main.npcs[n - 1]
 	var next_in_line: NpcAgent = main.npcs[n - 1 - Hud.VISIBLE_HUD_COUNT]
@@ -71,7 +56,7 @@ func test_dying_keeps_reserving_its_leaderboard_slot_until_the_grace_period_ends
 
 func test_dying_off_the_leaderboard_does_not_start_a_grace_period():
 	var n: int = main.npcs.size()
-	_rank_npcs_by_index(n)
+	rank_npcs_by_index(n)
 	main._process(0.0)
 	var weakling: NpcAgent = main.npcs[0]  # ranked last, never shown
 	assert_false(main.hud.rows[weakling]["panel"].visible, "sanity: should start out hidden")

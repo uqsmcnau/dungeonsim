@@ -1,30 +1,15 @@
-extends GutTest
+extends DungeonTest
 
 ## Covers where the HUD panels go: the leaderboard (the top
 ## VISIBLE_HUD_COUNT characters) down the right-hand column in rank order,
 ## and the selected character's panel at the top of the left-hand column
 ## with the rest of their party listed below it.
 
-var main: Node
-
 func before_each():
-	main = add_child_autofree(load("res://scenes/Main.tscn").instantiate())
+	load_main()
 
 func after_each():
 	get_tree().paused = false
-
-func _rank_npcs_by_index(count: int) -> void:
-	for i in range(main.npcs.size()):
-		var npc: NpcAgent = main.npcs[i]
-		npc.stats.strength = 1
-		npc.stats.constitution = 1
-		npc.stats.attack_bonus = 0
-		npc.stats.defense_bonus = 0
-		npc.stats.max_hp = 1
-	for i in range(count):
-		var npc: NpcAgent = main.npcs[i]
-		npc.stats.attack_bonus = i * 10
-		npc.stats.max_hp = 10 + i * 10
 
 func _visible_in(container: VBoxContainer) -> Array:
 	return container.get_children().filter(func(c): return c.visible)
@@ -40,12 +25,12 @@ func _selection_panels() -> Array:
 
 func test_the_leaderboard_shows_six():
 	assert_eq(Hud.VISIBLE_HUD_COUNT, 6)
-	_rank_npcs_by_index(main.npcs.size())
+	rank_npcs_by_index(main.npcs.size())
 	main._process(0.0)
 	assert_eq(_visible_in(main.hud.leaderboard_container).size(), 6)
 
 func test_the_leaderboard_is_only_on_the_right():
-	_rank_npcs_by_index(main.npcs.size())
+	rank_npcs_by_index(main.npcs.size())
 	main._process(0.0)
 	for npc in main.hud.rows:
 		assert_eq(_panel(npc).get_parent(), main.hud.leaderboard_container)
@@ -53,7 +38,7 @@ func test_the_leaderboard_is_only_on_the_right():
 
 func test_the_leaderboard_runs_top_down_in_rank_order():
 	var n: int = main.npcs.size()
-	_rank_npcs_by_index(n)
+	rank_npcs_by_index(n)
 	main._process(0.0)
 	var shown := _visible_in(main.hud.leaderboard_container)
 	for i in range(6):
@@ -62,7 +47,7 @@ func test_the_leaderboard_runs_top_down_in_rank_order():
 
 func test_order_is_kept_as_rankings_change():
 	var n: int = main.npcs.size()
-	_rank_npcs_by_index(n)
+	rank_npcs_by_index(n)
 	main._process(0.0)
 	var underdog: NpcAgent = main.npcs[0]
 	underdog.stats.attack_bonus = 1000
@@ -73,7 +58,7 @@ func test_order_is_kept_as_rankings_change():
 
 func test_a_panel_is_up_to_date_the_moment_it_joins_the_six():
 	var n: int = main.npcs.size()
-	_rank_npcs_by_index(n)
+	rank_npcs_by_index(n)
 	main._process(0.0)
 	var underdog: NpcAgent = main.npcs[0]
 	underdog.stats.hp = 7
@@ -85,7 +70,7 @@ func test_a_panel_is_up_to_date_the_moment_it_joins_the_six():
 
 func test_a_dying_leader_keeps_its_slot_in_the_six():
 	var n: int = main.npcs.size()
-	_rank_npcs_by_index(n)
+	rank_npcs_by_index(n)
 	main._process(0.0)
 	main.npcs[n - 1].die()  # kill the current #1
 	main._process(0.0)
@@ -99,7 +84,7 @@ func test_fewer_than_six_left_shows_them_all():
 	for npc in to_kill:
 		npc.die()
 	main.hud.dying.clear()  # skip the grace period
-	_rank_npcs_by_index(4)
+	rank_npcs_by_index(4)
 	main._process(0.0)
 	assert_eq(_visible_in(main.hud.leaderboard_container).size(), 4)
 

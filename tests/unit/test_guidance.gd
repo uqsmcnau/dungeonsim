@@ -1,4 +1,4 @@
-extends GutTest
+extends DungeonTest
 
 ## Covers Guidance: select a character (left-click), then right-click the
 ## maze to send their whole party there, once every GUIDANCE_COOLDOWN
@@ -8,14 +8,11 @@ extends GutTest
 ## Most tests use small hand-built mazes with the character isolated on its
 ## own maps.
 
-const ENEMY_SCENE: PackedScene = preload("res://scenes/Enemy.tscn")
-
-var main: Node
 var a: NpcAgent
 var players: Dictionary = {}
 
 func before_each():
-	main = add_child_autofree(load("res://scenes/Main.tscn").instantiate())
+	load_main()
 	a = main.npcs[0]
 
 func after_each():
@@ -47,49 +44,11 @@ func _isolate(g: Array, cell: Vector2i, explored: Array) -> void:
 	a.visited[cell] = true
 	players[cell] = a
 
-func _walled_grid(w: int, h: int) -> Array:
-	var g: Array = []
-	for y in range(h):
-		var row: Array = []
-		for x in range(w):
-			row.append(MazeGenerator.WALL_N | MazeGenerator.WALL_E | MazeGenerator.WALL_S | MazeGenerator.WALL_W)
-		g.append(row)
-	return g
-
-func _open(g: Array, p: Vector2i, q: Vector2i) -> void:
-	if q.x > p.x:
-		g[p.y][p.x] &= ~MazeGenerator.WALL_E
-		g[q.y][q.x] &= ~MazeGenerator.WALL_W
-	elif q.x < p.x:
-		_open(g, q, p)
-	elif q.y > p.y:
-		g[p.y][p.x] &= ~MazeGenerator.WALL_S
-		g[q.y][q.x] &= ~MazeGenerator.WALL_N
-	else:
-		_open(g, q, p)
-
-func _corridor(length: int) -> Array:
-	var g := _walled_grid(length, 1)
-	for x in range(length - 1):
-		_open(g, Vector2i(x, 0), Vector2i(x + 1, 0))
-	return g
-
 func _row(from_x: int, to_x: int) -> Array:
 	var cells: Array = []
 	for x in range(from_x, to_x + 1):
 		cells.append(Vector2i(x, 0))
 	return cells
-
-## 3x2 ring: straight along the top, or the long way round the bottom.
-func _ring() -> Array:
-	var g := _walled_grid(3, 2)
-	_open(g, Vector2i(0, 0), Vector2i(1, 0))
-	_open(g, Vector2i(1, 0), Vector2i(2, 0))
-	_open(g, Vector2i(0, 0), Vector2i(0, 1))
-	_open(g, Vector2i(0, 1), Vector2i(1, 1))
-	_open(g, Vector2i(1, 1), Vector2i(2, 1))
-	_open(g, Vector2i(2, 1), Vector2i(2, 0))
-	return g
 
 func _ring_cells() -> Array:
 	return [Vector2i(0, 0), Vector2i(1, 0), Vector2i(2, 0), Vector2i(0, 1), Vector2i(1, 1), Vector2i(2, 1)]
@@ -97,22 +56,22 @@ func _ring_cells() -> Array:
 # ========================== Choosing the destination ======================
 
 func test_order_to_an_explored_cell_goes_exactly_there():
-	_isolate(_corridor(6), Vector2i(0, 0), _row(0, 5))
+	_isolate(corridor(6), Vector2i(0, 0), _row(0, 5))
 	assert_true(a.guide_to(Vector2i(5, 0)))
 	assert_eq(a.guidance_target, Vector2i(5, 0))
 
 func test_order_into_unexplored_ground_goes_exactly_there():
-	_isolate(_corridor(6), Vector2i(0, 0), _row(0, 2))
+	_isolate(corridor(6), Vector2i(0, 0), _row(0, 2))
 	assert_true(a.guide_to(Vector2i(5, 0)))
 	assert_eq(a.guidance_target, Vector2i(5, 0), "no stopping short at the edge of the known")
 
 func test_seen_cells_count_as_known():
-	_isolate(_corridor(6), Vector2i(0, 0), [])
+	_isolate(corridor(6), Vector2i(0, 0), [])
 	a.seen_cells[Vector2i(3, 0)] = true
 	assert_true(a._party_known_cells().has(Vector2i(3, 0)), "seen but never walked is still known")
 
 func test_a_partys_pooled_map_counts():
-	_isolate(_corridor(6), Vector2i(0, 0), [])
+	_isolate(corridor(6), Vector2i(0, 0), [])
 	var mate: NpcAgent = main.npcs[1]
 	a.party.append(mate)
 	mate.party = a.party
@@ -123,14 +82,14 @@ func test_a_partys_pooled_map_counts():
 	assert_true(known.has(Vector2i(4, 0)) and known.has(Vector2i(5, 0)), "what a party member has explored and seen counts too")
 
 func test_order_to_where_the_party_already_is_does_nothing():
-	_isolate(_corridor(6), Vector2i(2, 0), _row(0, 5))
+	_isolate(corridor(6), Vector2i(2, 0), _row(0, 5))
 	assert_false(a.guide_to(Vector2i(2, 0)))
 	assert_eq(a.guidance_target, MazeQuery.NONE)
 
 # ============================== Following it ==============================
 
 func test_order_takes_priority_over_a_chest():
-	_isolate(_corridor(7), Vector2i(3, 0), _row(0, 6))
+	_isolate(corridor(7), Vector2i(3, 0), _row(0, 6))
 	a.chests[Vector2i(0, 0)] = true
 	a.guide_to(Vector2i(6, 0))
 	a.current_action = "Exploring"  # so only the step itself can set it
@@ -138,15 +97,15 @@ func test_order_takes_priority_over_a_chest():
 	assert_eq(a.current_action, "Following guidance")
 
 func test_order_routes_around_a_monster():
-	_isolate(_ring(), Vector2i(0, 0), _ring_cells())
-	var enemy: EnemyAgent = add_child_autofree(ENEMY_SCENE.instantiate())
+	_isolate(ring_maze(), Vector2i(0, 0), _ring_cells())
+	var enemy := new_enemy()
 	enemy.setup(Vector2i(1, 0), main.CELL_SIZE, 1, a.grid, a.enemies, {}, [], false)
 	a.guide_to(Vector2i(2, 0))
 	assert_eq(a._guidance_step(), Vector2i(0, 1))
 
 func test_order_is_abandoned_if_the_party_backs_off_from_whoever_blocks_the_only_way():
-	_isolate(_corridor(5), Vector2i(1, 0), _row(0, 4))
-	var enemy: EnemyAgent = add_child_autofree(ENEMY_SCENE.instantiate())
+	_isolate(corridor(5), Vector2i(1, 0), _row(0, 4))
+	var enemy := new_enemy()
 	enemy.setup(Vector2i(2, 0), main.CELL_SIZE, 1, a.grid, a.enemies, {}, [], false)
 	# Mid-fight with nobody we could join -- so we can only back off.
 	enemy.in_combat = true
@@ -156,7 +115,7 @@ func test_order_is_abandoned_if_the_party_backs_off_from_whoever_blocks_the_only
 	assert_eq(a.current_action, "Guidance blocked")
 
 func test_arriving_clears_the_order():
-	_isolate(_corridor(5), Vector2i(2, 0), _row(0, 4))
+	_isolate(corridor(5), Vector2i(2, 0), _row(0, 4))
 	a.guidance_target = Vector2i(2, 0)
 	a._take_step()
 	assert_eq(a.guidance_target, MazeQuery.NONE)
@@ -164,7 +123,7 @@ func test_arriving_clears_the_order():
 func test_party_actually_walks_to_the_ordered_spot():
 	# Unexplored ground lies to the right, which its own AI would head for --
 	# the order sends it back left over ground it's already covered.
-	_isolate(_corridor(9), Vector2i(4, 0), _row(0, 5))
+	_isolate(corridor(9), Vector2i(4, 0), _row(0, 5))
 	a.guide_to(Vector2i(0, 0))
 	var reached := false
 	for i in range(50):  # polled in real time: moves are timed in seconds, not frames
@@ -193,13 +152,13 @@ func _walk_guidance(max_steps: int) -> Array:
 	return path
 
 func _open_room(w: int, h: int) -> Array:
-	var g := _walled_grid(w, h)
+	var g := walled_grid(w, h)
 	for y in range(h):
 		for x in range(w):
 			if x < w - 1:
-				_open(g, Vector2i(x, y), Vector2i(x + 1, y))
+				open_between(g, Vector2i(x, y), Vector2i(x + 1, y))
 			if y < h - 1:
-				_open(g, Vector2i(x, y), Vector2i(x, y + 1))
+				open_between(g, Vector2i(x, y), Vector2i(x, y + 1))
 	return g
 
 ## 5x5 room with a wall down between x=1 and x=2, open only at the bottom:
@@ -273,7 +232,7 @@ func test_party_finds_an_unexplored_spot_in_the_real_maze():
 # =========================== Party bookkeeping ============================
 
 func test_order_carries_over_to_a_promoted_leader():
-	_isolate(_corridor(6), Vector2i(0, 0), _row(0, 5))
+	_isolate(corridor(6), Vector2i(0, 0), _row(0, 5))
 	var mate: NpcAgent = main.npcs[1]
 	a.party.append(mate)
 	mate.party = a.party
@@ -284,7 +243,7 @@ func test_order_carries_over_to_a_promoted_leader():
 	assert_eq(mate.guidance_target, Vector2i(5, 0))
 
 func test_order_is_dropped_when_the_party_merges_into_another():
-	_isolate(_corridor(6), Vector2i(0, 0), _row(0, 5))
+	_isolate(corridor(6), Vector2i(0, 0), _row(0, 5))
 	var host: NpcAgent = main.npcs[1]
 	host.players = players
 	a.guide_to(Vector2i(5, 0))

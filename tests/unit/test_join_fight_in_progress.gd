@@ -1,18 +1,15 @@
-extends GutTest
+extends DungeonTest
 
 ## Covers a player walking up to another player who's already mid-fight
 ## (with a monster pack, or with other players): rather than being turned
 ## away, a compatible newcomer merges into the fighter's party and joins the
 ## fight in progress -- without that fight being interrupted or restarted.
 
-const ENEMY_SCENE: PackedScene = preload("res://scenes/Enemy.tscn")
-
-var main: Node
 var host: NpcAgent
 var newcomer: NpcAgent
 
 func before_each():
-	main = add_child_autofree(load("res://scenes/Main.tscn").instantiate())
+	load_main()
 	host = main.npcs[0]
 	newcomer = main.npcs[1]
 	for npc in [host, newcomer]:
@@ -21,27 +18,13 @@ func before_each():
 		npc.stats.alignment = NpcStats.ALIGNMENT_GOOD
 		npc.stats.inventory.clear()
 		# Tanky enough that nobody flees or dies mid-test by accident.
-		_set_stats(npc, 10, 10000, 20, 20)
+		set_stats(npc, 10, 10000, 20, 20)
 		main.player_map[npc.cell_pos] = npc
-
-func _set_stats(npc: NpcAgent, level: int, hp: int, strength: int, constitution: int) -> void:
-	npc.stats.level = level
-	npc.stats.hp = hp
-	npc.stats.max_hp = hp
-	npc.stats.strength = strength
-	npc.stats.constitution = constitution
-	npc.stats.mp = 0
-
-func _clear_cell() -> Vector2i:
-	for c in main.world.unrestricted_cells():
-		if not main.enemy_map.has(c) and not main.chest_map.has(c):
-			return c
-	return Vector2i(-1, -1)
 
 ## Starts `host` fighting a pack too tough to finish within the test.
 func _start_monster_fight() -> Array:
-	var enemy: EnemyAgent = add_child_autofree(ENEMY_SCENE.instantiate())
-	var enemy_cell: Vector2i = _clear_cell()
+	var enemy := new_enemy()
+	var enemy_cell: Vector2i = clear_cell()
 	enemy.setup(enemy_cell, main.CELL_SIZE, 1, main.grid, main.enemy_map, {}, [])
 	enemy.stats.hp = 100000
 	enemy.stats.max_hp = 100000
@@ -54,7 +37,7 @@ func _start_pvp_fight() -> NpcAgent:
 	villain.is_party_leader = true
 	villain.stats.alignment = NpcStats.ALIGNMENT_EVIL
 	villain.stats.inventory.clear()
-	_set_stats(villain, 10, 10000, 20, 20)
+	set_stats(villain, 10, 10000, 20, 20)
 	main.player_map[villain.cell_pos] = villain
 	GroupCombat.engage_players(host, villain.cell_pos, villain)
 	return villain

@@ -1,4 +1,4 @@
-extends GutTest
+extends DungeonTest
 
 ## Covers how a party shares items: chest loot goes to whichever member it
 ## helps most (gear to whoever it's the biggest upgrade for, a spell tome to
@@ -6,10 +6,8 @@ extends GutTest
 ## the whole party trades -- passing spare gear to party-mates who'd wear it
 ## before anyone sells, then everyone buying with their own gold.
 
-var main: Node
-
 func before_each():
-	main = add_child_autofree(load("res://scenes/Main.tscn").instantiate())
+	load_main()
 
 ## Takes off and throws away everything a character owns, so tests start
 ## from a known, empty kit.

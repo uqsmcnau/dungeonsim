@@ -1,14 +1,12 @@
-extends GutTest
+extends DungeonTest
 
 ## Covers the "Name Lv.N" tag above each character on the map staying in
 ## step with their level -- in particular for party followers, who level up
 ## from their share of a kill's xp but never run the leader-side code that
 ## used to be the only thing refreshing the tag.
 
-var main: Node
-
 func before_each():
-	main = add_child_autofree(load("res://scenes/Main.tscn").instantiate())
+	load_main()
 
 func _party_of_two() -> Array:
 	var leader: NpcAgent = main.npcs[0]

@@ -1,11 +1,9 @@
-extends GutTest
+extends DungeonTest
 
 ## Covers the "Players left" counter on the top toolbar.
 
-var main: Node
-
 func before_each():
-	main = add_child_autofree(load("res://scenes/Main.tscn").instantiate())
+	load_main()
 
 func test_counter_starts_at_full_headcount():
 	main._process(0.0)

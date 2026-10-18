@@ -1,12 +1,10 @@
-extends GutTest
+extends DungeonTest
 
 ## Covers the HUD pause/resume button: it pauses the whole SceneTree, while
 ## itself (and the fog toggle) stay usable so the game can be resumed.
 
-var main: Node
-
 func before_each():
-	main = add_child_autofree(load("res://scenes/Main.tscn").instantiate())
+	load_main()
 
 func after_each():
 	# A paused tree would freeze GUT itself for every later test.

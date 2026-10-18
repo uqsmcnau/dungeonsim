@@ -1,15 +1,11 @@
-extends GutTest
+extends DungeonTest
 
 ## Covers parties splitting the xp and gold they gain (from kills, and the
 ## gold in chests) evenly across their living members, rather than it all
 ## going to whoever landed the killing blow or opened the chest.
 
-const ENEMY_SCENE: PackedScene = preload("res://scenes/Enemy.tscn")
-
-var main: Node
-
 func before_each():
-	main = add_child_autofree(load("res://scenes/Main.tscn").instantiate())
+	load_main()
 
 ## A party of `size` led by main.npcs[0], everyone's xp zeroed and with a
 ## high enough xp_to_next that nobody levels up mid-test (which would
@@ -81,7 +77,7 @@ func test_killing_a_monster_in_a_fight_shares_its_xp():
 	var members := _party(2)
 	var leader: NpcAgent = members[0]
 	main.player_map[leader.cell_pos] = leader
-	var enemy: EnemyAgent = add_child_autofree(ENEMY_SCENE.instantiate())
+	var enemy := new_enemy()
 	var cell: Vector2i = Vector2i(-1, -1)
 	for c in main.world.unrestricted_cells():
 		if not main.enemy_map.has(c) and not main.chest_map.has(c):
@@ -122,7 +118,7 @@ func test_killing_a_monster_in_a_fight_shares_its_gold():
 	_zero_gold(members)
 	var leader: NpcAgent = members[0]
 	main.player_map[leader.cell_pos] = leader
-	var enemy: EnemyAgent = add_child_autofree(ENEMY_SCENE.instantiate())
+	var enemy := new_enemy()
 	var cell: Vector2i = Vector2i(-1, -1)
 	for c in main.world.unrestricted_cells():
 		if not main.enemy_map.has(c) and not main.chest_map.has(c):

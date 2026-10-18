@@ -1,4 +1,4 @@
-extends GutTest
+extends DungeonTest
 
 ## Covers fog-of-war visibility syncing in game_manager._process, including
 ## a regression for a real bug: enemy_map only ever holds a pack's leader,
@@ -6,12 +6,8 @@ extends GutTest
 ## visible regardless of fog state (they default to Node2D's visible=true
 ## and nothing ever touched it).
 
-const ENEMY_SCENE: PackedScene = preload("res://scenes/Enemy.tscn")
-
-var main: Node
-
 func before_each():
-	main = add_child_autofree(load("res://scenes/Main.tscn").instantiate())
+	load_main()
 	# Every NPC starts out somewhere within sight range of its own start
 	# cell's safe zone, which varies run to run with the random maze layout
 	# and whatever RNG state earlier tests left behind. Pin every one of
@@ -19,9 +15,6 @@ func before_each():
 	# actually guaranteed rather than incidental.
 	for i in range(main.npcs.size()):
 		main.npcs[i].cell_pos = main.start_cells[i]
-
-func _new_enemy() -> EnemyAgent:
-	return add_child_autofree(ENEMY_SCENE.instantiate())
 
 ## A cell that is unrestricted, has no enemy/chest already on it, and is
 ## further than sight range from every NPC's (pinned) start cell -- so it's
@@ -47,7 +40,7 @@ func _isolated_cell() -> Vector2i:
 func test_solo_enemy_is_hidden_when_no_one_can_see_it_and_visible_once_someone_can():
 	var cell: Vector2i = _isolated_cell()
 	assert_ne(cell, Vector2i(-1, -1), "sanity: should always find an isolated cell in a 48x48 maze")
-	var enemy := _new_enemy()
+	var enemy := new_enemy()
 	enemy.setup(cell, main.CELL_SIZE, 1, main.grid, main.enemy_map, {}, [])
 
 	main._process(0.0)
@@ -62,8 +55,8 @@ func test_solo_enemy_is_hidden_when_no_one_can_see_it_and_visible_once_someone_c
 
 func test_pack_followers_are_hidden_along_with_the_leader():
 	var cell: Vector2i = _isolated_cell()
-	var leader := _new_enemy()
-	var follower := _new_enemy()
+	var leader := new_enemy()
+	var follower := new_enemy()
 	leader.setup(cell, main.CELL_SIZE, 1, main.grid, main.enemy_map, {}, [])
 	follower.setup(cell, main.CELL_SIZE, 1, main.grid, main.enemy_map, {}, [])
 	EnemyAgent.form_pack([leader, follower])
@@ -74,8 +67,8 @@ func test_pack_followers_are_hidden_along_with_the_leader():
 
 func test_pack_followers_become_visible_along_with_the_leader():
 	var cell: Vector2i = _isolated_cell()
-	var leader := _new_enemy()
-	var follower := _new_enemy()
+	var leader := new_enemy()
+	var follower := new_enemy()
 	leader.setup(cell, main.CELL_SIZE, 1, main.grid, main.enemy_map, {}, [])
 	follower.setup(cell, main.CELL_SIZE, 1, main.grid, main.enemy_map, {}, [])
 	EnemyAgent.form_pack([leader, follower])
@@ -89,8 +82,8 @@ func test_pack_followers_become_visible_along_with_the_leader():
 
 func test_pack_followers_hide_again_once_out_of_sight():
 	var cell: Vector2i = _isolated_cell()
-	var leader := _new_enemy()
-	var follower := _new_enemy()
+	var leader := new_enemy()
+	var follower := new_enemy()
 	leader.setup(cell, main.CELL_SIZE, 1, main.grid, main.enemy_map, {}, [])
 	follower.setup(cell, main.CELL_SIZE, 1, main.grid, main.enemy_map, {}, [])
 	EnemyAgent.form_pack([leader, follower])

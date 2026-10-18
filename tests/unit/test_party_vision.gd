@@ -1,17 +1,14 @@
-extends GutTest
+extends DungeonTest
 
 ## Covers each character's own map of what it has seen (NpcAgent.seen_cells),
 ## how party members pool those maps, and Party Vision: the fog showing only
 ## the selected party's knowledge, toggled from the toolbar.
 
-const ENEMY_SCENE: PackedScene = preload("res://scenes/Enemy.tscn")
-
-var main: Node
 var a: NpcAgent
 var b: NpcAgent
 
 func before_each():
-	main = add_child_autofree(load("res://scenes/Main.tscn").instantiate())
+	load_main()
 	# Two characters from opposite sides of the maze (start cells are spread
 	# evenly around the border), so neither has seen anything the other has.
 	a = main.npcs[0]
@@ -20,9 +17,6 @@ func before_each():
 
 func after_each():
 	get_tree().paused = false
-
-func _select(npc: NpcAgent) -> void:
-	main._on_world_clicked(npc.global_position)
 
 ## The nearest cell `npc` can walk to that shows it something it hasn't
 ## seen yet, or NONE. Not always a neighbor: a start room can be closed in
@@ -121,7 +115,7 @@ func test_party_vision_is_on_by_default():
 
 func test_party_vision_hides_what_only_others_have_seen():
 	var elsewhere := _known_only_to(b, a)
-	_select(a)
+	click_on(a)
 	assert_false(main.maze_view.is_discovered(elsewhere), "b's discoveries aren't shown while a is selected")
 	assert_false(main.maze_view.is_currently_visible(b.cell_pos), "nor what b can see right now")
 	assert_true(main.maze_view.is_currently_visible(a.cell_pos))
@@ -129,7 +123,7 @@ func test_party_vision_hides_what_only_others_have_seen():
 func test_party_vision_shows_everything_the_party_has_explored():
 	var a_saw := _known_only_to(a, b)
 	PartyOps.join_party_of(b, a)
-	_select(b)
+	click_on(b)
 	assert_true(main.maze_view.is_discovered(a_saw), "b's party knows what a saw before they met")
 	assert_true(main.maze_view.is_currently_visible(a.cell_pos))
 
@@ -137,19 +131,19 @@ func test_party_vision_keeps_a_fallen_members_discoveries():
 	var a_saw := _known_only_to(a, b)
 	PartyOps.join_party_of(a, b)
 	a.die()
-	_select(b)
+	click_on(b)
 	main._process(0.0)
 	assert_true(main.maze_view.is_discovered(a_saw))
 
 func test_deselecting_shows_everyones_view_again():
 	var elsewhere := _known_only_to(b, a)
-	_select(a)
+	click_on(a)
 	main._on_world_clicked(Vector2(-1000, -1000))
 	assert_true(main.maze_view.is_discovered(elsewhere))
 
 func test_switching_party_vision_off_shows_everyones_view_even_while_paused():
 	var elsewhere := _known_only_to(b, a)
-	_select(a)
+	click_on(a)
 	main.hud.set_paused(true)
 	main.hud.party_vision_toggle.button_pressed = false
 	assert_false(main.party_vision)
@@ -160,32 +154,32 @@ func test_switching_party_vision_off_shows_everyones_view_even_while_paused():
 func test_selecting_while_paused_applies_party_vision_straight_away():
 	var elsewhere := _known_only_to(b, a)
 	main.hud.set_paused(true)
-	_select(a)
+	click_on(a)
 	assert_false(main.maze_view.is_discovered(elsewhere))
 
 func test_no_party_vision_for_a_dead_selection():
 	var elsewhere := _known_only_to(b, a)
-	_select(a)
+	click_on(a)
 	a.die()
 	main._process(0.0)
 	assert_true(main.maze_view.is_discovered(elsewhere))
 
 func test_fog_off_still_shows_everything():
 	var elsewhere := _known_only_to(b, a)
-	_select(a)
+	click_on(a)
 	main.hud.fog_toggle.button_pressed = false
 	assert_true(main.maze_view.is_discovered(elsewhere))
 	assert_true(main.maze_view.is_currently_visible(b.cell_pos))
 
 func test_the_boss_room_still_shows_under_party_vision():
-	_select(a)
+	click_on(a)
 	assert_true(main.maze_view.is_discovered(main.exit_cell))
 	assert_true(main.maze_view.is_currently_visible(main.exit_cell))
 
 func test_monsters_only_the_selected_party_cant_see_are_hidden():
-	var enemy: EnemyAgent = add_child_autofree(ENEMY_SCENE.instantiate())
+	var enemy := new_enemy()
 	enemy.setup(b.cell_pos, main.CELL_SIZE, 1, main.grid, main.enemy_map, {}, [])
 	main._process(0.0)
 	assert_true(enemy.visible, "sanity: b can see it")
-	_select(a)
+	click_on(a)
 	assert_false(enemy.visible, "but a's party can't")

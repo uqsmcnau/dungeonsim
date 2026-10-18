@@ -1,43 +1,19 @@
-extends GutTest
+extends DungeonTest
 
 ## Covers multi-character combat: enemy packs (2-3 weaker enemies sharing
 ## one encounter), party-vs-pack fights, party-vs-party PvP fights, the
 ## mid-fight leader-death handoff, and a regression test for a real bug
 ## found in this system (see test_pvp_does_not_freeze_when_both_sides_share_a_cell).
 
-const ENEMY_SCENE: PackedScene = preload("res://scenes/Enemy.tscn")
-
-var main: Node
-
 func before_each():
-	main = add_child_autofree(load("res://scenes/Main.tscn").instantiate())
-
-func _new_enemy() -> EnemyAgent:
-	return add_child_autofree(ENEMY_SCENE.instantiate())
-
-func _set_stats(npc: NpcAgent, level: int, hp: int, strength: int, constitution: int, dexterity: int = 10) -> void:
-	npc.stats.level = level
-	npc.stats.hp = hp
-	npc.stats.max_hp = hp
-	npc.stats.strength = strength
-	npc.stats.constitution = constitution
-	npc.stats.dexterity = dexterity
-	npc.stats.mp = 0
-
-## An enemy-free, chest-free, unrestricted cell -- used whenever a test needs
-## a location that isn't inside anyone's safe zone or already occupied.
-func _clear_cell() -> Vector2i:
-	for c in main.world.unrestricted_cells():
-		if not main.enemy_map.has(c) and not main.chest_map.has(c):
-			return c
-	return Vector2i(-1, -1)
+	load_main()
 
 # ============================= Enemy packs ================================
 
 func test_form_pack_designates_the_first_member_as_leader():
-	var e1 := _new_enemy()
-	var e2 := _new_enemy()
-	var e3 := _new_enemy()
+	var e1 := new_enemy()
+	var e2 := new_enemy()
+	var e3 := new_enemy()
 	var enemy_map: Dictionary = {}
 	var cell := Vector2i(5, 5)
 	e1.setup(cell, main.CELL_SIZE, 3, main.grid, enemy_map, {}, [])
@@ -54,8 +30,8 @@ func test_form_pack_designates_the_first_member_as_leader():
 	assert_eq(e1.living_pack().size(), 3)
 
 func test_pack_leader_death_promotes_a_follower():
-	var e1 := _new_enemy()
-	var e2 := _new_enemy()
+	var e1 := new_enemy()
+	var e2 := new_enemy()
 	var enemy_map: Dictionary = {}
 	var cell := Vector2i(5, 5)
 	e1.setup(cell, main.CELL_SIZE, 3, main.grid, enemy_map, {}, [])
@@ -70,8 +46,8 @@ func test_pack_leader_death_promotes_a_follower():
 	assert_eq(e2.living_pack().size(), 1)
 
 func test_pack_cell_cleared_once_the_whole_pack_is_gone():
-	var e1 := _new_enemy()
-	var e2 := _new_enemy()
+	var e1 := new_enemy()
+	var e2 := new_enemy()
 	var enemy_map: Dictionary = {}
 	var cell := Vector2i(5, 5)
 	e1.setup(cell, main.CELL_SIZE, 3, main.grid, enemy_map, {}, [])
@@ -93,14 +69,14 @@ func test_party_defeats_a_weaker_enemy_pack():
 	follower.party = leader.party
 	follower.is_party_leader = false
 	leader.party.append(follower)
-	_set_stats(leader, 10, 60, 15, 10)
-	_set_stats(follower, 10, 60, 15, 10)
+	set_stats(leader, 10, 60, 15, 10)
+	set_stats(follower, 10, 60, 15, 10)
 	leader.stats.inventory.clear()
 	follower.stats.inventory.clear()
 
-	var f1 := _new_enemy()
-	var f2 := _new_enemy()
-	var foe_cell := _clear_cell()
+	var f1 := new_enemy()
+	var f2 := new_enemy()
+	var foe_cell := clear_cell()
 	f1.setup(foe_cell, main.CELL_SIZE, 1, main.grid, main.enemy_map, {}, [])
 	f2.setup(foe_cell, main.CELL_SIZE, 1, main.grid, main.enemy_map, {}, [])
 	EnemyAgent.form_pack([f1, f2])
@@ -136,14 +112,14 @@ func test_mid_fight_leader_death_hands_off_to_a_surviving_follower():
 	tanky.party = frail.party
 	tanky.is_party_leader = false
 	frail.party.append(tanky)
-	_set_stats(frail, 5, 1, 10, 10, 3)
-	_set_stats(tanky, 5, 300, 15, 15, 10)
+	set_stats(frail, 5, 1, 10, 10, 3)
+	set_stats(tanky, 5, 300, 15, 15, 10)
 	frail.stats.inventory.clear()
 	tanky.stats.inventory.clear()
 
-	var g1 := _new_enemy()
-	var g2 := _new_enemy()
-	var cell := _clear_cell()
+	var g1 := new_enemy()
+	var g2 := new_enemy()
+	var cell := clear_cell()
 	g1.setup(cell, main.CELL_SIZE, 1, main.grid, main.enemy_map, {}, [])
 	g2.setup(cell, main.CELL_SIZE, 1, main.grid, main.enemy_map, {}, [])
 	EnemyAgent.form_pack([g1, g2])
@@ -177,8 +153,8 @@ func test_stronger_party_defeats_a_weaker_one_in_pvp():
 	pa.is_party_leader = true
 	pb.party = [pb]
 	pb.is_party_leader = true
-	_set_stats(pa, 5, 100, 20, 10)
-	_set_stats(pb, 1, 40, 5, 10)
+	set_stats(pa, 5, 100, 20, 10)
+	set_stats(pb, 1, 40, 5, 10)
 	pa.stats.inventory.clear()
 	pb.stats.inventory.clear()
 	main.player_map[pa.cell_pos] = pa
@@ -206,7 +182,7 @@ func _pvp_pair() -> Array:
 		npc.is_moving = false
 		npc.stats.inventory.clear()
 		main.player_map[npc.cell_pos] = npc
-	_set_stats(attacker, 5, 100, 20, 10)
+	set_stats(attacker, 5, 100, 20, 10)
 	return [attacker, defender]
 
 ## Regression test for a reported bug: one player stuck "fighting" another
@@ -216,7 +192,7 @@ func test_attacker_is_freed_when_the_defender_flees():
 	var pair := _pvp_pair()
 	var attacker: NpcAgent = pair[0]
 	var defender: NpcAgent = pair[1]
-	_set_stats(defender, 1, 3, 5, 10)  # low enough to flee on the very first turn
+	set_stats(defender, 1, 3, 5, 10)  # low enough to flee on the very first turn
 
 	GroupCombat.engage_players(attacker, defender.cell_pos, defender)
 
@@ -234,7 +210,7 @@ func test_attacker_is_freed_when_the_defenders_party_vanishes_mid_fight():
 	var pair := _pvp_pair()
 	var attacker: NpcAgent = pair[0]
 	var defender: NpcAgent = pair[1]
-	_set_stats(defender, 5, 100, 20, 10)
+	set_stats(defender, 5, 100, 20, 10)
 	GroupCombat.engage_players(attacker, defender.cell_pos, defender)
 	assert_true(attacker.in_pvp_combat, "sanity: an even fight should be underway")
 
@@ -258,12 +234,12 @@ func test_pvp_does_not_freeze_when_both_sides_share_a_cell():
 	var b: NpcAgent = main.npcs[1]
 	a.stats.alignment = NpcStats.ALIGNMENT_GOOD
 	b.stats.alignment = NpcStats.ALIGNMENT_EVIL
-	_set_stats(a, 5, 100, 20, 10)
-	_set_stats(b, 1, 40, 5, 10)
+	set_stats(a, 5, 100, 20, 10)
+	set_stats(b, 1, 40, 5, 10)
 	a.stats.inventory.clear()
 	b.stats.inventory.clear()
 
-	var shared_cell: Vector2i = _clear_cell()
+	var shared_cell: Vector2i = clear_cell()
 	a.cell_pos = shared_cell
 	b.cell_pos = shared_cell
 	main.player_map[shared_cell] = b  # b's registration overwrites a's -- the exact collision scenario
@@ -323,8 +299,8 @@ func test_engaging_a_pack_locks_is_moving_for_every_party_member_not_just_the_dr
 	leader.party.append(follower)
 	follower.is_moving = false  # sanity: a follower's own flag starts false
 
-	var enemy := _new_enemy()
-	var cell: Vector2i = _clear_cell()
+	var enemy := new_enemy()
+	var cell: Vector2i = clear_cell()
 	enemy.setup(cell, main.CELL_SIZE, 1, main.grid, main.enemy_map, {}, [])
 
 	GroupCombat.engage_pack(leader, cell, enemy)
@@ -340,11 +316,11 @@ func test_a_follower_promoted_mid_fight_cannot_act_independently():
 	follower.party = leader.party
 	follower.is_party_leader = false
 	leader.party.append(follower)
-	_set_stats(follower, 5, 100, 15, 15)
+	set_stats(follower, 5, 100, 15, 15)
 	follower.stats.inventory.clear()
 
-	var enemy := _new_enemy()
-	var cell: Vector2i = _clear_cell()
+	var enemy := new_enemy()
+	var cell: Vector2i = clear_cell()
 	enemy.setup(cell, main.CELL_SIZE, 1, main.grid, main.enemy_map, {}, [])
 
 	GroupCombat.engage_pack(leader, cell, enemy)
@@ -362,8 +338,8 @@ func test_enemy_in_combat_is_released_if_the_fight_loop_finds_no_one_left_in_the
 	# The whole party gone (as if killed between turns): the pack's in_combat
 	# flag must be cleared rather than staying stuck forever.
 	var leader: NpcAgent = main.npcs[0]
-	var enemy := _new_enemy()
-	var cell: Vector2i = _clear_cell()
+	var enemy := new_enemy()
+	var cell: Vector2i = clear_cell()
 	enemy.setup(cell, main.CELL_SIZE, 1, main.grid, main.enemy_map, {}, [])
 	var party_ref: Array = leader.party
 
@@ -393,12 +369,12 @@ func test_follower_dying_mid_fight_does_not_strand_the_party():
 		m.is_party_leader = false
 		m.cell_pos = leader.cell_pos
 	for m in leader.party:
-		_set_stats(m, 10, 500, 30, 30)
+		set_stats(m, 10, 500, 30, 30)
 		m.stats.inventory.clear()
 	main.player_map[leader.cell_pos] = leader
 
-	var enemy := _new_enemy()
-	var cell: Vector2i = _clear_cell()
+	var enemy := new_enemy()
+	var cell: Vector2i = clear_cell()
 	enemy.setup(cell, main.CELL_SIZE, 1, main.grid, main.enemy_map, {}, [])
 	enemy.stats.hp = 60
 	GroupCombat.engage_pack(leader, cell, enemy)
@@ -418,10 +394,10 @@ func test_fight_carries_on_even_if_the_leaders_registration_is_lost():
 	# Belt and braces: whatever knocks the party off the player map, its own
 	# fight must still be driven to a proper end rather than abandoned.
 	var leader: NpcAgent = main.npcs[0]
-	_set_stats(leader, 10, 500, 30, 30)
+	set_stats(leader, 10, 500, 30, 30)
 	leader.stats.inventory.clear()
-	var enemy := _new_enemy()
-	var cell: Vector2i = _clear_cell()
+	var enemy := new_enemy()
+	var cell: Vector2i = clear_cell()
 	enemy.setup(cell, main.CELL_SIZE, 1, main.grid, main.enemy_map, {}, [])
 	enemy.stats.hp = 60
 	GroupCombat.engage_pack(leader, cell, enemy)
@@ -473,13 +449,13 @@ func test_pack_survivor_is_released_when_its_leader_and_the_party_fall_in_the_sa
 		var player: NpcAgent = main.npcs[0]
 		player.party = [player]
 		player.is_party_leader = true
-		_set_stats(player, 1, 1, 1, 1, 1)
+		set_stats(player, 1, 1, 1, 1, 1)
 		player.stats.inventory.clear()
 		main.player_map[player.cell_pos] = player
 
-		var cell: Vector2i = _clear_cell()
-		var leader := _new_enemy()
-		var survivor := _new_enemy()
+		var cell: Vector2i = clear_cell()
+		var leader := new_enemy()
+		var survivor := new_enemy()
 		leader.setup(cell, main.CELL_SIZE, 1, main.grid, main.enemy_map, {}, [])
 		survivor.setup(cell, main.CELL_SIZE, 5, main.grid, main.enemy_map, {}, [])
 		EnemyAgent.form_pack([leader, survivor])
@@ -504,9 +480,9 @@ func test_pack_survivor_is_released_when_its_leader_and_the_party_fall_in_the_sa
 func test_releasing_a_fight_frees_every_pack_member_not_just_the_leader():
 	# e.g. a party fleeing: the followers used to stay in_combat, so whichever
 	# was promoted when the leader later fell came out frozen.
-	var leader := _new_enemy()
-	var follower := _new_enemy()
-	var cell: Vector2i = _clear_cell()
+	var leader := new_enemy()
+	var follower := new_enemy()
+	var cell: Vector2i = clear_cell()
 	leader.setup(cell, main.CELL_SIZE, 1, main.grid, main.enemy_map, {}, [])
 	follower.setup(cell, main.CELL_SIZE, 1, main.grid, main.enemy_map, {}, [])
 	EnemyAgent.form_pack([leader, follower])
@@ -522,8 +498,8 @@ func test_releasing_a_fight_frees_every_pack_member_not_just_the_leader():
 
 func test_a_pack_freed_this_way_can_be_fought_normally_afterwards():
 	var leader: NpcAgent = main.npcs[0]
-	var enemy := _new_enemy()
-	var cell: Vector2i = _clear_cell()
+	var enemy := new_enemy()
+	var cell: Vector2i = clear_cell()
 	enemy.setup(cell, main.CELL_SIZE, 1, main.grid, main.enemy_map, {}, [])
 	enemy.stats.hp = 5
 	enemy.stats.max_hp = 5
@@ -537,7 +513,7 @@ func test_a_pack_freed_this_way_can_be_fought_normally_afterwards():
 	# A second, fresh character should be able to engage the now-freed pack
 	# normally, rather than being forced to retreat from it forever.
 	var newcomer: NpcAgent = main.npcs[1]
-	_set_stats(newcomer, 20, 200, 40, 40)
+	set_stats(newcomer, 20, 200, 40, 40)
 	newcomer.stats.inventory.clear()
 	main.player_map[newcomer.cell_pos] = newcomer
 	var newcomer_cell: Vector2i = newcomer.cell_pos

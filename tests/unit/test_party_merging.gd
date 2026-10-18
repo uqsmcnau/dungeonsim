@@ -1,22 +1,12 @@
-extends GutTest
+extends DungeonTest
 
 ## Covers who can band together into a party (up to PartyOps.MAX_PARTY_SIZE)
 ## instead of fighting: Good and Neutral always merge with each other; Good
 ## and Evil never merge; Evil only merges with other Evil, and only if
 ## nobody in the combined group is confident it could solo the rest.
 
-var main: Node
-
 func before_each():
-	main = add_child_autofree(load("res://scenes/Main.tscn").instantiate())
-
-func _set_stats(npc: NpcAgent, level: int, hp: int, strength: int, constitution: int) -> void:
-	npc.stats.level = level
-	npc.stats.hp = hp
-	npc.stats.max_hp = hp
-	npc.stats.strength = strength
-	npc.stats.constitution = constitution
-	npc.stats.mp = 0
+	load_main()
 
 func test_good_can_always_party_with_good():
 	var a: NpcAgent = main.npcs[0]
@@ -58,8 +48,8 @@ func test_evenly_matched_evil_characters_can_party_up():
 	var b: NpcAgent = main.npcs[1]
 	a.stats.alignment = NpcStats.ALIGNMENT_EVIL
 	b.stats.alignment = NpcStats.ALIGNMENT_EVIL
-	_set_stats(a, 5, 50, 10, 10)
-	_set_stats(b, 5, 50, 10, 10)
+	set_stats(a, 5, 50, 10, 10)
+	set_stats(b, 5, 50, 10, 10)
 	# Identical stats come out just barely above a 50/50 win chance (the
 	# damage formula gives the attacker a slightly higher bonus than the
 	# defender's counter), which is exactly why the confidence bar is well
@@ -71,8 +61,8 @@ func test_dominant_evil_character_refuses_to_party_with_someone_it_could_solo():
 	var b: NpcAgent = main.npcs[1]
 	a.stats.alignment = NpcStats.ALIGNMENT_EVIL
 	b.stats.alignment = NpcStats.ALIGNMENT_EVIL
-	_set_stats(a, 5, 50, 10, 10)
-	_set_stats(b, 50, 500, 80, 80)
+	set_stats(a, 5, 50, 10, 10)
+	set_stats(b, 50, 500, 80, 80)
 	assert_false(PartyOps.can_form_party_with(a, b))
 
 func test_merge_refused_once_it_would_exceed_the_party_size_cap():
@@ -84,7 +74,7 @@ func test_merge_refused_once_it_would_exceed_the_party_size_cap():
 	var extra4: NpcAgent = main.npcs[5]
 	for n in [a, b, extra1, extra2, extra3, extra4]:
 		n.stats.alignment = NpcStats.ALIGNMENT_EVIL
-		_set_stats(n, 5, 50, 10, 10)
+		set_stats(n, 5, 50, 10, 10)
 
 	a.party = [a, extra1, extra2, extra4]  # a already leads a party of 4
 	for m in a.party:
@@ -104,7 +94,7 @@ func test_merge_allowed_exactly_at_the_party_size_cap():
 	var extra3: NpcAgent = main.npcs[4]
 	for n in [a, b, extra1, extra2, extra3]:
 		n.stats.alignment = NpcStats.ALIGNMENT_GOOD
-		_set_stats(n, 5, 50, 10, 10)
+		set_stats(n, 5, 50, 10, 10)
 
 	a.party = [a, extra1, extra2, extra3]  # party of 4
 	for m in a.party:

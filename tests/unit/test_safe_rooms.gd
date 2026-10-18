@@ -1,4 +1,4 @@
-extends GutTest
+extends DungeonTest
 
 ## Covers that PvP combat can never be started in a safe room (a start
 ## zone, shop, mini boss room, or the boss room -- game_manager's existing
@@ -6,10 +6,8 @@ extends GutTest
 ## toward an opponent (_attempt_move) and finding one already on your own
 ## cell (the idle safety net in _process).
 
-var main: Node
-
 func before_each():
-	main = add_child_autofree(load("res://scenes/Main.tscn").instantiate())
+	load_main()
 
 func _stack_odds(strong: NpcAgent, weak: NpcAgent) -> void:
 	strong.stats.hp = 500
@@ -22,12 +20,6 @@ func _stack_odds(strong: NpcAgent, weak: NpcAgent) -> void:
 	weak.stats.strength = 3
 	weak.stats.constitution = 3
 	weak.stats.level = 1
-
-func _clear_cell() -> Vector2i:
-	for c in main.world.unrestricted_cells():
-		if not main.enemy_map.has(c) and not main.chest_map.has(c):
-			return c
-	return Vector2i(-1, -1)
 
 func test_safe_cells_are_wired_to_the_shared_restricted_cells():
 	var a: NpcAgent = main.npcs[0]
@@ -73,7 +65,7 @@ func test_attempt_move_does_start_pvp_for_the_same_matchup_outside_a_safe_room()
 	b.stats.strength = 5
 	b.stats.constitution = 10
 
-	var unsafe_cell: Vector2i = _clear_cell()
+	var unsafe_cell: Vector2i = clear_cell()
 	main.player_map[unsafe_cell] = b
 	b.cell_pos = unsafe_cell
 	a.in_pvp_combat = false

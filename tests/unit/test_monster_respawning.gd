@@ -1,14 +1,12 @@
-extends GutTest
+extends DungeonTest
 
 ## Covers monster respawning: each area of the maze slowly gets back
 ## monsters it has lost -- one encounter per RESPAWN_SECONDS, never past
 ## the number it started with, and only out of every player's sight and
 ## well away from all of them.
 
-var main: Node
-
 func before_each():
-	main = add_child_autofree(load("res://scenes/Main.tscn").instantiate())
+	load_main()
 
 func after_each():
 	get_tree().paused = false

@@ -1,4 +1,4 @@
-extends GutTest
+extends DungeonTest
 
 ## Covers randomly generated, alignment-flavoured party names (PartyNames)
 ## and how they're handed out when parties form and merge.
@@ -6,10 +6,8 @@ extends GutTest
 const SAMPLES := 300
 const FILLER := ["The", "of", "the"]
 
-var main: Node
-
 func before_each():
-	main = add_child_autofree(load("res://scenes/Main.tscn").instantiate())
+	load_main()
 
 func _all_words(alignment: String) -> Dictionary:
 	var result: Dictionary = {}
