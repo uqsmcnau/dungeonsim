@@ -40,7 +40,7 @@ func test_leader_tag_shows_its_new_level_too():
 func test_a_busy_label_is_left_alone_until_it_reverts():
 	var members := _party_of_two()
 	var leader: NpcAgent = members[0]
-	leader.name_label.text = "%s ⚔ Lv.3" % leader.npc_name  # mid-fight: Lv here is the *enemy's*
+	leader.show_label("%s ⚔ Lv.3" % leader.npc_name)  # mid-fight: Lv here is the *enemy's*
 	leader.share_xp_with_party(10)
 	assert_eq(leader.name_label.text, "%s ⚔ Lv.3" % leader.npc_name, "don't clobber the fight display")
 	leader._update_label()  # e.g. the fight ends

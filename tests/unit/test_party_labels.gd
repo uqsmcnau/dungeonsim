@@ -87,8 +87,47 @@ func test_the_last_survivor_gets_their_own_name_back():
 
 func test_a_busy_label_isnt_cut_short_by_the_party_changing():
 	var leader: NpcAgent = main.npcs[0]
-	leader.name_label.text = "%s ⚔ Lv.3" % leader.npc_name  # mid-fight
+	var fight_text := "%s ⚔ Lv.3" % leader.npc_name
+	leader.show_label(fight_text)  # mid-fight
 	PartyOps.join_party_of(main.npcs[1], leader)
-	leader.name_label.text = "Something busy"
-	leader._process(0.0)
-	assert_eq(leader.name_label.text, "Something busy")
+	leader.show_label(fight_text)  # the fight's next turn
+	main.npcs[1]._die()
+	assert_eq(leader.name_label.text, fight_text)
+	leader._update_label()  # the fight ends
+	assert_eq(leader.name_label.text, "%s Lv.%d" % [leader.npc_name, leader.stats.level], "and then it picks up the change")
+
+func test_a_passing_message_goes_back_to_rest_on_its_own():
+	var leader: NpcAgent = main.npcs[0]
+	PartyOps.join_party_of(main.npcs[1], leader)
+	assert_string_contains(leader.name_label.text, "grew to 2!")
+	leader._process(NpcAgent.LABEL_MESSAGE_SECONDS / 2.0)
+	assert_string_contains(leader.name_label.text, "grew to 2!", "not yet")
+	leader._process(NpcAgent.LABEL_MESSAGE_SECONDS / 2.0)
+	assert_eq(leader.name_label.text, leader.party_name)
+
+func test_a_passing_message_waits_while_paused():
+	var leader: NpcAgent = main.npcs[0]
+	PartyOps.join_party_of(main.npcs[1], leader)
+	main.hud.set_paused(true)
+	await get_tree().create_timer(NpcAgent.LABEL_MESSAGE_SECONDS + 0.3, true).timeout
+	main.hud.set_paused(false)
+	assert_string_contains(leader.name_label.text, "grew to 2!")
+
+func test_a_new_leader_finishes_a_message_the_fallen_one_was_showing():
+	# Regression: the countdown used to be a timer bound to the old leader,
+	# so a message it was showing when it fell stuck on the new leader.
+	var members := _party_of(3)
+	var leader: NpcAgent = members[0]
+	var next: NpcAgent = members[1]
+	leader.show_label("%s found Helmet!" % leader.party_name, NpcAgent.LABEL_MESSAGE_SECONDS)
+	leader._die()
+	assert_eq(next.name_label.text, "%s found Helmet!" % next.party_name, "carried over")
+	next._process(NpcAgent.LABEL_MESSAGE_SECONDS)
+	assert_eq(next.name_label.text, next.party_name, "and put back on time")
+
+func test_a_fight_isnt_cut_short_by_a_message_running_out():
+	var leader: NpcAgent = main.npcs[0]
+	leader.show_label("%s found Helmet!" % leader.npc_name, NpcAgent.LABEL_MESSAGE_SECONDS)
+	leader.show_label("%s ⚔ Lv.3" % leader.npc_name)  # a fight starts
+	leader._process(NpcAgent.LABEL_MESSAGE_SECONDS * 2)
+	assert_eq(leader.name_label.text, "%s ⚔ Lv.3" % leader.npc_name)

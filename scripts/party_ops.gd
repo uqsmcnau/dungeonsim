@@ -106,9 +106,7 @@ static func join_party_of(joiner: NpcAgent, host: NpcAgent) -> void:
 	if host.is_in_combat():
 		return
 	host.current_action = "%s grew to %d" % [host.party_name, host.party.size()]
-	host.name_label.text = "%s grew to %d!" % [host.party_name, host.party.size()]
-	var timer := joiner.get_tree().create_timer(1.5, false)
-	timer.timeout.connect(host._update_label)
+	host.show_label("%s grew to %d!" % [host.party_name, host.party.size()], NpcAgent.LABEL_MESSAGE_SECONDS)
 
 ## Everyone in `members` ends up with the combined map of all of them --
 ## including what each had seen before they ever met. Each keeps their own
@@ -168,9 +166,7 @@ static func promote_next_leader(former_leader: NpcAgent) -> void:
 			member.guidance_target = former_leader.guidance_target  # carry on with any standing Guidance
 			member.cell_pos = former_leader.cell_pos
 			member.position = former_leader.position
-			# Take over the party's label as it stands (it may be showing a fight).
-			member.name_label.text = former_leader.name_label.text
-			member._sync_label()
+			member.take_over_label(former_leader)  # it may be showing a fight
 			# Take over the cell's registration -- unless some *other* party's
 			# leader holds it (the two were sharing a cell), which mustn't be
 			# knocked off the map in turn.
