@@ -72,7 +72,7 @@ static func can_form_party_with(npc: NpcAgent, opponent: NpcAgent) -> bool:
 ##
 ## Naming the merged party (see _merged_party_name): a lone player meeting
 ## an existing party takes on that party's name, whichever of the two is
-## hosting; otherwise the host's name wins -- the host already leads it.
+## hosting; two named parties combine their names.
 static func join_party_of(joiner: NpcAgent, host: NpcAgent) -> void:
 	var merged_name := _merged_party_name(joiner, host)
 	var joining: Array = joiner.party.duplicate()
@@ -124,16 +124,26 @@ static func pool_seen_cells(members: Array) -> void:
 ## worked out before the merge while the two sides can still be told apart:
 ## - a lone host joined by an existing party (2+ members) keeps *their*
 ##   name -- one player tagging along shouldn't rename an established party;
+## - two named parties (2+ members each) merging get a combination of both
+##   names (PartyNames.combine) -- "Order of the Silver Ring" and "The
+##   Crimson Vanguard" become "Order of the Crimson Ring" -- or, if the
+##   names can't be combined, the host's;
 ## - otherwise the host's name (when a lone player joins an existing party,
-##   that's the party's own name; when two parties merge, the leader's);
+##   that's the party's own name);
 ## - and if that side never had one (two loners teaming up for the first
 ##   time), a fresh name in keeping with the host's alignment.
 ## A lone host's name can be non-empty: a survivor whose party fell keeps
 ## it, and carries it on if another loner joins them.
 static func _merged_party_name(joiner: NpcAgent, host: NpcAgent) -> String:
 	var merged_name: String = host.party_name
-	if host.living_party().size() == 1 and joiner.living_party().size() > 1:
+	var host_size := host.living_party().size()
+	var joiner_size := joiner.living_party().size()
+	if host_size == 1 and joiner_size > 1:
 		merged_name = joiner.party_name
+	elif host_size > 1 and joiner_size > 1 and host.party_name != "" and joiner.party_name != "":
+		var combined := PartyNames.combine(host.party_name, joiner.party_name)
+		if combined != "":
+			merged_name = combined
 	if merged_name == "":
 		merged_name = PartyNames.generate(host.stats.alignment)
 	return merged_name
