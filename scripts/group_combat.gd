@@ -145,14 +145,24 @@ static func pack_at(enemies: Dictionary, cell: Vector2i) -> EnemyAgent:
 
 ## Ends a party-vs-pack fight once the pack is wiped out: frees every party
 ## member's is_moving lock (see engage_pack) and moves the surviving party
-## onto the now-empty cell.
+## onto the now-empty cell (see claim_cell).
 static func conclude_pack_fight(me: NpcAgent, enemy_cell: Vector2i) -> void:
 	for member in me.party:
 		if is_instance_valid(member):
 			member.is_moving = false
 			member.in_pack_combat = false
-	me.reset_label()
-	me.move_to(enemy_cell)
+	claim_cell(me, enemy_cell)
+
+## Moves the side `winner` leads onto the loser's `cell` to claim it (and
+## any loot left there) -- but only if it's right there: its own cell or an
+## open neighbour. The cell was noted when the fight began, and the two can
+## have ended up further apart since (a defender attacked mid-step still
+## finishes the step), so heading straight for it could mean sliding
+## through walls, cell_pos jumping a cell or more at once.
+static func claim_cell(winner: NpcAgent, cell: Vector2i) -> void:
+	winner.reset_label()
+	if cell == winner.cell_pos or MazeQuery.open_neighbors(winner.grid, winner.cell_pos).has(cell):
+		winner.move_to(cell)
 
 ## Breaks off a fight that's turning dangerous for the character driving it.
 ## Damage already dealt stays on the pack, so the party can retreat, recover,
@@ -266,20 +276,18 @@ static func resolve_pvp_turn(my_party: Array, their_party: Array, my_cell: Vecto
 ## Ends a party-vs-party fight once one side (or both) has no one left
 ## standing: releases both sides' combat locks, and if exactly one side
 ## still has survivors, moves them onto the other's cell to claim it (and
-## any death-chest loot left behind) — a no-op move if the two were already
-## sharing the same cell.
+## any death-chest loot left behind; see claim_cell) — a no-op move if the
+## two were already sharing the same cell.
 static func conclude_pvp(my_party: Array, their_party: Array, my_cell: Vector2i, their_cell: Vector2i) -> void:
 	release_pvp(my_party, their_party)
 	var my_side: NpcAgent = PartyOps.leader_of(my_party)
 	var their_side: NpcAgent = PartyOps.leader_of(their_party)
+	# No is_moving to free here: a PvP fight doesn't lock it (see
+	# engage_players), so it's only set if a side is genuinely mid-step.
 	if my_side != null and their_side == null:
-		my_side.is_moving = false
-		my_side.reset_label()
-		my_side.move_to(their_cell)
+		claim_cell(my_side, their_cell)
 	elif their_side != null and my_side == null:
-		their_side.is_moving = false
-		their_side.reset_label()
-		their_side.move_to(my_cell)
+		claim_cell(their_side, my_cell)
 
 ## Frees both sides from the fight, and clears the "Fighting X" status off
 ## everyone still standing -- otherwise a side that didn't drive the ending
@@ -294,9 +302,16 @@ static func release_pvp(party_a: Array, party_b: Array) -> void:
 
 ## Breaks off a player-vs-player fight that's turning dangerous for `me`,
 ## the character driving one side of it — both sides are freed to resume
-## their own AI, and `me`'s party retreats together.
+## their own AI, and `me`'s party retreats together -- unless it's already
+## on its way out. Attacked again mid-step (it's still registered on the
+## cell it's leaving, so an attacker sharing that cell sets on it again
+## every frame), fleeing afresh each time used to restart the step towards
+## a fresh random way out before it got anywhere, the two stuck there for
+## good.
 static func disengage_pvp(me: NpcAgent, my_party: Array, their_party: Array) -> void:
 	release_pvp(my_party, their_party)
-	me.is_moving = false
 	me.reset_label()
+	if me.is_sliding():
+		return
+	me.is_moving = false
 	me.retreat()

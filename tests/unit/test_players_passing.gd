@@ -15,31 +15,6 @@ func before_each():
 	a = main.npcs[0]
 	b = main.npcs[1]
 
-## Moves `npc` onto the shared hand-built maze, on its own away from the
-## real game, having explored `explored`.
-func _place(npc: NpcAgent, g: Array, cell: Vector2i, explored: Array) -> void:
-	main.player_map.erase(npc.cell_pos)
-	npc.players = players
-	npc.enemies = {}
-	npc.chests = {}
-	npc.shops = {}
-	npc.known_shops = {}
-	npc.safe_cells = {}
-	npc.party = [npc]
-	npc.is_party_leader = true
-	npc.is_moving = false
-	npc.finished = false
-	npc.guidance_target = MazeQuery.NONE
-	npc.stats.inventory.clear()
-	npc.grid = g
-	npc.cell_pos = cell
-	npc.position = npc._cell_to_world(cell)
-	npc.visited = {}
-	for c in explored:
-		npc.visited[c] = true
-	npc.visited[cell] = true
-	players[cell] = npc
-
 func _row(from_x: int, to_x: int) -> Array:
 	var cells: Array = []
 	for x in range(from_x, to_x + 1):
@@ -52,8 +27,8 @@ func _row(from_x: int, to_x: int) -> Array:
 func _standoff(length: int = 6) -> void:
 	var g := corridor(length)
 	var mid := length / 2
-	_place(a, g, Vector2i(mid - 1, 0), _row(0, mid - 1))
-	_place(b, g, Vector2i(mid, 0), _row(mid, length - 1))
+	isolate(a, g, Vector2i(mid - 1, 0), players, _row(0, mid - 1))
+	isolate(b, g, Vector2i(mid, 0), players, _row(mid, length - 1))
 	a.stats.alignment = NpcStats.ALIGNMENT_EVIL
 	b.stats.alignment = NpcStats.ALIGNMENT_NEUTRAL
 	set_stats(a, 1, 10, 1, 1)

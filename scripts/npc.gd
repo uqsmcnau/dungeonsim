@@ -48,6 +48,8 @@ var seen_cells: Dictionary = {}
 ## look_around only when this character has moved to a new cell.
 var sight_cells: Dictionary = {}
 var _sight_cell: Vector2i = MazeQuery.NONE
+## The icon's slide under way, if any (see slide_to).
+var _slide: Tween = null
 var enemies: Dictionary = {}
 var chests: Dictionary = {}
 var chest_goal: Vector2i = MazeQuery.NONE
@@ -62,9 +64,9 @@ var players: Dictionary = {}
 ## is driven entirely from one side's turn loop (see GroupCombat.run_pvp_turn).
 var in_pvp_combat: bool = false
 ## Mid-fight against a monster pack (see GroupCombat.engage_pack). The is_moving lock is what
-## actually holds the party still; this records *why*, so a lock taken for
-## some other reason (e.g. PartyOps.relocate_to_party's walk-in) knows not
-## to release it when it finishes.
+## actually holds the party still; this records *why*, so something that
+## frees is_moving for its own reasons (e.g. PartyOps.relocate_to_party when
+## joining a party) knows to leave a fight's lock in place.
 var in_pack_combat: bool = false
 ## Start zones, shop zones, mini boss rooms and the boss room — no PvP may
 ## be started on any of these cells, on top of the existing rule that no
@@ -544,10 +546,15 @@ func _has_live_enemy(cell: Vector2i) -> bool:
 	return enemy != null and is_instance_valid(enemy) and enemy.alive
 
 func _has_live_player(cell: Vector2i) -> bool:
-	if not players.has(cell):
-		return false
-	var other = players[cell]
-	return other != null and is_instance_valid(other) and not other.dead and other != self
+	return players.has(cell) and players[cell] != self and holds_cell(players[cell], cell)
+
+## Whether `other` (an entry in `players`) really is a living party leader
+## standing on `cell`. Anything else is a stale entry left behind -- which
+## used to count as someone being there, so a party could get into a fight
+## with someone on the far side of the maze, and the winner then walked
+## straight across it to "claim" the loser's cell.
+static func holds_cell(other, cell: Vector2i) -> bool:
+	return other != null and is_instance_valid(other) and not other.dead and other.is_party_leader and other.cell_pos == cell
 
 ## If the destination holds a live enemy, decide whether to fight (a battle
 ## fought in 1-second turns) or flee (retreat toward already-explored ground
@@ -775,6 +782,7 @@ func die(by: String = "", how: String = "") -> void:
 	visible = false
 	in_pvp_combat = false
 	in_pack_combat = false
+	stop_sliding()  # or the step's arrival would put them back on the map
 	unregister()
 	party.erase(self)
 	if is_party_leader and not party.is_empty():
@@ -842,11 +850,8 @@ func _step_toward_frontier() -> Vector2i:
 
 func move_to(next_cell: Vector2i) -> void:
 	is_moving = true
-	var target_world := _cell_to_world(next_cell)
 	var duration: float = move_seconds_base / max(stats.move_speed(), 0.1)
-	var tween := create_tween()
-	tween.tween_property(self, "position", target_world, duration)
-	tween.finished.connect(_on_move_finished.bind(next_cell))
+	slide_to(_cell_to_world(next_cell), duration).finished.connect(_on_move_finished.bind(next_cell))
 	for member in party:
 		if member != self and is_instance_valid(member) and not member.dead:
 			member._follow_to(next_cell, duration)
@@ -855,10 +860,28 @@ func move_to(next_cell: Vector2i) -> void:
 ## offset slightly so the whole party stays visible as distinct members.
 func _follow_to(next_cell: Vector2i, duration: float) -> void:
 	cell_pos = next_cell
-	var target_world: Vector2 = _cell_to_world(next_cell) + party_offset
-	var tween := create_tween()
-	tween.tween_property(self, "position", target_world, duration)
-	tween.finished.connect(func(): visited[cell_pos] = true)
+	slide_to(_cell_to_world(next_cell) + party_offset, duration).finished.connect(func(): visited[cell_pos] = true)
+
+## Slides this character's icon to `world_pos` over `seconds`, first
+## stopping any slide still under way -- one at a time, so whichever move
+## came last decides both where the icon ends up and (through its finished
+## callback, which a stopped slide never fires) where cell_pos says it is.
+## Two at once used to pull the icon one way while the other's arrival set
+## cell_pos somewhere else, leaving the fog lit around an empty spot.
+func slide_to(world_pos: Vector2, seconds: float) -> Tween:
+	stop_sliding()
+	_slide = create_tween()
+	_slide.tween_property(self, "position", world_pos, seconds)
+	return _slide
+
+func is_sliding() -> bool:
+	return _slide != null and _slide.is_valid() and _slide.is_running()
+
+## Stops the icon wherever it is, dropping the slide's finished callback.
+func stop_sliding() -> void:
+	if _slide != null and _slide.is_valid():
+		_slide.kill()
+	_slide = null
 
 ## What this character can see from where it stands (`sight_cells`), noting
 ## it on its own map and on the maps of everyone in its party -- party
@@ -876,9 +899,10 @@ func look_around() -> Dictionary:
 
 ## Puts this (leading) character back in `players` if its cell's entry has
 ## gone -- as when someone passed through it (see _squeeze_past), took over
-## the entry, and then moved on, taking the entry with them.
+## the entry, and then moved on, taking the entry with them -- or if the
+## entry is stale (see holds_cell).
 func _reclaim_registration() -> void:
-	if not players.has(cell_pos):
+	if not holds_cell(players.get(cell_pos), cell_pos):
 		players[cell_pos] = self
 
 ## Removes this character's own entry from `players` -- and only its own.

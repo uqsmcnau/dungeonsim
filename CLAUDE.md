@@ -153,6 +153,20 @@ helper there rather than copying it into a second test file. Pure logic
   `sync_label()` handles that whenever a party changes shape, and leaves a
   busy label alone.
 
+- **Icons move through `slide_to()`, one slide at a time.** A new slide
+  stops the one under way, dropping its finished callback, so the last
+  move issued decides both where the icon ends up and what `cell_pos`
+  says. The fog is lit from `cell_pos`, so when two tweens on `position`
+  overlapped (or a fight's winner "claimed" a loser's cell that wasn't next
+  door), walls stayed lit around a spot the icon had left. Don't
+  `create_tween()` on a character's `position` directly, and only `move_to()`
+  an open neighbour (see `GroupCombat.claim_cell`).
+
+- **`players` entries can be stale; check with `NpcAgent.holds_cell()`.**
+  An entry only counts if it's a living party leader whose `cell_pos` is
+  that cell. A leftover entry once let parties fight someone on the far
+  side of the maze.
+
 - **Each character keeps its own map (`seen_cells`).** Updated by
   `look_around()` when it moves, pooled across a party when it forms
   (`PartyOps.pool_seen_cells`) and shared as members see more. Party Vision

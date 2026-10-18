@@ -150,22 +150,19 @@ static func _merged_party_name(joiner: NpcAgent, host: NpcAgent) -> String:
 
 ## A one-time relocation onto a new host's cell for a character that just
 ## joined that party, as opposed to NpcAgent._follow_to's every-step
-## tagging along.
+## tagging along. The member is on the party's cell from the start -- only
+## its icon still has to walk over -- and whatever step it was taking on its
+## own is dropped (slide_to stops it), or its arrival would put this
+## follower back on the map as if it led a party of its own.
 static func relocate_to_party(member: NpcAgent, host: NpcAgent) -> void:
-	member.is_moving = true
+	member.cell_pos = host.cell_pos
+	member.visited[member.cell_pos] = true
+	# Joined a monster fight in progress: locked like the rest of the party
+	# (see GroupCombat.engage_pack), and freed with them when it ends.
+	member.is_moving = member.in_pack_combat
+	member.reset_label()
 	var duration: float = member.move_seconds_base / max(member.stats.move_speed(), 0.1)
-	var target_world: Vector2 = host.position + member.party_offset
-	var tween := member.create_tween()
-	tween.tween_property(member, "position", target_world, duration)
-	tween.finished.connect(func():
-		# Joined a monster fight in progress: stay locked like the rest of
-		# the party (see GroupCombat.engage_pack) -- checked now, not at join time,
-		# in case the fight already ended during the walk over.
-		member.is_moving = member.in_pack_combat
-		member.cell_pos = host.cell_pos
-		member.visited[member.cell_pos] = true
-		member.reset_label()
-	)
+	member.slide_to(host.position + member.party_offset, duration)
 
 ## Whoever in `party_ref` (a party's shared array) is currently its leader
 ## -- re-checked fresh each call, since a fallen leader is replaced by a
@@ -189,13 +186,14 @@ static func promote_next_leader(former_leader: NpcAgent) -> void:
 			member.is_party_leader = true
 			member.guidance_target = former_leader.guidance_target  # carry on with any standing Guidance
 			member.cell_pos = former_leader.cell_pos
+			member.stop_sliding()  # or its last follow-step would carry it off again
 			member.position = former_leader.position
 			member.take_over_label(former_leader)  # it may be showing a fight
 			# Take over the cell's registration -- unless some *other* party's
 			# leader holds it (the two were sharing a cell), which mustn't be
 			# knocked off the map in turn.
 			var owner = former_leader.players.get(former_leader.cell_pos)
-			if owner == null or owner == former_leader:
+			if not NpcAgent.holds_cell(owner, former_leader.cell_pos):
 				former_leader.players[former_leader.cell_pos] = member
 			return
 

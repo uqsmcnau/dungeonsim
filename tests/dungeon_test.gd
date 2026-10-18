@@ -103,3 +103,31 @@ static func ring_maze() -> Array:
 	open_between(g, Vector2i(1, 1), Vector2i(2, 1))
 	open_between(g, Vector2i(2, 1), Vector2i(2, 0))
 	return g
+
+## Takes `npc` out of the real game and stands it alone on cell `cell` of the
+## hand-built maze `g`, registered in `players` (a map shared by whoever's
+## isolated together) rather than the game's own -- no monsters, chests,
+## shops or safe rooms, no party, nothing in hand -- having explored
+## `explored` (and its own cell).
+func isolate(npc: NpcAgent, g: Array, cell: Vector2i, players: Dictionary, explored: Array = []) -> void:
+	main.player_map.erase(npc.cell_pos)
+	npc.players = players
+	npc.enemies = {}
+	npc.chests = {}
+	npc.shops = {}
+	npc.known_shops = {}
+	npc.safe_cells = {}
+	npc.party = [npc]
+	npc.is_party_leader = true
+	npc.is_moving = false
+	npc.finished = false
+	npc.guidance_target = MazeQuery.NONE
+	npc.stats.inventory.clear()
+	npc.grid = g
+	npc.cell_pos = cell
+	npc.position = npc._cell_to_world(cell)
+	npc.visited = {}
+	for c in explored:
+		npc.visited[c] = true
+	npc.visited[cell] = true
+	players[cell] = npc
