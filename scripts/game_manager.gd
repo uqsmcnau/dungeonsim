@@ -79,6 +79,7 @@ var respawner: MonsterRespawner
 @onready var chest_container: Node2D = $World/Chests
 @onready var grave_container: Node2D = $World/Graves
 @onready var hud: Hud = $HUD/Control
+@onready var music: MusicPlayer = $MusicPlayer
 
 func _ready() -> void:
 	randomize()
@@ -87,6 +88,8 @@ func _ready() -> void:
 	hud.fog_toggled.connect(_on_fog_toggled)
 	hud.party_vision_toggle.set_pressed_no_signal(party_vision)
 	hud.party_vision_toggled.connect(_on_party_vision_toggled)
+	hud.volume_slider.set_value_no_signal(music.volume)
+	hud.volume_changed.connect(music.set_volume)
 	$ClickPicker.clicked.connect(_on_world_clicked)
 	$ClickPicker.right_clicked.connect(_on_world_right_clicked)
 	hud.selection_changed.connect(_sync_selection_highlight)

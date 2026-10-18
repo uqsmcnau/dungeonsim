@@ -11,3 +11,8 @@ export_presets.cfg
 .DS_Store
 Thumbs.db
 *.tmp
+
+# Background music: drop your own tracks into BGM/ -- they're not part of the
+# repo (the folder itself is kept via .gitkeep). See scripts/music_player.gd.
+/BGM/*
+!/BGM/.gitkeep

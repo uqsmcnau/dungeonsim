@@ -6,6 +6,8 @@ extends Control
 signal fog_toggled(enabled: bool)
 ## Forwarded from the Party Vision checkbox (see GameManager.party_vision).
 signal party_vision_toggled(enabled: bool)
+## Forwarded from the toolbar's music volume slider (0 to 1).
+signal volume_changed(volume: float)
 ## Whenever the selected (inspected) character changes -- including to
 ## nobody -- so GameManager can move the map highlight right away, even
 ## while paused (when its _process isn't running).
@@ -19,6 +21,9 @@ signal selection_changed
 @onready var winner_label: Label = $WinnerLabel
 @onready var fog_toggle: CheckBox = $FogToggle
 @onready var party_vision_toggle: CheckBox = $PartyVisionToggle
+## Music volume, 0 to 1 (see MusicPlayer). PROCESS_MODE_ALWAYS, so it can be
+## adjusted while paused.
+@onready var volume_slider: HSlider = $VolumeSlider
 ## Pauses the whole SceneTree. It (and the fog toggle) run with
 ## PROCESS_MODE_ALWAYS so they stay clickable while everything else freezes.
 @onready var pause_button: Button = $PauseButton
@@ -37,7 +42,7 @@ const GUIDANCE_COOLING_COLOR := Color(0.4, 0.45, 0.55)
 ## period (below). A dying character keeps occupying its slot until that
 ## grace period actually ends, so a lower-ranked living character isn't
 ## promoted into its place early.
-const VISIBLE_HUD_COUNT := 6
+const VISIBLE_HUD_COUNT := 10
 ## A character that was on the leaderboard at the moment it died keeps its
 ## panel on screen (playing the death flash, then sitting frozen and grey)
 ## for this long before actually dropping off, rather than vanishing the
@@ -69,6 +74,7 @@ func _ready() -> void:
 	leaderboard_container.add_theme_constant_override("separation", 2)
 	fog_toggle.toggled.connect(func(pressed: bool): fog_toggled.emit(pressed))
 	party_vision_toggle.toggled.connect(func(pressed: bool): party_vision_toggled.emit(pressed))
+	volume_slider.value_changed.connect(func(value: float): volume_changed.emit(value))
 	pause_button.toggled.connect(set_paused)
 	var space := InputEventKey.new()
 	space.keycode = KEY_SPACE
