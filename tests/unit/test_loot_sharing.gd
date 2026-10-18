@@ -96,7 +96,7 @@ func test_killing_a_monster_in_a_fight_shares_its_xp():
 		m.in_pack_combat = true
 		m.is_moving = true
 
-	leader._resolve_group_combat_turn(leader.party, cell)
+	GroupCombat.resolve_pack_turn(leader.party, cell, leader.enemies)
 
 	assert_eq(members[0].stats.xp + members[1].stats.xp, monster_xp, "the whole kill's xp, split between them")
 	assert_gt(members[1].stats.xp, 0, "the member who didn't land the blow still gets a share")
@@ -136,7 +136,7 @@ func test_killing_a_monster_in_a_fight_shares_its_gold():
 		m.in_pack_combat = true
 		m.is_moving = true
 
-	leader._resolve_group_combat_turn(leader.party, cell)
+	GroupCombat.resolve_pack_turn(leader.party, cell, leader.enemies)
 
 	assert_eq(members[0].stats.gold + members[1].stats.gold, monster_gold)
 	assert_gt(members[1].stats.gold, 0, "the member who didn't land the blow still gets a share")

@@ -110,12 +110,12 @@ func test_party_defeats_a_weaker_enemy_pack():
 	f2.stats.max_hp = 8
 
 	main.player_map[leader.cell_pos] = leader
-	leader._engage(foe_cell, f1)
+	GroupCombat.engage_pack(leader, foe_cell, f1)
 	assert_true(f1.in_combat and f2.in_combat, "engaging should lock the whole pack into combat")
 
 	var guard := 0
 	while main.enemy_map.has(foe_cell) and guard < 30:
-		leader._resolve_group_combat_turn(leader.party, foe_cell)
+		GroupCombat.resolve_pack_turn(leader.party, foe_cell, leader.enemies)
 		guard += 1
 
 	assert_false(main.enemy_map.has(foe_cell), "the party should wipe out the 2-enemy pack")
@@ -152,7 +152,7 @@ func test_mid_fight_leader_death_hands_off_to_a_surviving_follower():
 		g.stats.max_hp = 20
 
 	main.player_map[frail.cell_pos] = frail
-	frail._engage(cell, g1)
+	GroupCombat.engage_pack(frail, cell, g1)
 	assert_true(g1.in_combat, "sanity: the fight should have actually started")
 
 	var fight_cell: Vector2i = frail.cell_pos
@@ -163,7 +163,7 @@ func test_mid_fight_leader_death_hands_off_to_a_surviving_follower():
 
 	var guard := 0
 	while main.enemy_map.has(cell) and not tanky.dead and guard < 30:
-		tanky._resolve_group_combat_turn(tanky.party, cell)
+		GroupCombat.resolve_pack_turn(tanky.party, cell, tanky.enemies)
 		guard += 1
 
 	assert_false(main.enemy_map.has(cell), "the promoted leader should still be able to finish off the pack")
@@ -186,12 +186,12 @@ func test_stronger_party_defeats_a_weaker_one_in_pvp():
 	var pa_cell: Vector2i = pa.cell_pos
 	var pb_cell: Vector2i = pb.cell_pos
 
-	pa._engage_player(pb_cell, pb)
+	GroupCombat.engage_players(pa, pb_cell, pb)
 	assert_true(pa.in_pvp_combat and pb.in_pvp_combat, "engaging should lock both sides")
 
 	var guard := 0
 	while main.player_map.get(pb_cell) != null and guard < 30:
-		pa._resolve_group_pvp_turn(pa.party, pb.party, pa_cell, pb_cell)
+		GroupCombat.resolve_pvp_turn(pa.party, pb.party, pa_cell, pb_cell)
 		guard += 1
 
 	assert_true(pb.dead, "the weaker party's leader should have died")
@@ -218,7 +218,7 @@ func test_attacker_is_freed_when_the_defender_flees():
 	var defender: NpcAgent = pair[1]
 	_set_stats(defender, 1, 3, 5, 10)  # low enough to flee on the very first turn
 
-	attacker._engage_player(defender.cell_pos, defender)
+	GroupCombat.engage_players(attacker, defender.cell_pos, defender)
 
 	assert_false(defender.in_pvp_combat, "sanity: the defender should have fled")
 	assert_false(attacker.in_pvp_combat)
@@ -235,12 +235,12 @@ func test_attacker_is_freed_when_the_defenders_party_vanishes_mid_fight():
 	var attacker: NpcAgent = pair[0]
 	var defender: NpcAgent = pair[1]
 	_set_stats(defender, 5, 100, 20, 10)
-	attacker._engage_player(defender.cell_pos, defender)
+	GroupCombat.engage_players(attacker, defender.cell_pos, defender)
 	assert_true(attacker.in_pvp_combat, "sanity: an even fight should be underway")
 
 	var defender_party: Array = defender.party
 	defender.die()
-	attacker._resolve_group_pvp_turn(attacker.party, defender_party, attacker.cell_pos, defender.cell_pos)
+	GroupCombat.resolve_pvp_turn(attacker.party, defender_party, attacker.cell_pos, defender.cell_pos)
 
 	assert_false(attacker.in_pvp_combat)
 	assert_false(attacker.is_moving)
@@ -282,13 +282,13 @@ func test_pvp_does_not_freeze_when_both_sides_share_a_cell():
 
 	var guard := 0
 	while a.in_pvp_combat and b.in_pvp_combat and guard < 15:
-		a._resolve_group_pvp_turn(a.party, b.party, shared_cell, shared_cell)
+		GroupCombat.resolve_pvp_turn(a.party, b.party, shared_cell, shared_cell)
 		if a.in_pvp_combat and b.in_pvp_combat:
 			assert_ne(a.current_action, "Exploring", "turn %d: the good player's action should update" % guard)
 			assert_ne(b.current_action, "Exploring", "turn %d: the evil player's action should update" % guard)
 		guard += 1
 		if not a.dead and not b.dead and a.in_pvp_combat:
-			a._run_group_pvp_turn(a.party, b.party, shared_cell, shared_cell)
+			GroupCombat.run_pvp_turn(a.party, b.party, shared_cell, shared_cell)
 
 	assert_gt(guard, 0, "the fight should actually progress, not freeze in place")
 	# A real conclusion is either side falling *or* the losing side fleeing
@@ -301,7 +301,7 @@ func test_pvp_does_not_freeze_when_both_sides_share_a_cell():
 # Real reported bug: a pack-fighting party's leader could die mid-fight,
 # get replaced by a promoted follower (see PartyOps.promote_next_leader),
 # but that follower's own is_moving was never set true -- only the
-# *original* driver got that lock in _engage. That let the promoted
+# *original* driver got that lock in GroupCombat.engage_pack. That let the promoted
 # follower's own idle _process wander off exploring while the combat-turn
 # loop (bound to the *cell*, not to a specific character) was still
 # supposedly driving it. If its own movement unregistered it from the
@@ -327,7 +327,7 @@ func test_engaging_a_pack_locks_is_moving_for_every_party_member_not_just_the_dr
 	var cell: Vector2i = _clear_cell()
 	enemy.setup(cell, main.CELL_SIZE, 1, main.grid, main.enemy_map, {}, [])
 
-	leader._engage(cell, enemy)
+	GroupCombat.engage_pack(leader, cell, enemy)
 
 	assert_true(leader.is_moving, "the driver should be locked, as before")
 	assert_true(follower.is_moving, "the follower must be locked too -- otherwise it's free to wander off the moment it gets promoted to leader")
@@ -347,7 +347,7 @@ func test_a_follower_promoted_mid_fight_cannot_act_independently():
 	var cell: Vector2i = _clear_cell()
 	enemy.setup(cell, main.CELL_SIZE, 1, main.grid, main.enemy_map, {}, [])
 
-	leader._engage(cell, enemy)
+	GroupCombat.engage_pack(leader, cell, enemy)
 	leader.die()  # forces the promotion mid-fight
 
 	assert_true(follower.is_party_leader, "sanity: the follower should be promoted")
@@ -367,12 +367,12 @@ func test_enemy_in_combat_is_released_if_the_fight_loop_finds_no_one_left_in_the
 	enemy.setup(cell, main.CELL_SIZE, 1, main.grid, main.enemy_map, {}, [])
 	var party_ref: Array = leader.party
 
-	leader._engage(cell, enemy)
+	GroupCombat.engage_pack(leader, cell, enemy)
 	assert_true(enemy.in_combat, "sanity: engaging should mark the pack in_combat")
 
 	for member in party_ref.duplicate():
 		member.die()
-	leader._run_group_combat_turn(party_ref, cell)
+	GroupCombat.run_pack_turn(party_ref, cell, leader.enemies)
 
 	assert_false(enemy.in_combat, "the pack must not stay permanently marked in_combat with no one left to resolve the fight")
 
@@ -401,14 +401,14 @@ func test_follower_dying_mid_fight_does_not_strand_the_party():
 	var cell: Vector2i = _clear_cell()
 	enemy.setup(cell, main.CELL_SIZE, 1, main.grid, main.enemy_map, {}, [])
 	enemy.stats.hp = 60
-	leader._engage(cell, enemy)
+	GroupCombat.engage_pack(leader, cell, enemy)
 
 	doomed.die()  # a follower falls mid-fight
 	assert_eq(main.player_map.get(leader.cell_pos), leader, "a follower dying must not erase its leader's registration")
 
 	var guard := 0
 	while main.enemy_map.has(cell) and guard < 40:
-		leader._resolve_group_combat_turn(leader.party, cell)
+		GroupCombat.resolve_pack_turn(leader.party, cell, leader.enemies)
 		guard += 1
 	assert_false(main.enemy_map.has(cell), "the fight should carry on to the end, not quit")
 	for m in [leader, follower]:
@@ -424,12 +424,12 @@ func test_fight_carries_on_even_if_the_leaders_registration_is_lost():
 	var cell: Vector2i = _clear_cell()
 	enemy.setup(cell, main.CELL_SIZE, 1, main.grid, main.enemy_map, {}, [])
 	enemy.stats.hp = 60
-	leader._engage(cell, enemy)
+	GroupCombat.engage_pack(leader, cell, enemy)
 
 	main.player_map.erase(leader.cell_pos)
 	var guard := 0
 	while main.enemy_map.has(cell) and guard < 40:
-		leader._resolve_group_combat_turn(leader.party, cell)
+		GroupCombat.resolve_pack_turn(leader.party, cell, leader.enemies)
 		guard += 1
 	assert_false(main.enemy_map.has(cell))
 	assert_false(leader.in_pack_combat, "the party must be released, not left locked in place")
@@ -485,14 +485,14 @@ func test_pack_survivor_is_released_when_its_leader_and_the_party_fall_in_the_sa
 		EnemyAgent.form_pack([leader, survivor])
 		leader.stats.hp = 0  # falls to the player's first action, whatever it is
 		survivor.stats.hp = 1000
-		# Engaged by hand rather than via _engage, whose first turn would
+		# Engaged by hand rather than via GroupCombat.engage_pack, whose first turn would
 		# have this 1-HP player flee before anything happened.
 		leader.in_combat = true
 		survivor.in_combat = true
 		player.in_pack_combat = true
 		player.is_moving = true
 
-		player._resolve_group_combat_turn(player.party, cell)
+		GroupCombat.resolve_pack_turn(player.party, cell, player.enemies)
 
 		assert_true(survivor.is_pack_leader, "sanity: the survivor should have taken over the pack")
 		if player.dead:
@@ -513,7 +513,7 @@ func test_releasing_a_fight_frees_every_pack_member_not_just_the_leader():
 	leader.in_combat = true
 	follower.in_combat = true
 
-	main.npcs[0]._release_group_combat_lock(cell)
+	GroupCombat.release_pack(main.enemy_map, cell)
 
 	assert_false(leader.in_combat)
 	assert_false(follower.in_combat, "the follower must be released too")
@@ -529,9 +529,9 @@ func test_a_pack_freed_this_way_can_be_fought_normally_afterwards():
 	enemy.stats.max_hp = 5
 	var party_ref: Array = leader.party
 
-	leader._engage(cell, enemy)
+	GroupCombat.engage_pack(leader, cell, enemy)
 	leader.die()  # the whole (solo) party gone mid-fight
-	leader._run_group_combat_turn(party_ref, cell)
+	GroupCombat.run_pack_turn(party_ref, cell, leader.enemies)
 	assert_false(enemy.in_combat)
 
 	# A second, fresh character should be able to engage the now-freed pack
@@ -545,11 +545,11 @@ func test_a_pack_freed_this_way_can_be_fought_normally_afterwards():
 	# Check the odds, not decide_fight itself -- that rolls randf() against a
 	# chance capped at 0.95, so it would flake ~5% of runs even here.
 	assert_gte(CombatMath.win_chance_against(newcomer.stats, enemy.stats), 0.95, "sanity: the newcomer should be confident against this weak enemy")
-	newcomer._engage(cell, enemy)
+	GroupCombat.engage_pack(newcomer, cell, enemy)
 	assert_true(enemy.in_combat, "the pack should be engageable again, not stuck refusing all future fights")
 
 	var guard := 0
 	while main.enemy_map.has(cell) and guard < 30:
-		newcomer._resolve_group_combat_turn(newcomer.party, cell)
+		GroupCombat.resolve_pack_turn(newcomer.party, cell, newcomer.enemies)
 		guard += 1
 	assert_false(main.enemy_map.has(cell), "the newcomer should be able to actually finish off the freed pack")

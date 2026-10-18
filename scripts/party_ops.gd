@@ -149,7 +149,7 @@ static func relocate_to_party(member: NpcAgent, host: NpcAgent) -> void:
 	tween.tween_property(member, "position", target_world, duration)
 	tween.finished.connect(func():
 		# Joined a monster fight in progress: stay locked like the rest of
-		# the party (see NpcAgent._engage) -- checked now, not at join time,
+		# the party (see GroupCombat.engage_pack) -- checked now, not at join time,
 		# in case the fight already ended during the walk over.
 		member.is_moving = member.in_pack_combat
 		member.cell_pos = host.cell_pos

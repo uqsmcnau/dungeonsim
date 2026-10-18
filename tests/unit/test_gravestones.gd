@@ -142,7 +142,7 @@ func test_killed_by_a_monster_is_recorded():
 		if player.dead:
 			break
 		player.stats.hp = 1  # in case it drank a potion or recovered
-		player._resolve_group_combat_turn([player], cell)
+		GroupCombat.resolve_pack_turn([player], cell, player.enemies)
 	assert_true(player.dead, "sanity: a 1 HP player should fall to a level 4 monster eventually")
 	assert_eq(player.killed_by, "a level 4 monster")
 	assert_true(player.death_method.ends_with(" damage"), player.death_method)
@@ -163,7 +163,7 @@ func test_killed_by_another_player_is_recorded():
 		if victim.dead:
 			break
 		victim.stats.hp = 1
-		killer._resolve_group_pvp_turn(killer.party, victim.party, killer.cell_pos, victim.cell_pos)
+		GroupCombat.resolve_pvp_turn(killer.party, victim.party, killer.cell_pos, victim.cell_pos)
 	assert_true(victim.dead)
 	assert_eq(victim.killed_by, "%s (Lv.5 %s)" % [killer.npc_name, killer.stats.alignment])
 	assert_true(victim.death_method.begins_with("Iron Sword for "), victim.death_method)

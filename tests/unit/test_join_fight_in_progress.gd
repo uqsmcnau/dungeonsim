@@ -45,7 +45,7 @@ func _start_monster_fight() -> Array:
 	enemy.setup(enemy_cell, main.CELL_SIZE, 1, main.grid, main.enemy_map, {}, [])
 	enemy.stats.hp = 100000
 	enemy.stats.max_hp = 100000
-	host._engage(enemy_cell, enemy)
+	GroupCombat.engage_pack(host, enemy_cell, enemy)
 	return [enemy, enemy_cell]
 
 func _start_pvp_fight() -> NpcAgent:
@@ -56,7 +56,7 @@ func _start_pvp_fight() -> NpcAgent:
 	villain.stats.inventory.clear()
 	_set_stats(villain, 10, 10000, 20, 20)
 	main.player_map[villain.cell_pos] = villain
-	host._engage_player(villain.cell_pos, villain)
+	GroupCombat.engage_players(host, villain.cell_pos, villain)
 	return villain
 
 # ============================ Monster fights ==============================
@@ -85,7 +85,7 @@ func test_newcomer_takes_on_the_fights_combat_lock():
 	newcomer._attempt_move(host.cell_pos)
 
 	assert_true(newcomer.in_pack_combat)
-	assert_true(newcomer.is_moving, "locked like every other party member (see _engage)")
+	assert_true(newcomer.is_moving, "locked like every other party member (see GroupCombat.engage_pack)")
 
 func test_newcomer_stays_locked_after_its_walk_over_finishes_mid_fight():
 	# relocate_to_party's tween used to unconditionally set is_moving = false
@@ -106,7 +106,7 @@ func test_newcomer_fights_alongside_and_is_released_when_the_fight_ends():
 	assert_true(host.living_party().has(newcomer), "the fight loop iterates living_party() -- the newcomer must be in it")
 
 	enemy.stats.hp = 0  # not 1: attacks can miss, and the test would flake
-	host._resolve_group_combat_turn(host.party, enemy_cell)
+	GroupCombat.resolve_pack_turn(host.party, enemy_cell, host.enemies)
 
 	assert_false(main.enemy_map.has(enemy_cell), "sanity: the pack should be defeated")
 	assert_false(newcomer.in_pack_combat, "the newcomer's combat flag should be released with everyone else's")
@@ -209,7 +209,7 @@ func test_pvp_lock_is_released_for_the_newcomer_when_the_fight_ends():
 	newcomer._attempt_move(host.cell_pos)
 
 	villain.stats.hp = 0  # not 1: attacks can miss, and the test would flake
-	host._resolve_group_pvp_turn(host.party, villain.party, host.cell_pos, villain.cell_pos)
+	GroupCombat.resolve_pvp_turn(host.party, villain.party, host.cell_pos, villain.cell_pos)
 
 	assert_true(villain.dead, "sanity: the fight should be over")
 	assert_false(newcomer.in_pvp_combat)

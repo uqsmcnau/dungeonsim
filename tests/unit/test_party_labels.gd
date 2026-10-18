@@ -62,7 +62,7 @@ func test_fights_are_labelled_with_the_party_name():
 	for m in members + [rival]:
 		m.stats.hp = 500
 		m.stats.max_hp = 500
-	leader._run_group_pvp_turn(leader.party, rival.party, leader.cell_pos, rival.cell_pos)
+	GroupCombat.run_pvp_turn(leader.party, rival.party, leader.cell_pos, rival.cell_pos)
 	assert_eq(leader.name_label.text, "%s ⚔ vs %s" % [leader.party_name, rival.npc_name])
 	assert_eq(rival.name_label.text, "%s ⚔ vs %s" % [rival.npc_name, leader.party_name])
 
