@@ -24,7 +24,7 @@ func _stack_odds(strong: NpcAgent, weak: NpcAgent) -> void:
 	weak.stats.level = 1
 
 func _clear_cell() -> Vector2i:
-	for c in main._unrestricted_cells():
+	for c in main.world.unrestricted_cells():
 		if not main.enemy_map.has(c) and not main.chest_map.has(c):
 			return c
 	return Vector2i(-1, -1)

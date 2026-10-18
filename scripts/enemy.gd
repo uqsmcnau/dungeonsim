@@ -34,7 +34,7 @@ var in_combat: bool = false
 var fighting_party: Array = []
 var is_moving: bool = false
 var is_mini_boss: bool = false
-## The one guarding the exit (see GameManager._spawn_boss).
+## The one guarding the exit (see WorldBuilder._spawn_boss).
 var is_boss: bool = false
 ## Stationary bosses never chase or wander, but still tick for HP regen. A
 ## pack's non-leader members also have this false, for the same reason.

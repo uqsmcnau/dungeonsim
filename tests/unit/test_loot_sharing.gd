@@ -83,7 +83,7 @@ func test_killing_a_monster_in_a_fight_shares_its_xp():
 	main.player_map[leader.cell_pos] = leader
 	var enemy: EnemyAgent = add_child_autofree(ENEMY_SCENE.instantiate())
 	var cell: Vector2i = Vector2i(-1, -1)
-	for c in main._unrestricted_cells():
+	for c in main.world.unrestricted_cells():
 		if not main.enemy_map.has(c) and not main.chest_map.has(c):
 			cell = c
 			break
@@ -124,7 +124,7 @@ func test_killing_a_monster_in_a_fight_shares_its_gold():
 	main.player_map[leader.cell_pos] = leader
 	var enemy: EnemyAgent = add_child_autofree(ENEMY_SCENE.instantiate())
 	var cell: Vector2i = Vector2i(-1, -1)
-	for c in main._unrestricted_cells():
+	for c in main.world.unrestricted_cells():
 		if not main.enemy_map.has(c) and not main.chest_map.has(c):
 			cell = c
 			break
@@ -147,7 +147,7 @@ func test_chest_gold_is_split_but_the_items_go_to_whoever_opened_it():
 	var opener: NpcAgent = members[0]
 	opener.stats.inventory.clear()
 	members[1].stats.inventory.clear()
-	main._place_death_chest(opener.cell_pos, {"Health Potion": 1}, 10)
+	main.world.place_death_chest(opener.cell_pos, {"Health Potion": 1}, 10)
 
 	opener._check_for_chest()
 
@@ -159,6 +159,6 @@ func test_chest_gold_is_split_but_the_items_go_to_whoever_opened_it():
 func test_solo_character_keeps_all_the_chest_gold():
 	var members := _party(1)
 	_zero_gold(members)
-	main._place_death_chest(members[0].cell_pos, {}, 10)
+	main.world.place_death_chest(members[0].cell_pos, {}, 10)
 	members[0]._check_for_chest()
 	assert_eq(members[0].stats.gold, 10)

@@ -37,7 +37,7 @@ func _party(size: int) -> Array:
 	return leader.party
 
 func _open_chest_with(opener: NpcAgent, loot: Dictionary) -> void:
-	main._place_death_chest(opener.cell_pos, loot, 0)
+	main.world.place_death_chest(opener.cell_pos, loot, 0)
 	opener._check_for_chest()
 
 # ============================ upgrade_value ===============================

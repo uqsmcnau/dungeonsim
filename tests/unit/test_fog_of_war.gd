@@ -32,7 +32,7 @@ func _new_enemy() -> EnemyAgent:
 ## through as "far enough" even though its Chebyshev distance (4) is well
 ## within range.
 func _isolated_cell() -> Vector2i:
-	for c in main._unrestricted_cells():
+	for c in main.world.unrestricted_cells():
 		if main.enemy_map.has(c) or main.chest_map.has(c):
 			continue
 		var too_close := false

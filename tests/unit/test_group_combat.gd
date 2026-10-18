@@ -27,7 +27,7 @@ func _set_stats(npc: NpcAgent, level: int, hp: int, strength: int, constitution:
 ## An enemy-free, chest-free, unrestricted cell -- used whenever a test needs
 ## a location that isn't inside anyone's safe zone or already occupied.
 func _clear_cell() -> Vector2i:
-	for c in main._unrestricted_cells():
+	for c in main.world.unrestricted_cells():
 		if not main.enemy_map.has(c) and not main.chest_map.has(c):
 			return c
 	return Vector2i(-1, -1)

@@ -24,7 +24,7 @@ func _click(local_pos: Vector2) -> void:
 	main._on_world_clicked(main.npc_container.to_global(local_pos))
 
 func _clear_cell() -> Vector2i:
-	for c in main._unrestricted_cells():
+	for c in main.world.unrestricted_cells():
 		if not main.enemy_map.has(c) and not main.chest_map.has(c):
 			return c
 	return Vector2i(-1, -1)
