@@ -88,7 +88,7 @@ func test_inspector_works_for_characters_off_the_leaderboard():
 		if int(main.hud.rows[npc]["rank"]) == 0:
 			off_board = npc
 			break
-	assert_not_null(off_board, "sanity: with 20 players only 6 are on the leaderboard")
+	assert_not_null(off_board, "sanity: with 20 players only 10 are on the leaderboard")
 	main._on_world_clicked(off_board.global_position)
 	assert_eq(main.hud.inspected, off_board)
 

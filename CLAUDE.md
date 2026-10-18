@@ -81,7 +81,7 @@ helper there rather than copying it into a second test file. Pure logic
 - **`party_ops.gd` (`PartyOps`)** — party merging, naming, leader promotion,
   `leader_of(party)`, and item sharing. **`combat_math.gd` (`CombatMath`)** —
   pure hit/damage/win-chance math over two `NpcStats`.
-- **`hud.gd` (`Hud`)** — toolbar, the leaderboard (top 6, right column), and
+- **`hud.gd` (`Hud`)** — toolbar, the leaderboard (top 10, right column, compact panels without the gear section), and
   the selection column (the selected character's panel, then the rest of
   their party, on the left).
 

@@ -86,6 +86,7 @@ func _ready() -> void:
 	pause_button.focus_mode = Control.FOCUS_NONE
 	fog_toggle.focus_mode = Control.FOCUS_NONE
 	party_vision_toggle.focus_mode = Control.FOCUS_NONE
+	volume_slider.focus_mode = Control.FOCUS_NONE
 
 	guidance_widget = _make_stat_bar(GUIDANCE_READY_COLOR)
 	var guidance_bar: Control = guidance_widget["container"]
@@ -173,16 +174,20 @@ func _make_stat_bar(fill_color: Color) -> Dictionary:
 
 	return {"container": container, "bar": bar, "label": label, "fill": fill}
 
+## Leaderboard panels are compact -- no gear section (see _build_panel) --
+## so all VISIBLE_HUD_COUNT of them fit down the one column.
 func register_npc(npc: NpcAgent) -> void:
-	var r := _build_panel(npc)
+	var r := _build_panel(npc, false)
 	leaderboard_container.add_child(r["panel"])
 	rows[npc] = r
 	_refresh_row(npc)
 
 ## Builds one character's stat panel (unparented) and returns its widgets,
 ## in the shape _fill_panel expects. Shared by the leaderboard rows and the
-## inspector, so the two always look and read the same.
-func _build_panel(npc: NpcAgent) -> Dictionary:
+## selection column's panels, so they all look and read the same -- except
+## that only `with_gear` panels (the selection's) get the gear section:
+## equipment slots, potions and spells.
+func _build_panel(npc: NpcAgent, with_gear: bool = true) -> Dictionary:
 	var panel := PanelContainer.new()
 	var style := StyleBoxFlat.new()
 	var c: Color = npc.visual.color
@@ -244,31 +249,35 @@ func _build_panel(npc: NpcAgent) -> Dictionary:
 	abilities_label.add_theme_font_size_override("font_size", 12)
 	vbox.add_child(abilities_label)
 
-	## One label per equipment slot, laid out two to a row so the slot list
-	## reads as columns rather than one long wrapped block.
-	var equipment_grid := GridContainer.new()
-	equipment_grid.columns = 2
-	equipment_grid.add_theme_constant_override("h_separation", 12)
-	equipment_grid.add_theme_constant_override("v_separation", 0)
-	vbox.add_child(equipment_grid)
-
-	# Every cell gets the same capped width with wrapping allowed, so two
-	# long entries sharing a row (e.g. Accessories + Potions, both able to
-	## list two items) wrap instead of pushing the panel wider than its column.
+	## The gear section: one label per equipment slot, laid out two to a row
+	## so the slot list reads as columns rather than one long wrapped block.
+	var gear: GridContainer = null
 	var slot_labels: Dictionary = {}
-	for slot in ItemCatalog.SLOT_ORDER:
-		var slot_label := _make_grid_cell()
-		equipment_grid.add_child(slot_label)
-		slot_labels[slot] = slot_label
+	var potions_label: Label = null
+	var spells_label: Label = null
+	if with_gear:
+		gear = GridContainer.new()
+		gear.columns = 2
+		gear.add_theme_constant_override("h_separation", 12)
+		gear.add_theme_constant_override("v_separation", 0)
+		vbox.add_child(gear)
 
-	# Potions and spells fill out the same grid rather than breaking into
-	# separate full-width rows, continuing on from the equipment slots
-	# (accessory | potions, then spells alone on the next row).
-	var potions_label := _make_grid_cell()
-	equipment_grid.add_child(potions_label)
+		# Every cell gets the same capped width with wrapping allowed, so two
+		# long entries sharing a row (e.g. Accessories + Potions, both able to
+		# list two items) wrap instead of pushing the panel wider than its column.
+		for slot in ItemCatalog.SLOT_ORDER:
+			var slot_label := _make_grid_cell()
+			gear.add_child(slot_label)
+			slot_labels[slot] = slot_label
 
-	var spells_label := _make_grid_cell()
-	equipment_grid.add_child(spells_label)
+		# Potions and spells fill out the same grid rather than breaking into
+		# separate full-width rows, continuing on from the equipment slots
+		# (accessory | potions, then spells alone on the next row).
+		potions_label = _make_grid_cell()
+		gear.add_child(potions_label)
+
+		spells_label = _make_grid_cell()
+		gear.add_child(spells_label)
 
 	## A white overlay on top of the whole panel, flashed on level-up (see
 	## flash_level_up) then faded back out.
@@ -293,6 +302,7 @@ func _build_panel(npc: NpcAgent) -> Dictionary:
 		"mp_bar": mp_widget["bar"],
 		"mp_text": mp_widget["label"],
 		"abilities": abilities_label,
+		"gear": gear,
 		"slot_labels": slot_labels,
 		"potions": potions_label,
 		"spells": spells_label,
@@ -479,6 +489,8 @@ func _fill_panel(r: Dictionary, npc: NpcAgent) -> void:
 		s.strength, s.dexterity, s.constitution, s.intelligence, s.wisdom, s.charisma
 	]
 
+	if r["gear"] == null:
+		return
 	var slot_labels: Dictionary = r["slot_labels"]
 	for slot in ItemCatalog.SLOT_ORDER:
 		slot_labels[slot].text = _slot_text(s, slot)

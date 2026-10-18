@@ -23,11 +23,11 @@ func _selection_panels() -> Array:
 
 # ============================== Leaderboard ===============================
 
-func test_the_leaderboard_shows_six():
-	assert_eq(Hud.VISIBLE_HUD_COUNT, 6)
+func test_the_leaderboard_shows_ten():
+	assert_eq(Hud.VISIBLE_HUD_COUNT, 10)
 	rank_npcs_by_index(main.npcs.size())
 	main._process(0.0)
-	assert_eq(_visible_in(main.hud.leaderboard_container).size(), 6)
+	assert_eq(_visible_in(main.hud.leaderboard_container).size(), 10)
 
 func test_the_leaderboard_is_only_on_the_right():
 	rank_npcs_by_index(main.npcs.size())
@@ -41,7 +41,7 @@ func test_the_leaderboard_runs_top_down_in_rank_order():
 	rank_npcs_by_index(n)
 	main._process(0.0)
 	var shown := _visible_in(main.hud.leaderboard_container)
-	for i in range(6):
+	for i in range(10):
 		assert_eq(shown[i], _panel(main.npcs[n - 1 - i]), "#%d" % (i + 1))
 		assert_eq(shown[i].get_index(), i)
 
@@ -54,9 +54,9 @@ func test_order_is_kept_as_rankings_change():
 	underdog.stats.max_hp = 1000
 	main._process(0.0)
 	assert_eq(_visible_in(main.hud.leaderboard_container)[0], _panel(underdog), "the new #1 goes to the top")
-	assert_eq(_visible_in(main.hud.leaderboard_container).size(), 6)
+	assert_eq(_visible_in(main.hud.leaderboard_container).size(), 10)
 
-func test_a_panel_is_up_to_date_the_moment_it_joins_the_six():
+func test_a_panel_is_up_to_date_the_moment_it_joins_the_ten():
 	var n: int = main.npcs.size()
 	rank_npcs_by_index(n)
 	main._process(0.0)
@@ -68,13 +68,48 @@ func test_a_panel_is_up_to_date_the_moment_it_joins_the_six():
 	main._process(0.0)
 	assert_eq(main.hud.rows[underdog]["hp_text"].text, "HP 7/1000")
 
-func test_a_dying_leader_keeps_its_slot_in_the_six():
+func test_a_dying_leader_keeps_its_slot_in_the_ten():
 	var n: int = main.npcs.size()
 	rank_npcs_by_index(n)
 	main._process(0.0)
 	main.npcs[n - 1].die()  # kill the current #1
 	main._process(0.0)
-	assert_eq(_visible_in(main.hud.leaderboard_container).size(), 6, "the grace period still holds its slot")
+	assert_eq(_visible_in(main.hud.leaderboard_container).size(), 10, "the grace period still holds its slot")
+
+func test_leaderboard_panels_leave_out_gear():
+	main._process(0.0)
+	for npc in main.hud.rows:
+		var r: Dictionary = main.hud.rows[npc]
+		assert_null(r["gear"], "%s's leaderboard panel" % npc.npc_name)
+		assert_false(_text_in(r["panel"]).contains("Hands:"))
+	assert_string_contains(_text_in(_panel(main.npcs[0])), "STR ", "the rest is still there")
+
+func test_selected_panels_still_show_gear():
+	var leader: NpcAgent = main.npcs[0]
+	var follower: NpcAgent = main.npcs[1]
+	PartyOps.join_party_of(follower, leader)
+	main.hud.inspect(leader)
+	for r in [main.hud.inspector, main.hud.party_panels[follower]]:
+		assert_not_null(r["gear"])
+		var text := _text_in(r["panel"])
+		for label in ["Hands:", "Armor:", "Helmet:", "Feet:", "Accessories:", "Potions:", "Spells:"]:
+			assert_string_contains(text, label)
+
+func test_ten_leaderboard_panels_fit_down_the_column():
+	rank_npcs_by_index(main.npcs.size())
+	main._process(0.0)
+	var column: VBoxContainer = main.hud.leaderboard_container
+	var height := column.offset_bottom - column.offset_top
+	assert_lte(column.get_combined_minimum_size().y, height)
+
+## Every label's text in a panel, joined up.
+func _text_in(node: Node) -> String:
+	var parts: Array = []
+	if node is Label:
+		parts.append(node.text)
+	for child in node.get_children():
+		parts.append(_text_in(child))
+	return " ".join(parts)
 
 func test_fewer_than_six_left_shows_them_all():
 	var to_kill: Array = []
