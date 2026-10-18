@@ -1,0 +1,94 @@
+extends GutTest
+
+## Covers the labels above characters on the map once they team up: one
+## label for the whole party, showing the party's name, rather than every
+## member's own name and level.
+
+var main: Node
+
+func before_each():
+	main = add_child_autofree(load("res://scenes/Main.tscn").instantiate())
+
+func _party_of(size: int) -> Array:
+	var leader: NpcAgent = main.npcs[0]
+	for i in range(1, size):
+		PartyOps.join_party_of(main.npcs[i], leader)
+	leader._update_label()  # as when the "grew to N!" message times out
+	return leader.party
+
+func _showing(members: Array) -> Array:
+	return members.filter(func(m): return m.name_label.visible)
+
+func test_a_lone_character_shows_their_own_name_and_level():
+	var npc: NpcAgent = main.npcs[0]
+	assert_true(npc.name_label.visible)
+	assert_eq(npc.name_label.text, "%s Lv.%d" % [npc.npc_name, npc.stats.level])
+
+func test_a_party_shows_one_label_with_its_name():
+	var members := _party_of(3)
+	var leader: NpcAgent = members[0]
+	assert_eq(_showing(members), [leader], "only the leader's label shows")
+	assert_eq(leader.name_label.text, leader.party_name)
+
+func test_no_member_shows_their_own_name():
+	var members := _party_of(3)
+	for m in _showing(members):
+		for other in members:
+			assert_false(m.name_label.text.contains(other.npc_name), "%s's name is on the map" % other.npc_name)
+
+func test_followers_stay_hidden_frame_after_frame():
+	var members := _party_of(2)
+	for m in members:
+		m._process(0.0)
+	assert_false(members[1].name_label.visible)
+	assert_true(members[0].name_label.visible)
+
+func test_growing_announces_the_party_by_name():
+	var leader: NpcAgent = main.npcs[0]
+	PartyOps.join_party_of(main.npcs[1], leader)
+	assert_eq(leader.name_label.text, "%s grew to 2!" % leader.party_name)
+
+func test_the_party_label_sits_clear_of_the_members_icons():
+	var solo_y: float = main.npcs[5].name_label.position.y
+	var members := _party_of(2)
+	assert_lt(members[0].name_label.position.y, solo_y, "raised above where a lone character's sits")
+
+func test_fights_are_labelled_with_the_party_name():
+	var members := _party_of(2)
+	var leader: NpcAgent = members[0]
+	var rival: NpcAgent = main.npcs[5]
+	assert_eq(leader._map_name(), leader.party_name)
+	assert_eq(rival._map_name(), rival.npc_name, "a loner goes by their own name")
+	for m in members + [rival]:
+		m.stats.hp = 500
+		m.stats.max_hp = 500
+	leader._run_group_pvp_turn(leader.party, rival.party, leader.cell_pos, rival.cell_pos)
+	assert_eq(leader.name_label.text, "%s ⚔ vs %s" % [leader.party_name, rival.npc_name])
+	assert_eq(rival.name_label.text, "%s ⚔ vs %s" % [rival.npc_name, leader.party_name])
+
+func test_a_promoted_leader_takes_over_the_party_label():
+	var members := _party_of(3)
+	var leader: NpcAgent = members[0]
+	var next: NpcAgent = members[1]
+	var label_text: String = leader.name_label.text
+	leader._die()
+	assert_true(next.name_label.visible)
+	assert_eq(next.name_label.text, label_text)
+
+func test_the_last_survivor_gets_their_own_name_back():
+	var members := _party_of(2)
+	var leader: NpcAgent = members[0]
+	var survivor: NpcAgent = members[1]
+	leader._die()
+	survivor._process(0.0)
+	assert_true(survivor.name_label.visible)
+	assert_eq(survivor.name_label.text, "%s Lv.%d" % [survivor.npc_name, survivor.stats.level])
+	assert_eq(survivor.name_label.position.y, main.npcs[5].name_label.position.y, "back down to where a lone character's sits")
+
+func test_a_busy_label_isnt_cut_short_by_the_party_changing():
+	var leader: NpcAgent = main.npcs[0]
+	leader.name_label.text = "%s ⚔ Lv.3" % leader.npc_name  # mid-fight
+	PartyOps.join_party_of(main.npcs[1], leader)
+	leader.name_label.text = "Something busy"
+	leader._process(0.0)
+	assert_eq(leader.name_label.text, "Something busy")

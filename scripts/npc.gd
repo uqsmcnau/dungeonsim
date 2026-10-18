@@ -115,9 +115,14 @@ var party_offset: Vector2 = Vector2.ZERO
 
 @onready var visual: Polygon2D = $Visual
 @onready var name_label: Label = $NameLabel
+## In a party, the one label left showing (the leader's -- see _sync_label)
+## sits this much higher, clear of the members' icons standing around it.
+const PARTY_LABEL_LIFT := 10.0
+var _label_base_y: float = 0.0
 
 func _ready() -> void:
 	leveled_up.connect(_on_leveled_up)
+	_label_base_y = name_label.position.y
 
 func setup(spawn_cell: Vector2i, target_cell: Vector2i, maze_grid: Array, cs: float, color: Color, display_name: String, enemy_map: Dictionary, chest_map: Dictionary, shop_map: Dictionary, player_map: Dictionary, restricted_cells: Dictionary = {}) -> void:
 	cell_pos = spawn_cell
@@ -146,6 +151,7 @@ func _process(delta: float) -> void:
 	if dead:
 		return
 	stats.regen_mp(delta)
+	_sync_label()
 	## Followers don't act independently at all — they just tag along with
 	## the leader (movement) and fight alongside it (combat), both driven
 	## entirely from the leader's own logic.
@@ -228,7 +234,7 @@ func _pending_tome() -> String:
 func _cast_recover_idle() -> void:
 	is_moving = true
 	current_action = "Casting Recover"
-	name_label.text = "%s ✨ Recover" % npc_name
+	name_label.text = "%s ✨ Recover" % _map_name()
 	var timer := get_tree().create_timer(RECOVER_CAST_SECONDS, false)
 	timer.timeout.connect(_finish_recover_idle)
 
@@ -260,7 +266,7 @@ func _consume_item_idle(item_name: String) -> void:
 	is_moving = true
 	var verb := _consume_verb(item_name)
 	current_action = "%s %s" % [verb, item_name]
-	name_label.text = "%s %s %s" % [npc_name, verb, item_name]
+	name_label.text = "%s %s %s" % [_map_name(), verb, item_name]
 	var timer := get_tree().create_timer(CONSUME_SECONDS, false)
 	timer.timeout.connect(_finish_consume_idle.bind(item_name))
 
@@ -441,7 +447,7 @@ func _party_has_shop_business() -> bool:
 func _start_shopping() -> void:
 	is_moving = true
 	current_action = "Shopping"
-	name_label.text = "%s $ Shopping" % npc_name
+	name_label.text = "%s $ Shopping" % _map_name()
 	var timer := get_tree().create_timer(SHOPPING_SECONDS, false)
 	timer.timeout.connect(_finish_shopping)
 
@@ -458,7 +464,7 @@ func _finish_shopping() -> void:
 		bought += member.stats.buy_potions().size()
 	is_moving = false
 	if sold > 0 or bought > 0:
-		name_label.text = "%s sold %d, bought %d" % [npc_name, sold, bought]
+		name_label.text = "%s sold %d, bought %d" % [_map_name(), sold, bought]
 		var timer := get_tree().create_timer(1.5, false)
 		timer.timeout.connect(_update_label)
 	else:
@@ -782,7 +788,7 @@ func _run_group_combat_turn(my_party: Array, enemy_cell: Vector2i) -> void:
 		return
 
 	me.current_action = "Fighting a level %d enemy" % target.stats.level
-	me.name_label.text = "%s ⚔ Lv.%d" % [me.npc_name, target.stats.level]
+	me.name_label.text = "%s ⚔ Lv.%d" % [me._map_name(), target.stats.level]
 	var timer := me.get_tree().create_timer(TURN_SECONDS, false)
 	timer.timeout.connect(_resolve_group_combat_turn.bind(my_party, enemy_cell))
 
@@ -933,9 +939,9 @@ func _run_group_pvp_turn(my_party: Array, their_party: Array, my_cell: Vector2i,
 		return
 
 	me.current_action = "Fighting %s" % them.npc_name
-	me.name_label.text = "%s ⚔ vs %s" % [me.npc_name, them.npc_name]
+	me.name_label.text = "%s ⚔ vs %s" % [me._map_name(), them._map_name()]
 	them.current_action = "Fighting %s" % me.npc_name
-	them.name_label.text = "%s ⚔ vs %s" % [them.npc_name, me.npc_name]
+	them.name_label.text = "%s ⚔ vs %s" % [them._map_name(), me._map_name()]
 
 	var timer := me.get_tree().create_timer(TURN_SECONDS, false)
 	timer.timeout.connect(_resolve_group_pvp_turn.bind(my_party, their_party, my_cell, their_cell))
@@ -1210,7 +1216,7 @@ func _check_for_chest() -> void:
 		parts.append("%dg" % gold)
 	if parts.is_empty():
 		return
-	name_label.text = "%s found %s!" % [npc_name, ", ".join(parts)]
+	name_label.text = "%s found %s!" % [_map_name(), ", ".join(parts)]
 	var timer := get_tree().create_timer(1.5, false)
 	timer.timeout.connect(_update_label)
 
@@ -1221,8 +1227,35 @@ func _update_label() -> void:
 	name_label.text = _level_tag()
 	current_action = "Exploring"
 
+## The label's resting text: the party's name while in a party, otherwise
+## "Name Lv.N".
 func _level_tag() -> String:
+	if _shows_party_name():
+		return party_name
 	return "%s Lv.%d" % [npc_name, stats.level]
+
+## Who the label above this character speaks for: their party, by name,
+## while they're in one -- otherwise just them.
+func _map_name() -> String:
+	return party_name if _shows_party_name() else npc_name
+
+func _shows_party_name() -> bool:
+	return party_name != "" and living_party().size() > 1
+
+## One label per party: only the leader's shows, raised clear of the icons
+## of the members standing around it (see PartyOps.PARTY_OFFSETS); a
+## follower's is hidden. Called every frame (followers included) and
+## straight away whenever a party changes shape (see PartyOps). A label at
+## rest also swaps between the party's name and "Name Lv.N" as they join or
+## outlive a party -- one busy showing a fight, a find or the like is left
+## alone, and picks it up when it reverts (see _update_label).
+func _sync_label() -> void:
+	var in_party := living_party().size() > 1
+	name_label.visible = is_party_leader or not in_party
+	name_label.position.y = _label_base_y - (PARTY_LABEL_LIFT if in_party else 0.0)
+	var at_rest: bool = name_label.text == party_name or name_label.text == "%s Lv.%d" % [npc_name, stats.level]
+	if at_rest:
+		name_label.text = _level_tag()
 
 ## Keeps the "Name Lv.N" tag above this character current when it levels
 ## up. Otherwise only _update_label refreshes it, which followers almost

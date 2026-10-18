@@ -96,6 +96,9 @@ static func join_party_of(joiner: NpcAgent, host: NpcAgent) -> void:
 			member.party_name = merged_name
 	pool_seen_cells(host.party)
 	assign_party_offsets(host)
+	for member in host.party:
+		if is_instance_valid(member):
+			member._sync_label()
 	for member in joining:
 		if is_instance_valid(member) and not member.dead:
 			relocate_to_party(member, host)
@@ -165,6 +168,9 @@ static func promote_next_leader(former_leader: NpcAgent) -> void:
 			member.guidance_target = former_leader.guidance_target  # carry on with any standing Guidance
 			member.cell_pos = former_leader.cell_pos
 			member.position = former_leader.position
+			# Take over the party's label as it stands (it may be showing a fight).
+			member.name_label.text = former_leader.name_label.text
+			member._sync_label()
 			# Take over the cell's registration -- unless some *other* party's
 			# leader holds it (the two were sharing a cell), which mustn't be
 			# knocked off the map in turn.
