@@ -27,6 +27,9 @@ const PICK_RADIUS := 10.0
 ## Seconds of game time (it doesn't tick while paused) between uses of
 ## Guidance, the spectator's right-click "go there" for the selected party.
 const GUIDANCE_COOLDOWN := 15.0
+## How far the selection ring sits beyond the outermost member's icon
+## centre -- a touch more than half the 16px icon's diagonal.
+const SELECTION_ICON_MARGIN := 13.0
 const NPC_SCENE: PackedScene = preload("res://scenes/NPC.tscn")
 const ENEMY_SCENE: PackedScene = preload("res://scenes/Enemy.tscn")
 const CHEST_SCENE: PackedScene = preload("res://scenes/Chest.tscn")
@@ -92,6 +95,7 @@ func _ready() -> void:
 	hud.fog_toggled.connect(_on_fog_toggled)
 	$ClickPicker.clicked.connect(_on_world_clicked)
 	$ClickPicker.right_clicked.connect(_on_world_right_clicked)
+	hud.selection_changed.connect(_sync_selection_highlight)
 	_spawn_enemies()
 	_spawn_boss()
 	_spawn_chests()
@@ -101,6 +105,7 @@ func _process(delta: float) -> void:
 	hud.update_positions(npcs)
 	_sync_fog()
 	_sync_guidance_marker()
+	_sync_selection_highlight()
 	guidance_cooldown_left = maxf(0.0, guidance_cooldown_left - delta)
 	hud.update_guidance(guidance_cooldown_left, GUIDANCE_COOLDOWN)
 
@@ -110,8 +115,9 @@ func _on_fog_toggled(enabled: bool) -> void:
 	maze_view.set_fog_enabled(enabled)
 	_sync_fog()
 
-## Clicking a character's icon opens their inspector panel; clicking empty
-## maze space closes it.
+## Clicking a character's icon selects them -- opening their inspector panel
+## and highlighting their party on the map; clicking anywhere else on the
+## map deselects them.
 func _on_world_clicked(world_pos: Vector2) -> void:
 	var npc: NpcAgent = npc_at(world_pos)
 	if npc != null:
@@ -151,6 +157,24 @@ func _inspected_party_leader() -> NpcAgent:
 func world_to_cell(world_pos: Vector2) -> Vector2i:
 	var local: Vector2 = npc_container.get_global_transform().affine_inverse() * world_pos
 	return Vector2i(floori(local.x / CELL_SIZE), floori(local.y / CELL_SIZE))
+
+## Rings the selected character's whole party on the map, following them as
+## they move -- centred on the leader, wide enough to take in every member's
+## icon (party members stand slightly offset from the leader, see
+## PartyOps.PARTY_OFFSETS). Nothing's ringed when nobody's selected, or the
+## selected character has died.
+func _sync_selection_highlight() -> void:
+	var npc: NpcAgent = hud.inspected
+	if npc == null or npc.dead:
+		maze_view.set_selection_highlight(Vector2.ZERO, 0.0)
+		return
+	var leader: NpcAgent = npc._current_party_leader(npc.party)
+	if leader == null:
+		leader = npc
+	var radius := 0.0
+	for member in leader.living_party():
+		radius = maxf(radius, member.position.distance_to(leader.position))
+	maze_view.set_selection_highlight(leader.position, radius + SELECTION_ICON_MARGIN)
 
 ## Marks where the selected party has been sent by Guidance, if anywhere.
 func _sync_guidance_marker() -> void:

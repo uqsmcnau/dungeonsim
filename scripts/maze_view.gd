@@ -28,6 +28,20 @@ func set_guidance_marker(cell: Vector2i) -> void:
 	guidance_marker = cell
 	queue_redraw()
 
+## The selected party's highlight (see GameManager._sync_selection_highlight):
+## a ring around all its members' icons, in maze coordinates. Radius 0 means
+## nobody's selected. Drawn beneath the icons, so they stay on top.
+var selection_center: Vector2 = Vector2.ZERO
+var selection_radius: float = 0.0
+const SELECTION_COLOR := Color(0.45, 0.9, 1.0)
+
+func set_selection_highlight(center: Vector2, radius: float) -> void:
+	if center == selection_center and radius == selection_radius:
+		return
+	selection_center = center
+	selection_radius = radius
+	queue_redraw()
+
 func set_maze(new_grid: Array, new_cell_size: float, new_starts: Array, new_exit: Vector2i, new_shops: Array, new_mini_bosses: Array) -> void:
 	grid = new_grid
 	cell_size = new_cell_size
@@ -151,6 +165,10 @@ func _draw() -> void:
 		var center := Vector2((guidance_marker.x + 0.5) * cell_size, (guidance_marker.y + 0.5) * cell_size)
 		draw_arc(center, cell_size * 0.4, 0.0, TAU, 24, Color(1.0, 0.85, 0.2, 0.95), 2.0)
 		draw_circle(center, cell_size * 0.1, Color(1.0, 0.85, 0.2, 0.95))
+
+	if selection_radius > 0.0:
+		draw_circle(selection_center, selection_radius, Color(SELECTION_COLOR, 0.18))
+		draw_arc(selection_center, selection_radius, 0.0, TAU, 32, Color(SELECTION_COLOR, 0.95), 2.5)
 
 func _draw_marker_if_visible(cell: Vector2i, color: Color) -> void:
 	if is_discovered(cell):

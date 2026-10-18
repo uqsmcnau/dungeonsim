@@ -4,6 +4,10 @@ extends Control
 ## Forwarded from the fog-of-war checkbox so GameManager can wire it
 ## straight to MazeView without Hud needing to know about MazeView at all.
 signal fog_toggled(enabled: bool)
+## Whenever the selected (inspected) character changes -- including to
+## nobody -- so GameManager can move the map highlight right away, even
+## while paused (when its _process isn't running).
+signal selection_changed
 
 @onready var left_container: VBoxContainer = $LeftStats
 @onready var right_container: VBoxContainer = $RightStats
@@ -313,12 +317,14 @@ func inspect(npc: NpcAgent) -> void:
 
 	add_child(panel)
 	_refresh_inspector()
+	selection_changed.emit()
 
 func close_inspector() -> void:
 	if inspector.has("panel"):
 		inspector["panel"].queue_free()
 	inspector = {}
 	inspected = null
+	selection_changed.emit()
 
 ## Called every frame, but also straight from inspect() so a click while
 ## paused (when update_positions isn't running) still shows current stats.
