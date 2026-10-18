@@ -137,12 +137,26 @@ func test_someone_joining_is_added_to_the_list():
 	main._process(0.0)
 	assert_eq(_selection_panels().size(), 2)
 
-func test_a_fallen_member_drops_off_the_list():
+func test_a_fallen_member_stays_listed_greyed_out_for_a_moment():
 	var leader: NpcAgent = main.npcs[0]
 	var follower: NpcAgent = main.npcs[1]
 	PartyOps.join_party_of(follower, leader)
 	main.hud.inspect(leader)
 	follower._die()
+	main._process(0.0)
+	assert_true(main.hud.party_panels.has(follower), "kept for the death grace period")
+	var r: Dictionary = main.hud.party_panels[follower]
+	assert_string_contains(r["header"].text, "DEAD")
+	assert_eq(r["panel"].modulate, Color(0.5, 0.5, 0.5, 1.0))
+	assert_gt(r["flash"].color.a, 0.0, "the death flash plays")
+
+func test_a_fallen_member_drops_off_the_list_after_the_grace_period():
+	var leader: NpcAgent = main.npcs[0]
+	var follower: NpcAgent = main.npcs[1]
+	PartyOps.join_party_of(follower, leader)
+	main.hud.inspect(leader)
+	follower._die()
+	await wait_seconds(Hud.DEATH_GRACE_SECONDS + 0.2)
 	main._process(0.0)
 	assert_eq(_selection_panels(), [main.hud.inspector["panel"]])
 	assert_false(main.hud.party_panels.has(follower))

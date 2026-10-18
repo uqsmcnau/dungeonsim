@@ -58,6 +58,10 @@ var inspector: Dictionary = {}
 ## Panels for the rest of the selected character's party, by character,
 ## listed below the inspector.
 var party_panels: Dictionary = {}
+## Party members who've just fallen, keeping their (grey, flashing) panel
+## for DEATH_GRACE_SECONDS rather than vanishing from the list at once --
+## the same courtesy the leaderboard gives (see mark_dead).
+var fallen_party_members: Dictionary = {}
 
 func _ready() -> void:
 	winner_label.visible = false
@@ -329,6 +333,7 @@ func close_inspector() -> void:
 	for member in party_panels:
 		_discard_panel(party_panels[member]["panel"])
 	party_panels = {}
+	fallen_party_members = {}
 	inspector = {}
 	inspected = null
 	selection_changed.emit()
@@ -357,15 +362,22 @@ func _refresh_inspector() -> void:
 		var r: Dictionary = party_panels[member]
 		r["rank"] = rows[member]["rank"] if rows.has(member) else 0
 		_fill_panel(r, member)
+		if member.dead:
+			r["header"].text += "  ☠ DEAD"
+			r["panel"].modulate = Color(0.5, 0.5, 0.5, 1.0)
 
 ## Keeps one panel below the inspector for each other living member of the
 ## selected character's party, in party order -- adding them as they join,
-## dropping them as they fall or leave. None for a dead selection.
+## dropping them as they leave, and a little after they fall (see
+## fallen_party_members). None for a dead selection.
 func _sync_party_panels() -> void:
 	var members: Array = []
 	if not inspected.dead:
 		for m in inspected.living_party():
 			if m != inspected:
+				members.append(m)
+		for m in fallen_party_members:
+			if party_panels.has(m):
 				members.append(m)
 	for m in party_panels.keys():
 		if not members.has(m):
@@ -489,7 +501,14 @@ func mark_dead(npc: NpcAgent) -> void:
 	_refresh_row(npc)
 	r["panel"].modulate = Color(0.5, 0.5, 0.5, 1.0)
 	r["header"].text += "  ☠ DEAD"
-	if npc == inspected:
+	if party_panels.has(npc):
+		fallen_party_members[npc] = true
+		get_tree().create_timer(DEATH_GRACE_SECONDS, false).timeout.connect(func():
+			fallen_party_members.erase(npc)
+			if inspected != null:
+				_refresh_inspector()
+		)
+	if npc == inspected or party_panels.has(npc):
 		_refresh_inspector()
 	_flash(npc, Color(1.0, 0.15, 0.15))
 
