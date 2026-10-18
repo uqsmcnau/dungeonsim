@@ -21,7 +21,7 @@ const BUS := "Music"
 
 @export_dir var music_dir: String = "res://BGM"
 ## Starting music volume, 0 to 1 (also where the toolbar slider starts).
-@export_range(0.0, 1.0, 0.01) var volume: float = 0.5
+@export_range(0.0, 1.0, 0.01) var volume: float = 0.1
 
 ## Every track found in `music_dir`, as full paths.
 var tracks: Array[String] = []

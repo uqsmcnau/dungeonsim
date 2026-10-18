@@ -171,7 +171,7 @@ func test_setting_the_volume_sets_the_music_bus():
 	assert_false(AudioServer.is_bus_mute(_bus()))
 	music.set_volume(0.0)
 	assert_true(AudioServer.is_bus_mute(_bus()), "all the way down is silent")
-	music.set_volume(0.5)
+	music.set_volume(0.1)
 
 func test_the_toolbar_slider_controls_the_volume_even_while_paused():
 	load_main()
@@ -181,8 +181,14 @@ func test_the_toolbar_slider_controls_the_volume_even_while_paused():
 	slider.value = 0.2
 	assert_almost_eq(main.music.volume, 0.2, 0.001)
 	assert_almost_eq(AudioServer.get_bus_volume_db(_bus()), linear_to_db(0.2), 0.01)
-	slider.value = 0.5
+	slider.value = 0.1
 
 func test_the_slider_doesnt_steal_the_spacebar():
 	load_main()
 	assert_eq(main.hud.volume_slider.focus_mode, Control.FOCUS_NONE)
+
+func test_the_game_starts_at_ten_percent_volume():
+	load_main()
+	assert_almost_eq(main.music.volume, 0.1, 0.001)
+	assert_almost_eq(main.hud.volume_slider.value, 0.1, 0.001)
+	assert_almost_eq(AudioServer.get_bus_volume_db(_bus()), linear_to_db(0.1), 0.01)

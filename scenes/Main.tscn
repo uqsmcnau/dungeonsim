@@ -91,7 +91,7 @@ offset_bottom = 40.0
 tooltip_text = "Music volume"
 max_value = 1.0
 step = 0.01
-value = 0.5
+value = 0.1
 
 [node name="PlayersLeftLabel" type="Label" parent="HUD/Control"]
 offset_left = 1240.0
