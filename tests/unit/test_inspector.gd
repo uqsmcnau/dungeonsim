@@ -36,7 +36,7 @@ func test_npc_at_prefers_the_nearest_of_overlapping_party_members():
 func test_npc_at_ignores_dead_characters():
 	var npc: NpcAgent = main.npcs[0]
 	var pos: Vector2 = npc.global_position
-	npc._die()
+	npc.die()
 	assert_null(main.npc_at(pos))
 
 func test_real_mouse_click_on_an_icon_opens_the_inspector():
@@ -97,7 +97,7 @@ func test_inspector_works_for_characters_off_the_leaderboard():
 func test_inspected_character_stays_shown_after_dying():
 	var npc: NpcAgent = main.npcs[0]
 	main._on_world_clicked(npc.global_position)
-	npc._die()
+	npc.die()
 	main._process(0.0)
 	assert_eq(main.hud.inspected, npc)
 	assert_string_contains(main.hud.inspector["header"].text, "DEAD")

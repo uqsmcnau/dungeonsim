@@ -207,7 +207,7 @@ func _inspected_party_leader() -> NpcAgent:
 	var npc: NpcAgent = hud.inspected
 	if npc == null or npc.dead or npc.finished:
 		return null
-	return npc._current_party_leader(npc.party)
+	return PartyOps.leader_of(npc.party)
 
 func world_to_cell(world_pos: Vector2) -> Vector2i:
 	var local: Vector2 = npc_container.get_global_transform().affine_inverse() * world_pos
@@ -230,7 +230,7 @@ func _sync_selection_highlight() -> void:
 		else:
 			maze_view.set_selection_highlight(grave.position, GRAVE_RING_RADIUS)
 		return
-	var leader: NpcAgent = npc._current_party_leader(npc.party)
+	var leader: NpcAgent = PartyOps.leader_of(npc.party)
 	if leader == null:
 		leader = npc
 	var radius := 0.0

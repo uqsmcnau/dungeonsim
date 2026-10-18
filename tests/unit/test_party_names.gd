@@ -131,7 +131,7 @@ func test_existing_party_joining_a_lone_survivor_keeps_its_own_name():
 	for npc in [survivor, fallen, leader, mate]:
 		npc.stats.alignment = NpcStats.ALIGNMENT_GOOD
 	PartyOps.join_party_of(fallen, survivor)
-	fallen._die()
+	fallen.die()
 	survivor.party_name = "The Old Guard"  # fixed, so it can't randomly match
 	PartyOps.join_party_of(mate, leader)
 	var party_name := leader.party_name
@@ -145,7 +145,7 @@ func test_name_survives_the_leader_falling():
 	var joiner: NpcAgent = main.npcs[1]
 	PartyOps.join_party_of(joiner, host)
 	var party_name := host.party_name
-	host._die()
+	host.die()
 
 	assert_true(joiner.is_party_leader, "sanity: the joiner takes over")
 	assert_eq(joiner.party_name, party_name)
@@ -156,7 +156,7 @@ func test_lone_survivor_carries_the_name_into_a_new_party():
 	var newcomer: NpcAgent = main.npcs[2]
 	PartyOps.join_party_of(fallen, host)
 	var party_name := host.party_name
-	fallen._die()
+	fallen.die()
 	PartyOps.join_party_of(newcomer, host)
 
 	assert_eq(host.party_name, party_name, "no new name for a party that already had one")

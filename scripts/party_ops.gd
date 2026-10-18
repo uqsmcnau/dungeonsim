@@ -76,7 +76,7 @@ static func can_form_party_with(npc: NpcAgent, opponent: NpcAgent) -> bool:
 static func join_party_of(joiner: NpcAgent, host: NpcAgent) -> void:
 	var merged_name := _merged_party_name(joiner, host)
 	var joining: Array = joiner.party.duplicate()
-	joiner._unregister()
+	joiner.unregister()
 	# If the two shared a cell (e.g. both stepped onto the same one at once),
 	# whichever arrived second overwrote the other's registration -- make
 	# sure it's the host who's left on the map.
@@ -98,7 +98,7 @@ static func join_party_of(joiner: NpcAgent, host: NpcAgent) -> void:
 	assign_party_offsets(host)
 	for member in host.party:
 		if is_instance_valid(member):
-			member._sync_label()
+			member.sync_label()
 	for member in joining:
 		if is_instance_valid(member) and not member.dead:
 			relocate_to_party(member, host)
@@ -154,8 +154,22 @@ static func relocate_to_party(member: NpcAgent, host: NpcAgent) -> void:
 		member.is_moving = member.in_pack_combat
 		member.cell_pos = host.cell_pos
 		member.visited[member.cell_pos] = true
-		member._update_label()
+		member.reset_label()
 	)
+
+## Whoever in `party_ref` (a party's shared array) is currently its leader
+## -- re-checked fresh each call, since a fallen leader is replaced by a
+## promoted party-mate (see promote_next_leader). Falls back to any living
+## member defensively, though promotion should mean that's never actually
+## needed; null once they've all fallen.
+static func leader_of(party_ref: Array) -> NpcAgent:
+	for member in party_ref:
+		if is_instance_valid(member) and not member.dead and member.is_party_leader:
+			return member
+	for member in party_ref:
+		if is_instance_valid(member) and not member.dead:
+			return member
+	return null
 
 ## If the party leader falls but others survive, one of them is promoted
 ## so the party keeps acting rather than freezing with no one driving it.

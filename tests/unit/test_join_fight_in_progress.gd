@@ -185,7 +185,7 @@ func test_newcomer_finds_the_promoted_leader_if_the_original_fighter_died():
 	follower.party = host.party
 	follower.is_party_leader = false
 	var fight := _start_monster_fight()
-	host._die()
+	host.die()
 	assert_true(follower.is_party_leader, "sanity: the follower should be promoted")
 
 	newcomer._attempt_move(fight[1])

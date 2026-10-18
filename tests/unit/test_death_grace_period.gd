@@ -31,7 +31,7 @@ func test_a_leaderboard_death_stays_visible_immediately_after_dying():
 	var champion: NpcAgent = main.npcs[n - 1]
 	assert_true(main.hud.rows[champion]["panel"].visible, "sanity: the champion should start out visible")
 
-	champion._die()
+	champion.die()
 
 	assert_true(main.hud.rows[champion]["panel"].visible, "the panel should stay visible right after death, not vanish instantly")
 	assert_true(main.hud.dying.has(champion), "the champion should be tracked as being in its grace period")
@@ -42,7 +42,7 @@ func test_leaderboard_updates_do_not_override_a_character_mid_grace_period():
 	_rank_npcs_by_index(n)
 	main._process(0.0)
 	var champion: NpcAgent = main.npcs[n - 1]
-	champion._die()
+	champion.die()
 
 	# Several real leaderboard recalculations happen while the champion is
 	# still serving its grace period -- none of them should hide it, even
@@ -63,7 +63,7 @@ func test_dying_keeps_reserving_its_leaderboard_slot_until_the_grace_period_ends
 	main._process(0.0)
 	var champion: NpcAgent = main.npcs[n - 1]
 	var next_in_line: NpcAgent = main.npcs[n - 1 - Hud.VISIBLE_HUD_COUNT]
-	champion._die()
+	champion.die()
 	main._process(0.0)
 
 	assert_true(main.hud.rows[champion]["panel"].visible, "the dying champion should still show")
@@ -76,7 +76,7 @@ func test_dying_off_the_leaderboard_does_not_start_a_grace_period():
 	var weakling: NpcAgent = main.npcs[0]  # ranked last, never shown
 	assert_false(main.hud.rows[weakling]["panel"].visible, "sanity: should start out hidden")
 
-	weakling._die()
+	weakling.die()
 
 	assert_false(main.hud.dying.has(weakling), "a character that wasn't on the leaderboard shouldn't get a grace period")
 	assert_false(main.hud.rows[weakling]["panel"].visible, "should stay hidden, same as before it died")

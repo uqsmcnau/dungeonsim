@@ -20,7 +20,7 @@ func _party_of_two() -> Array:
 	for m in leader.party:
 		m.stats.xp = 0
 		m.stats.xp_to_next = 5
-		m._update_label()
+		m.reset_label()
 	return leader.party
 
 func test_follower_tag_shows_its_new_level_after_a_shared_kill():
@@ -43,7 +43,7 @@ func test_a_busy_label_is_left_alone_until_it_reverts():
 	leader.show_label("%s ⚔ Lv.3" % leader.npc_name)  # mid-fight: Lv here is the *enemy's*
 	leader.share_xp_with_party(10)
 	assert_eq(leader.name_label.text, "%s ⚔ Lv.3" % leader.npc_name, "don't clobber the fight display")
-	leader._update_label()  # e.g. the fight ends
+	leader.reset_label()  # e.g. the fight ends
 	assert_eq(leader.name_label.text, "%s Lv.2" % leader.npc_name, "the new level shows once it reverts")
 
 func test_level_up_does_not_reset_the_characters_action():

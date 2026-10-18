@@ -62,7 +62,7 @@ func test_a_death_off_the_leaderboard_stays_hidden():
 	var weakling: NpcAgent = main.npcs[0]  # ranked last, never shown
 	assert_false(main.hud.rows[weakling]["panel"].visible, "sanity: should start out hidden")
 
-	weakling._die()
+	weakling.die()
 	main._process(0.0)
 
 	assert_false(main.hud.rows[weakling]["panel"].visible, "a death that was never on the leaderboard should just stay hidden, same as before it died")
@@ -79,7 +79,7 @@ func test_a_lower_ranked_character_is_not_promoted_while_the_dead_ones_slot_is_s
 	var just_outside: NpcAgent = main.npcs[n - 1 - Hud.VISIBLE_HUD_COUNT]
 	assert_false(main.hud.rows[just_outside]["panel"].visible, "sanity: should start out of the top %d" % Hud.VISIBLE_HUD_COUNT)
 
-	main.npcs[n - 1]._die()  # remove the current #1
+	main.npcs[n - 1].die()  # remove the current #1
 	main._process(0.0)
 
 	assert_false(main.hud.rows[just_outside]["panel"].visible, "should stay hidden -- the dead #1 is still reserving its slot during its grace period")
@@ -90,7 +90,7 @@ func test_a_lower_ranked_character_is_promoted_once_the_dead_ones_slot_frees_up(
 	main._process(0.0)
 	var just_outside: NpcAgent = main.npcs[n - 1 - Hud.VISIBLE_HUD_COUNT]
 	var champion: NpcAgent = main.npcs[n - 1]
-	champion._die()
+	champion.die()
 	main._process(0.0)
 	assert_false(main.hud.rows[just_outside]["panel"].visible, "sanity: still reserved right after death")
 

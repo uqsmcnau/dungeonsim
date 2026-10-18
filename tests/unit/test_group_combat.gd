@@ -156,7 +156,7 @@ func test_mid_fight_leader_death_hands_off_to_a_surviving_follower():
 	assert_true(g1.in_combat, "sanity: the fight should have actually started")
 
 	var fight_cell: Vector2i = frail.cell_pos
-	frail._die()
+	frail.die()
 
 	assert_true(tanky.is_party_leader, "the tanky survivor should be promoted to party leader")
 	assert_eq(main.player_map.get(fight_cell), tanky, "the shared player map should now point at the promoted leader")
@@ -239,7 +239,7 @@ func test_attacker_is_freed_when_the_defenders_party_vanishes_mid_fight():
 	assert_true(attacker.in_pvp_combat, "sanity: an even fight should be underway")
 
 	var defender_party: Array = defender.party
-	defender._die()
+	defender.die()
 	attacker._resolve_group_pvp_turn(attacker.party, defender_party, attacker.cell_pos, defender.cell_pos)
 
 	assert_false(attacker.in_pvp_combat)
@@ -348,7 +348,7 @@ func test_a_follower_promoted_mid_fight_cannot_act_independently():
 	enemy.setup(cell, main.CELL_SIZE, 1, main.grid, main.enemy_map, {}, [])
 
 	leader._engage(cell, enemy)
-	leader._die()  # forces the promotion mid-fight
+	leader.die()  # forces the promotion mid-fight
 
 	assert_true(follower.is_party_leader, "sanity: the follower should be promoted")
 	assert_true(follower.is_moving, "the promoted follower must still be locked out of its own idle AI")
@@ -371,16 +371,16 @@ func test_enemy_in_combat_is_released_if_the_fight_loop_finds_no_one_left_in_the
 	assert_true(enemy.in_combat, "sanity: engaging should mark the pack in_combat")
 
 	for member in party_ref.duplicate():
-		member._die()
+		member.die()
 	leader._run_group_combat_turn(party_ref, cell)
 
 	assert_false(enemy.in_combat, "the pack must not stay permanently marked in_combat with no one left to resolve the fight")
 
 ## Regression test for a reported bug: a party of 2 stuck unable to move
-## after a third member joined (and then died). A follower's _die() erased
+## after a third member joined (and then died). A follower's die() erased
 ## whoever was registered on its cell -- i.e. its own leader -- and the
 ## fight loop, which found its driver by that registration, quit with the
-## party still locked. It now tracks the party array, and _die() only
+## party still locked. It now tracks the party array, and die() only
 ## removes its own registration.
 func test_follower_dying_mid_fight_does_not_strand_the_party():
 	var leader: NpcAgent = main.npcs[0]
@@ -403,7 +403,7 @@ func test_follower_dying_mid_fight_does_not_strand_the_party():
 	enemy.stats.hp = 60
 	leader._engage(cell, enemy)
 
-	doomed._die()  # a follower falls mid-fight
+	doomed.die()  # a follower falls mid-fight
 	assert_eq(main.player_map.get(leader.cell_pos), leader, "a follower dying must not erase its leader's registration")
 
 	var guard := 0
@@ -455,7 +455,7 @@ func test_promotion_does_not_overwrite_another_partys_registration():
 	other.cell_pos = leader.cell_pos
 	main.player_map[leader.cell_pos] = other  # the other party's leader holds the shared cell
 
-	leader._die()
+	leader.die()
 
 	assert_true(follower.is_party_leader, "sanity: the follower should be promoted")
 	assert_eq(main.player_map.get(leader.cell_pos), other)
@@ -530,7 +530,7 @@ func test_a_pack_freed_this_way_can_be_fought_normally_afterwards():
 	var party_ref: Array = leader.party
 
 	leader._engage(cell, enemy)
-	leader._die()  # the whole (solo) party gone mid-fight
+	leader.die()  # the whole (solo) party gone mid-fight
 	leader._run_group_combat_turn(party_ref, cell)
 	assert_false(enemy.in_combat)
 

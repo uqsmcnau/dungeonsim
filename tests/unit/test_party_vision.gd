@@ -65,7 +65,7 @@ func test_moving_adds_to_the_map_and_keeps_what_was_seen_before():
 	var before: Dictionary = a.seen_cells.duplicate()
 	var next := _cell_with_new_view(a)
 	assert_ne(next, MazeQuery.NONE, "sanity: some neighbor should show something new")
-	a._unregister()
+	a.unregister()
 	a.cell_pos = next
 	main._process(0.0)
 	assert_gt(a.seen_cells.size(), before.size(), "new sights get added")
@@ -95,7 +95,7 @@ func test_what_one_member_sees_is_shared_with_the_rest():
 	PartyOps.join_party_of(b, a)
 	var next := _cell_with_new_view(a)
 	assert_ne(next, MazeQuery.NONE)
-	a._unregister()
+	a.unregister()
 	a.cell_pos = next
 	a._on_enter_cell()
 	assert_true(_has_all(b.seen_cells, a.sight_cells), "the follower's map picks up what the leader sees")
@@ -105,7 +105,7 @@ func test_the_pooled_map_is_kept_after_a_member_dies():
 	# a joins b and falls before ever getting there -- so b can't simply be
 	# seeing a's old surroundings for itself.
 	PartyOps.join_party_of(a, b)
-	a._die()
+	a.die()
 	main._process(0.0)
 	assert_true(_has_all(b.seen_cells, a_before), "the survivor keeps the fallen member's map")
 
@@ -136,7 +136,7 @@ func test_party_vision_shows_everything_the_party_has_explored():
 func test_party_vision_keeps_a_fallen_members_discoveries():
 	var a_saw := _known_only_to(a, b)
 	PartyOps.join_party_of(a, b)
-	a._die()
+	a.die()
 	_select(b)
 	main._process(0.0)
 	assert_true(main.maze_view.is_discovered(a_saw))
@@ -166,7 +166,7 @@ func test_selecting_while_paused_applies_party_vision_straight_away():
 func test_no_party_vision_for_a_dead_selection():
 	var elsewhere := _known_only_to(b, a)
 	_select(a)
-	a._die()
+	a.die()
 	main._process(0.0)
 	assert_true(main.maze_view.is_discovered(elsewhere))
 

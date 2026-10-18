@@ -45,7 +45,7 @@ func _solo(npc: NpcAgent) -> void:
 func test_a_gravestone_marks_where_they_fell():
 	var npc: NpcAgent = main.npcs[0]
 	var spot: Vector2 = npc.position
-	npc._die()
+	npc.die()
 	assert_true(main.graves.has(npc))
 	assert_eq(main.graves[npc].position, spot)
 	assert_true(main.graves[npc].is_inside_tree())
@@ -55,7 +55,7 @@ func test_the_living_have_no_gravestone():
 
 func test_clicking_a_gravestone_brings_up_the_dead_players_hud():
 	var npc: NpcAgent = main.npcs[0]
-	npc._die()
+	npc.die()
 	main._process(0.0)
 	_click(main.graves[npc].position)
 	assert_eq(main.hud.inspected, npc)
@@ -63,7 +63,7 @@ func test_clicking_a_gravestone_brings_up_the_dead_players_hud():
 
 func test_clicking_a_gravestone_works_while_paused():
 	var npc: NpcAgent = main.npcs[0]
-	npc._die()
+	npc.die()
 	main._process(0.0)
 	main.hud.set_paused(true)
 	_click(main.graves[npc].position)
@@ -72,7 +72,7 @@ func test_clicking_a_gravestone_works_while_paused():
 func test_a_living_player_standing_over_a_gravestone_is_picked_first():
 	var fallen: NpcAgent = main.npcs[0]
 	var living: NpcAgent = main.npcs[1]
-	fallen._die()
+	fallen.die()
 	main._process(0.0)
 	living.position = main.graves[fallen].position
 	_click(main.graves[fallen].position)
@@ -80,7 +80,7 @@ func test_a_living_player_standing_over_a_gravestone_is_picked_first():
 
 func test_a_selected_gravestone_is_ringed():
 	var npc: NpcAgent = main.npcs[0]
-	npc._die()
+	npc.die()
 	main._process(0.0)
 	_click(main.graves[npc].position)
 	assert_eq(main.maze_view.selection_center, main.graves[npc].position)
@@ -88,7 +88,7 @@ func test_a_selected_gravestone_is_ringed():
 
 func test_clicking_away_from_a_gravestone_deselects():
 	var npc: NpcAgent = main.npcs[0]
-	npc._die()
+	npc.die()
 	main._process(0.0)
 	_click(main.graves[npc].position)
 	_click(Vector2(-1000, -1000))
@@ -97,7 +97,7 @@ func test_clicking_away_from_a_gravestone_deselects():
 func test_gravestones_follow_party_vision():
 	var npc: NpcAgent = main.npcs[0]
 	var watcher: NpcAgent = main.npcs[main.npcs.size() / 2]  # the far side of the maze
-	npc._die()
+	npc.die()
 	main._process(0.0)
 	assert_true(main.graves[npc].visible, "everyone's view: wherever's been discovered")
 	main.hud.inspect(watcher)
@@ -108,7 +108,7 @@ func test_gravestones_follow_party_vision():
 
 func test_hud_shows_who_killed_them_and_how():
 	var npc: NpcAgent = main.npcs[0]
-	npc._die("Bram (Lv.4 Evil)", "Fireball for 12 damage")
+	npc.die("Bram (Lv.4 Evil)", "Fireball for 12 damage")
 	main.hud.inspect(npc)
 	assert_eq(main.hud.inspector["action"].text, "Killed by: Bram (Lv.4 Evil)")
 	assert_eq(main.hud.inspector["death"].text, "How: Fireball for 12 damage")
@@ -121,7 +121,7 @@ func test_the_living_show_no_cause_of_death():
 
 func test_leaderboard_panel_shows_it_too():
 	var npc: NpcAgent = main.npcs[0]
-	npc._die("the Boss (Lv.12)", "A hit for 30 damage")
+	npc.die("the Boss (Lv.12)", "A hit for 30 damage")
 	assert_eq(main.hud.rows[npc]["action"].text, "Killed by: the Boss (Lv.12)")
 	assert_eq(main.hud.rows[npc]["death"].text, "How: A hit for 30 damage")
 
@@ -176,13 +176,13 @@ func test_killer_description_names_their_party():
 func test_killing_blows_name_the_spell_or_weapon():
 	var npc: NpcAgent = main.npcs[0]
 	npc.stats.equipped.clear()
-	assert_eq(npc._killing_blow("fireball", 12), "Fireball for 12 damage")
-	assert_eq(npc._killing_blow("spark", 5), "Spark for 5 damage")
-	assert_eq(npc._killing_blow("attack", 3), "Bare hands for 3 damage")
+	assert_eq(npc.killing_blow("fireball", 12), "Fireball for 12 damage")
+	assert_eq(npc.killing_blow("spark", 5), "Spark for 5 damage")
+	assert_eq(npc.killing_blow("attack", 3), "Bare hands for 3 damage")
 	npc.stats.acquire_item("Shield")
-	assert_eq(npc._killing_blow("attack", 3), "Bare hands for 3 damage", "a shield isn't a weapon")
+	assert_eq(npc.killing_blow("attack", 3), "Bare hands for 3 damage", "a shield isn't a weapon")
 	npc.stats.acquire_item("Iron Sword")
-	assert_eq(npc._killing_blow("attack", 6), "Iron Sword for 6 damage")
+	assert_eq(npc.killing_blow("attack", 6), "Iron Sword for 6 damage")
 
 func test_monster_killer_descriptions():
 	var monster := _new_enemy()

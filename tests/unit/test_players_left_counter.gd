@@ -14,7 +14,7 @@ func test_counter_starts_at_full_headcount():
 
 func test_counter_drops_when_a_player_dies():
 	var n: int = main.npcs.size()
-	main.npcs[0]._die()
+	main.npcs[0].die()
 	main._process(0.0)
 	assert_eq(main.hud.players_left_label.text, "Players left: %d / %d" % [n - 1, n])
 
@@ -22,6 +22,6 @@ func test_counter_reaches_zero_when_everyone_has_fallen():
 	var n: int = main.npcs.size()
 	# Copy first -- each death erases itself from main.npcs.
 	for npc in main.npcs.duplicate():
-		npc._die()
+		npc.die()
 	main._process(0.0)
 	assert_eq(main.hud.players_left_label.text, "Players left: 0 / %d" % n)

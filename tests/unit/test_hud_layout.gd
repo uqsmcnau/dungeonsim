@@ -87,7 +87,7 @@ func test_a_dying_leader_keeps_its_slot_in_the_six():
 	var n: int = main.npcs.size()
 	_rank_npcs_by_index(n)
 	main._process(0.0)
-	main.npcs[n - 1]._die()  # kill the current #1
+	main.npcs[n - 1].die()  # kill the current #1
 	main._process(0.0)
 	assert_eq(_visible_in(main.hud.leaderboard_container).size(), 6, "the grace period still holds its slot")
 
@@ -97,7 +97,7 @@ func test_fewer_than_six_left_shows_them_all():
 		if i >= 4:
 			to_kill.append(main.npcs[i])
 	for npc in to_kill:
-		npc._die()
+		npc.die()
 	main.hud.dying.clear()  # skip the grace period
 	_rank_npcs_by_index(4)
 	main._process(0.0)
@@ -154,7 +154,7 @@ func test_a_fallen_member_stays_listed_greyed_out_for_a_moment():
 	var follower: NpcAgent = main.npcs[1]
 	PartyOps.join_party_of(follower, leader)
 	main.hud.inspect(leader)
-	follower._die()
+	follower.die()
 	main._process(0.0)
 	assert_true(main.hud.party_panels.has(follower), "kept for the death grace period")
 	var r: Dictionary = main.hud.party_panels[follower]
@@ -167,7 +167,7 @@ func test_a_fallen_member_drops_off_the_list_after_the_grace_period():
 	var follower: NpcAgent = main.npcs[1]
 	PartyOps.join_party_of(follower, leader)
 	main.hud.inspect(leader)
-	follower._die()
+	follower.die()
 	await wait_seconds(Hud.DEATH_GRACE_SECONDS + 0.2)
 	main._process(0.0)
 	assert_eq(_selection_panels(), [main.hud.inspector["panel"]])
@@ -178,7 +178,7 @@ func test_a_dead_selection_shows_only_their_own_panel():
 	var follower: NpcAgent = main.npcs[1]
 	PartyOps.join_party_of(follower, leader)
 	main.hud.inspect(leader)
-	leader._die()
+	leader.die()
 	main._process(0.0)
 	assert_eq(_selection_panels(), [main.hud.inspector["panel"]])
 

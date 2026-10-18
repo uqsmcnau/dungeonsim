@@ -60,7 +60,7 @@ func test_solo_character_keeps_all_the_xp():
 func test_fallen_members_get_no_share():
 	var members := _party(3)
 	var fallen: NpcAgent = members[2]
-	fallen._die()
+	fallen.die()
 	var xp_before: int = fallen.stats.xp
 	members[0].share_xp_with_party(10)
 	assert_eq(members[0].stats.xp, 5)

@@ -78,7 +78,7 @@ func test_selecting_while_paused_rings_them_straight_away():
 func test_ring_moves_to_their_gravestone_once_the_selected_character_dies():
 	var npc: NpcAgent = main.npcs[0]
 	_select(npc)
-	npc._die()
+	npc.die()
 	main._process(0.0)
 	assert_eq(main.hud.inspected, npc, "sanity: their panel stays open, greyed out")
 	assert_eq(main.maze_view.selection_center, main.graves[npc].position)

@@ -13,7 +13,7 @@ func _party_of(size: int) -> Array:
 	var leader: NpcAgent = main.npcs[0]
 	for i in range(1, size):
 		PartyOps.join_party_of(main.npcs[i], leader)
-	leader._update_label()  # as when the "grew to N!" message times out
+	leader.reset_label()  # as when the "grew to N!" message times out
 	return leader.party
 
 func _showing(members: Array) -> Array:
@@ -57,8 +57,8 @@ func test_fights_are_labelled_with_the_party_name():
 	var members := _party_of(2)
 	var leader: NpcAgent = members[0]
 	var rival: NpcAgent = main.npcs[5]
-	assert_eq(leader._map_name(), leader.party_name)
-	assert_eq(rival._map_name(), rival.npc_name, "a loner goes by their own name")
+	assert_eq(leader.map_name(), leader.party_name)
+	assert_eq(rival.map_name(), rival.npc_name, "a loner goes by their own name")
 	for m in members + [rival]:
 		m.stats.hp = 500
 		m.stats.max_hp = 500
@@ -71,7 +71,7 @@ func test_a_promoted_leader_takes_over_the_party_label():
 	var leader: NpcAgent = members[0]
 	var next: NpcAgent = members[1]
 	var label_text: String = leader.name_label.text
-	leader._die()
+	leader.die()
 	assert_true(next.name_label.visible)
 	assert_eq(next.name_label.text, label_text)
 
@@ -79,7 +79,7 @@ func test_the_last_survivor_gets_their_own_name_back():
 	var members := _party_of(2)
 	var leader: NpcAgent = members[0]
 	var survivor: NpcAgent = members[1]
-	leader._die()
+	leader.die()
 	survivor._process(0.0)
 	assert_true(survivor.name_label.visible)
 	assert_eq(survivor.name_label.text, "%s Lv.%d" % [survivor.npc_name, survivor.stats.level])
@@ -91,9 +91,9 @@ func test_a_busy_label_isnt_cut_short_by_the_party_changing():
 	leader.show_label(fight_text)  # mid-fight
 	PartyOps.join_party_of(main.npcs[1], leader)
 	leader.show_label(fight_text)  # the fight's next turn
-	main.npcs[1]._die()
+	main.npcs[1].die()
 	assert_eq(leader.name_label.text, fight_text)
-	leader._update_label()  # the fight ends
+	leader.reset_label()  # the fight ends
 	assert_eq(leader.name_label.text, "%s Lv.%d" % [leader.npc_name, leader.stats.level], "and then it picks up the change")
 
 func test_a_passing_message_goes_back_to_rest_on_its_own():
@@ -120,7 +120,7 @@ func test_a_new_leader_finishes_a_message_the_fallen_one_was_showing():
 	var leader: NpcAgent = members[0]
 	var next: NpcAgent = members[1]
 	leader.show_label("%s found Helmet!" % leader.party_name, NpcAgent.LABEL_MESSAGE_SECONDS)
-	leader._die()
+	leader.die()
 	assert_eq(next.name_label.text, "%s found Helmet!" % next.party_name, "carried over")
 	next._process(NpcAgent.LABEL_MESSAGE_SECONDS)
 	assert_eq(next.name_label.text, next.party_name, "and put back on time")

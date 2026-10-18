@@ -280,7 +280,7 @@ func test_order_carries_over_to_a_promoted_leader():
 	mate.is_party_leader = false
 	mate.cell_pos = a.cell_pos
 	a.guide_to(Vector2i(5, 0))
-	a._die()
+	a.die()
 	assert_eq(mate.guidance_target, Vector2i(5, 0))
 
 func test_order_is_dropped_when_the_party_merges_into_another():
