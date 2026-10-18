@@ -24,13 +24,22 @@ func after_each():
 func _select(npc: NpcAgent) -> void:
 	main._on_world_clicked(npc.global_position)
 
-## A cell `npc` can walk to next that it hasn't seen yet, or NONE.
+## The nearest cell `npc` can walk to that shows it something it hasn't
+## seen yet, or NONE. Not always a neighbor: a start room can be closed in
+## enough that every step within it shows nothing new.
 func _cell_with_new_view(npc: NpcAgent) -> Vector2i:
-	for n in MazeQuery.open_neighbors(main.grid, npc.cell_pos):
-		var view := MazeQuery.visible_cells(main.grid, n, NpcAgent.SIGHT_RANGE)
-		for c in view:
-			if not npc.seen_cells.has(c):
-				return n
+	var reached: Dictionary = {npc.cell_pos: true}
+	var queue: Array = [npc.cell_pos]
+	while not queue.is_empty():
+		var cur: Vector2i = queue.pop_front()
+		for n in MazeQuery.open_neighbors(main.grid, cur):
+			if reached.has(n):
+				continue
+			reached[n] = true
+			for c in MazeQuery.visible_cells(main.grid, n, NpcAgent.SIGHT_RANGE):
+				if not npc.seen_cells.has(c):
+					return n
+			queue.append(n)
 	return MazeQuery.NONE
 
 ## A cell `knower` has seen but `other` hasn't.
