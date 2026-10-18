@@ -157,6 +157,7 @@ func _process(delta: float) -> void:
 	## entirely from the leader's own logic.
 	if not is_party_leader:
 		return
+	_reclaim_registration()
 	if finished or is_moving or in_pvp_combat:
 		return
 	## Safety net: if a live enemy is ever standing on our own cell (e.g. one
@@ -177,7 +178,8 @@ func _process(delta: float) -> void:
 	## throw the first punch is up to alignment (see _decide_pvp_fight) —
 	## unless we're in a safe room (a start zone, shop, mini boss room or the
 	## boss room), where PvP can never be started at all. If not fighting,
-	## we consider teaming up instead, and failing that just step away.
+	## we consider teaming up instead, and failing that they're just passing
+	## through (see _squeeze_past) -- so we carry on as normal.
 	if _has_live_player(cell_pos):
 		var opponent: NpcAgent = players[cell_pos]
 		if opponent.is_in_combat():
@@ -192,9 +194,6 @@ func _process(delta: float) -> void:
 				return
 			if PartyOps.can_form_party_with(self, opponent):
 				PartyOps.join_party_of(opponent, self)
-				return
-			retreat()
-			if is_moving:
 				return
 	var pending_tome := _pending_tome()
 	if pending_tome != "":
@@ -558,10 +557,12 @@ func _has_live_player(cell: Vector2i) -> bool:
 ## player standing there, except whether to fight is governed by alignment
 ## rather than combat odds alone (see _decide_pvp_fight), and never allowed
 ## at all in a safe room — and if neither side wants to fight, they may band
-## together into one party instead. A player already mid-fight (with
+## together into one party instead, and failing that this one simply
+## squeezes past (see _squeeze_past). A player already mid-fight (with
 ## monsters or other players) is never attacked, but can still be joined:
 ## this party merges into theirs and fights alongside them from the next
-## turn on, without their fight being interrupted.
+## turn on, without their fight being interrupted -- and if it can't join,
+## it backs off rather than wading into someone else's fight.
 func _attempt_move(next_cell: Vector2i) -> void:
 	if _has_live_enemy(next_cell):
 		var enemy: EnemyAgent = enemies[next_cell]
@@ -585,8 +586,19 @@ func _attempt_move(next_cell: Vector2i) -> void:
 		elif PartyOps.can_form_party_with(self, opponent):
 			PartyOps.join_party_of(self, opponent)
 		else:
-			retreat()
+			_squeeze_past(opponent, next_cell)
 		return
+	move_to(next_cell)
+
+## Walks on through `opponent`'s cell when the two won't fight and can't team
+## up -- for a moment the two share it, as two parties can. Backing off
+## instead used to leave two such players stuck for good wherever one's way
+## on lay past the other: each refusing the other, retreating, then coming
+## straight back (or freezing outright with nowhere left to back off to).
+## Passing through takes over the cell's spot in `players` (see
+## _reclaim_registration for the one being passed).
+func _squeeze_past(opponent: NpcAgent, next_cell: Vector2i) -> void:
+	current_action = "Passing %s" % opponent.map_name()
 	move_to(next_cell)
 
 ## Whether to throw the first punch at another player — governed by
@@ -861,6 +873,13 @@ func look_around() -> Dictionary:
 		member.seen_cells.merge(sight_cells)
 	seen_cells.merge(sight_cells)  # in case this character isn't in its own party list
 	return sight_cells
+
+## Puts this (leading) character back in `players` if its cell's entry has
+## gone -- as when someone passed through it (see _squeeze_past), took over
+## the entry, and then moved on, taking the entry with them.
+func _reclaim_registration() -> void:
+	if not players.has(cell_pos):
+		players[cell_pos] = self
 
 ## Removes this character's own entry from `players` -- and only its own.
 ## Followers share their leader's cell, and two leaders can briefly share
