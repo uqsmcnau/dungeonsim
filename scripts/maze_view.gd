@@ -17,6 +17,17 @@ var fog_enabled: bool = true
 var discovered: Dictionary = {}
 var currently_visible: Dictionary = {}
 var sticky_cells: Dictionary = {}
+## Revealed to everyone from the start (the boss room), so they show even
+## under Party Vision.
+var permanent_cells: Dictionary = {}
+
+## Party Vision (see GameManager._sync_fog): while a party is in focus, the
+## fog shows only what *they* know -- their pooled map (see
+## NpcAgent.seen_cells) as discovered, and what they can see right now as
+## lit -- in place of what everyone has ever seen.
+var focus_active: bool = false
+var focus_known: Dictionary = {}
+var focus_visible: Dictionary = {}
 
 ## Where the selected party has been sent by Guidance (see
 ## GameManager._on_world_right_clicked), or NONE.
@@ -61,6 +72,7 @@ func reveal_permanently(cells: Dictionary) -> void:
 	for c in cells:
 		discovered[c] = true
 	sticky_cells.merge(cells)
+	permanent_cells.merge(cells)
 
 ## Cells that become permanently revealed once first discovered normally —
 ## used for shop and mini boss room zones ("always visible once found").
@@ -70,42 +82,49 @@ func register_sticky_zone(cells: Dictionary) -> void:
 func is_currently_visible(cell: Vector2i) -> bool:
 	if not fog_enabled:
 		return true
+	if focus_active:
+		return focus_visible.has(cell)
 	return currently_visible.has(cell)
 
 func is_discovered(cell: Vector2i) -> bool:
 	if not fog_enabled:
 		return true
+	if focus_active:
+		return focus_known.has(cell)
 	return discovered.has(cell)
 
-## Recomputes what's lit up right now from every living character's
-## position, called once a frame by GameManager. Cheap: each character only
-## scans the small box around itself that its sight range covers.
-func update_fog(npcs: Array, sight_range: int) -> void:
+## Recomputes what's lit up right now from what every living character can
+## see (NpcAgent.sight_cells -- GameManager has them look_around first),
+## called once a frame by GameManager. `focus` is the party Party Vision is
+## showing, or empty to show everyone's view.
+func update_fog(npcs: Array, focus: Array = []) -> void:
 	if not fog_enabled:
 		return
 	currently_visible.clear()
 	for npc in npcs:
 		if npc.dead:
 			continue
-		_reveal_around(npc.cell_pos, sight_range)
+		currently_visible.merge(npc.sight_cells)
+		discovered.merge(npc.sight_cells)
 	for c in sticky_cells:
 		if discovered.has(c):
 			currently_visible[c] = true
-	queue_redraw()
 
-func _reveal_around(center: Vector2i, sight_range: int) -> void:
-	var height: int = grid.size()
-	var width: int = grid[0].size()
-	for dy in range(-sight_range, sight_range + 1):
-		for dx in range(-sight_range, sight_range + 1):
-			if max(abs(dx), abs(dy)) > sight_range:
-				continue
-			var c := Vector2i(center.x + dx, center.y + dy)
-			if c.x < 0 or c.x >= width or c.y < 0 or c.y >= height:
-				continue
-			if MazeQuery.has_line_of_sight(grid, center, c):
-				currently_visible[c] = true
-				discovered[c] = true
+	focus_known.clear()
+	focus_visible.clear()
+	focus_active = false
+	for member in focus:
+		if member.dead:
+			continue
+		focus_active = true
+		focus_known.merge(member.seen_cells)
+		focus_visible.merge(member.sight_cells)
+	if focus_active:
+		focus_known.merge(permanent_cells)
+		for c in sticky_cells:
+			if focus_known.has(c):
+				focus_visible[c] = true
+	queue_redraw()
 
 func _draw() -> void:
 	if grid.is_empty():

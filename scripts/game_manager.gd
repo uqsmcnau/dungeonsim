@@ -34,6 +34,13 @@ const NPC_SCENE: PackedScene = preload("res://scenes/NPC.tscn")
 const ENEMY_SCENE: PackedScene = preload("res://scenes/Enemy.tscn")
 const CHEST_SCENE: PackedScene = preload("res://scenes/Chest.tscn")
 
+## Party Vision: while a character is selected, the fog of war shows only
+## what their party knows -- the cells its members can see right now, and
+## everything any of them has ever seen (see NpcAgent.seen_cells) -- rather
+## than what everyone has. Starts the toolbar's "Party Vision" toggle in
+## this state. Has no effect with the fog of war turned off.
+@export var party_vision: bool = true
+
 ## One distinct entry per NPC_COUNT -- kept at exactly 20 so no two of the
 ## 20 starting characters share both a name and a color (they'd otherwise
 ## cycle and repeat via the modulo indexing below once NPC_COUNT exceeded
@@ -93,9 +100,12 @@ func _ready() -> void:
 	maze_view.set_maze(grid, CELL_SIZE, start_cells, exit_cell, shop_cells, mini_boss_cells)
 	maze_view.reveal_permanently(_zone_cells(exit_cell))
 	hud.fog_toggled.connect(_on_fog_toggled)
+	hud.party_vision_toggle.set_pressed_no_signal(party_vision)
+	hud.party_vision_toggled.connect(_on_party_vision_toggled)
 	$ClickPicker.clicked.connect(_on_world_clicked)
 	$ClickPicker.right_clicked.connect(_on_world_right_clicked)
 	hud.selection_changed.connect(_sync_selection_highlight)
+	hud.selection_changed.connect(_sync_fog)
 	_spawn_enemies()
 	_spawn_boss()
 	_spawn_chests()
@@ -113,6 +123,11 @@ func _process(delta: float) -> void:
 ## so re-sync immediately or enemies/chests wouldn't appear/hide until resume.
 func _on_fog_toggled(enabled: bool) -> void:
 	maze_view.set_fog_enabled(enabled)
+	_sync_fog()
+
+## Likewise usable while paused, so re-sync straight away.
+func _on_party_vision_toggled(enabled: bool) -> void:
+	party_vision = enabled
 	_sync_fog()
 
 ## Clicking a character's icon selects them -- opening their inspector panel
@@ -176,6 +191,15 @@ func _sync_selection_highlight() -> void:
 		radius = maxf(radius, member.position.distance_to(leader.position))
 	maze_view.set_selection_highlight(leader.position, radius + SELECTION_ICON_MARGIN)
 
+## The party whose view Party Vision shows: the selected character's,
+## followers included. Nobody (so everyone's view shows) when it's switched
+## off, nobody's selected, or the selected character has died.
+func _party_vision_focus() -> Array:
+	var npc: NpcAgent = hud.inspected
+	if not party_vision or npc == null or npc.dead:
+		return []
+	return npc.living_party()
+
 ## Marks where the selected party has been sent by Guidance, if anywhere.
 func _sync_guidance_marker() -> void:
 	var leader := _inspected_party_leader()
@@ -197,7 +221,9 @@ func npc_at(world_pos: Vector2) -> NpcAgent:
 	return best
 
 func _sync_fog() -> void:
-	maze_view.update_fog(npcs, NpcAgent.SIGHT_RANGE)
+	for npc in npcs:
+		npc.look_around()
+	maze_view.update_fog(npcs, _party_vision_focus())
 	for cell in enemy_map:
 		var enemy: EnemyAgent = enemy_map[cell]
 		var cell_visible: bool = maze_view.is_currently_visible(cell)

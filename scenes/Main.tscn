@@ -58,6 +58,16 @@ offset_right = 910.0
 offset_bottom = 40.0
 tooltip_text = "Guidance: select a player, then right-click the maze to send their party there."
 
+[node name="PartyVisionToggle" type="CheckBox" parent="HUD/Control"]
+process_mode = 3
+offset_left = 920.0
+offset_top = 6.0
+offset_right = 1070.0
+offset_bottom = 40.0
+tooltip_text = "Party Vision: while a player is selected, the fog of war shows only what their party can see and has explored."
+button_pressed = true
+text = "Party Vision"
+
 [node name="PlayersLeftLabel" type="Label" parent="HUD/Control"]
 offset_left = 1240.0
 offset_top = 6.0

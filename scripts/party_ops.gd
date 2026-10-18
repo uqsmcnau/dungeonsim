@@ -94,6 +94,7 @@ static func join_party_of(joiner: NpcAgent, host: NpcAgent) -> void:
 	for member in host.party:
 		if is_instance_valid(member):
 			member.party_name = merged_name
+	pool_seen_cells(host.party)
 	assign_party_offsets(host)
 	for member in joining:
 		if is_instance_valid(member) and not member.dead:
@@ -105,6 +106,18 @@ static func join_party_of(joiner: NpcAgent, host: NpcAgent) -> void:
 	host.name_label.text = "%s grew to %d!" % [host.party_name, host.party.size()]
 	var timer := joiner.get_tree().create_timer(1.5, false)
 	timer.timeout.connect(host._update_label)
+
+## Everyone in `members` ends up with the combined map of all of them --
+## including what each had seen before they ever met. Each keeps their own
+## copy, so it isn't lost if they later die or the party breaks up.
+static func pool_seen_cells(members: Array) -> void:
+	var combined: Dictionary = {}
+	for member in members:
+		if is_instance_valid(member) and not member.dead:
+			combined.merge(member.seen_cells)
+	for member in members:
+		if is_instance_valid(member) and not member.dead:
+			member.seen_cells.merge(combined)
 
 ## The name the party formed by `joiner` joining `host` should go by,
 ## worked out before the merge while the two sides can still be told apart:

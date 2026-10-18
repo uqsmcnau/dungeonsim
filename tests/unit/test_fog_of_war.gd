@@ -27,7 +27,7 @@ func _new_enemy() -> EnemyAgent:
 ## further than sight range from every NPC's (pinned) start cell -- so it's
 ## guaranteed hidden until a test explicitly moves an observer onto it.
 ## Distance has to be Chebyshev (max of the two axes), matching the box
-## check MazeView._reveal_around actually uses -- Manhattan distance would
+## check MazeQuery.visible_cells actually uses -- Manhattan distance would
 ## let a cell like dx=4,dy=4 (Manhattan 8, outside a sight range of 6) slip
 ## through as "far enough" even though its Chebyshev distance (4) is well
 ## within range.

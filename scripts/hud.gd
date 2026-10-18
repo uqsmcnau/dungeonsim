@@ -4,6 +4,8 @@ extends Control
 ## Forwarded from the fog-of-war checkbox so GameManager can wire it
 ## straight to MazeView without Hud needing to know about MazeView at all.
 signal fog_toggled(enabled: bool)
+## Forwarded from the Party Vision checkbox (see GameManager.party_vision).
+signal party_vision_toggled(enabled: bool)
 ## Whenever the selected (inspected) character changes -- including to
 ## nobody -- so GameManager can move the map highlight right away, even
 ## while paused (when its _process isn't running).
@@ -13,6 +15,7 @@ signal selection_changed
 @onready var right_container: VBoxContainer = $RightStats
 @onready var winner_label: Label = $WinnerLabel
 @onready var fog_toggle: CheckBox = $FogToggle
+@onready var party_vision_toggle: CheckBox = $PartyVisionToggle
 ## Pauses the whole SceneTree. It (and the fog toggle) run with
 ## PROCESS_MODE_ALWAYS so they stay clickable while everything else freezes.
 @onready var pause_button: Button = $PauseButton
@@ -55,6 +58,7 @@ func _ready() -> void:
 	left_container.add_theme_constant_override("separation", 2)
 	right_container.add_theme_constant_override("separation", 2)
 	fog_toggle.toggled.connect(func(pressed: bool): fog_toggled.emit(pressed))
+	party_vision_toggle.toggled.connect(func(pressed: bool): party_vision_toggled.emit(pressed))
 	pause_button.toggled.connect(set_paused)
 	var space := InputEventKey.new()
 	space.keycode = KEY_SPACE
@@ -65,6 +69,7 @@ func _ready() -> void:
 	# Keep the toolbar buttons out of focus so Space always means pause.
 	pause_button.focus_mode = Control.FOCUS_NONE
 	fog_toggle.focus_mode = Control.FOCUS_NONE
+	party_vision_toggle.focus_mode = Control.FOCUS_NONE
 
 	guidance_widget = _make_stat_bar(GUIDANCE_READY_COLOR)
 	var guidance_bar: Control = guidance_widget["container"]

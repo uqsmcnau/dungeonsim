@@ -46,6 +46,21 @@ static func has_line_of_sight(grid: Array, from: Vector2i, to: Vector2i) -> bool
 			return false
 	return true
 
+## Every cell someone standing on `center` can see: within `sight_range`
+## (Chebyshev distance), clipped to the maze, and in line of sight.
+static func visible_cells(grid: Array, center: Vector2i, sight_range: int) -> Dictionary:
+	var cells: Dictionary = {}
+	var height: int = grid.size()
+	var width: int = grid[0].size()
+	for dy in range(-sight_range, sight_range + 1):
+		for dx in range(-sight_range, sight_range + 1):
+			var c := Vector2i(center.x + dx, center.y + dy)
+			if c.x < 0 or c.x >= width or c.y < 0 or c.y >= height:
+				continue
+			if has_line_of_sight(grid, center, c):
+				cells[c] = true
+	return cells
+
 ## The closest cell (by Manhattan distance) that's a key in `targets`, is
 ## within `sight_range` cells, and is in line of sight — or NONE.
 static func nearest_visible(grid: Array, from: Vector2i, sight_range: int, targets: Dictionary) -> Vector2i:

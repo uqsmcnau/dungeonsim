@@ -46,6 +46,16 @@ var cell_size: float = 48.0
 var cell_pos: Vector2i = Vector2i.ZERO
 var exit_cell: Vector2i = Vector2i.ZERO
 var visited: Dictionary = {}
+## This character's own map of the maze: every cell it has ever seen, plus
+## everything its party members had seen when they teamed up (see
+## PartyOps.pool_seen_cells) and whatever any of them has seen since. It's
+## a copy per member, so it's kept after leaving a party or outliving it.
+## Drives the Party Vision fog (see GameManager._sync_fog).
+var seen_cells: Dictionary = {}
+## The cells in view right now, from `_sight_cell` -- recomputed by
+## look_around only when this character has moved to a new cell.
+var sight_cells: Dictionary = {}
+var _sight_cell: Vector2i = MazeQuery.NONE
 var enemies: Dictionary = {}
 var chests: Dictionary = {}
 var chest_goal: Vector2i = MazeQuery.NONE
@@ -120,6 +130,7 @@ func setup(spawn_cell: Vector2i, target_cell: Vector2i, maze_grid: Array, cs: fl
 	stats.roll_ability_scores()
 	stats.alignment = NpcStats.random_alignment()
 	visited[cell_pos] = true
+	look_around()
 	visual.color = color
 	position = _cell_to_world(cell_pos)
 	players[cell_pos] = self
@@ -1117,6 +1128,20 @@ func _follow_to(next_cell: Vector2i, duration: float) -> void:
 	tween.tween_property(self, "position", target_world, duration)
 	tween.finished.connect(func(): visited[cell_pos] = true)
 
+## What this character can see from where it stands (`sight_cells`), noting
+## it on its own map and on the maps of everyone in its party -- party
+## members share what they see. Only recomputed after a move, so it's cheap
+## enough to call every frame (GameManager._sync_fog does).
+func look_around() -> Dictionary:
+	if dead or grid.is_empty() or cell_pos == _sight_cell:
+		return sight_cells
+	_sight_cell = cell_pos
+	sight_cells = MazeQuery.visible_cells(grid, cell_pos, SIGHT_RANGE)
+	for member in living_party():
+		member.seen_cells.merge(sight_cells)
+	seen_cells.merge(sight_cells)  # in case this character isn't in its own party list
+	return sight_cells
+
 ## Removes this character's own entry from `players` -- and only its own.
 ## Followers share their leader's cell, and two leaders can briefly share
 ## one too, so a blind `players.erase(cell_pos)` would wipe out whoever
@@ -1135,6 +1160,7 @@ func _on_move_finished(next_cell: Vector2i) -> void:
 
 func _on_enter_cell() -> void:
 	visited[cell_pos] = true
+	look_around()
 	players[cell_pos] = self
 	_check_for_chest()
 	if cell_pos == exit_cell and not finished:
