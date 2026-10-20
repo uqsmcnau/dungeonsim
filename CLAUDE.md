@@ -43,17 +43,42 @@ godot --headless --path . -s addons/gut/gut_cmdln.gd
 `.gutconfig.json` in the project root already points the runner at
 `tests/unit`, so no extra flags are needed. Exits 0 on success, 1 if any
 test fails — safe to gate CI on (see `.github/workflows/tests.yml`). The
-whole suite takes about 30 seconds.
+whole suite takes about 35 seconds.
 
 Test scripts extend **`DungeonTest`** (`tests/dungeon_test.gd`, outside
 `tests/unit` so GUT doesn't collect it) rather than `GutTest`. It provides
 `main` / `load_main()` for tests that need the whole generated game, plus
 the shared helpers: `clear_cell()`, `set_stats()`, `new_enemy()`,
-`rank_npcs_by_index()`, `click_on()`, and hand-built mazes
-(`walled_grid()`, `open_between()`, `corridor()`, `ring_maze()`). Add a
-helper there rather than copying it into a second test file. Pure logic
-(`NpcStats`, `CombatMath`, a bare `MazeGenerator`) is tested without loading
-`Main` at all.
+`rank_npcs_by_index()`, `click_on()`, `isolate()` (a character alone on a
+hand-built maze), `fast_forward()`, and hand-built mazes (`walled_grid()`,
+`open_between()`, `corridor()`, `ring_maze()`). Add a helper there rather
+than copying it into a second test file. Pure logic (`NpcStats`,
+`CombatMath`, a bare `MazeGenerator`) is tested without loading `Main` at
+all.
+
+A test that waits for characters to walk or fight in real time should call
+`fast_forward()` first: it runs the game (and GUT's own waiting) four times
+faster until the test's `main` is freed. Fine for tests about how things
+turn out; not for the music, which plays in real time regardless.
+
+### Soak test
+
+Some bugs only show up in whole games — players frozen side by side,
+walls left lit where nobody is, fights started from across the maze. The
+soak test plays whole games headless and watches for those (see the top of
+`tools/soak.gd` for exactly what); worth running before committing anything
+that touches movement, combat or parties:
+
+```
+tools/soak.sh [games=8] [first_seed=1] [seconds=600]
+```
+
+Eight 600-second games take about two minutes. It exits 1 on any problem,
+printing the seed and the recent history of whoever's involved. A game
+replays exactly from its seed (`GameManager.game_seed`; 0, the default, is
+a fresh random game), so a failure can be played again one game at a time:
+`godot --headless --path . --fixed-fps 60 -s tools/soak.gd -- --seed=N`. It
+also runs by hand on GitHub (Actions → Soak).
 
 ## Where things live
 
@@ -71,13 +96,23 @@ helper there rather than copying it into a second test file. Pure logic
   count, and slowly respawns lost monsters out of every player's sight, never
   above that count. Monsters belong to the area of their *home* cell (they're
   leashed to it).
-- **`npc.gd` (`NpcAgent`)** — one character: exploring, movement, chests,
-  shopping, consumables, Guidance, sight (`seen_cells`/`sight_cells`), its
-  map label, and its own combat tactics (`choose_combat_action`,
-  `apply_combat_action`). Still the biggest file.
+- **`npc.gd` (`NpcAgent`)** — one character: exploring, chests, shopping,
+  consumables, Guidance, sight (`seen_cells`/`sight_cells`), its map label,
+  and its own combat tactics (`choose_combat_action`,
+  `apply_combat_action`). Still the biggest file. It extends
+  **`npc_body.gd` (`NpcBody`)**: where the character is and how it gets
+  around — its cell, stepping (`move_to`, the party tagging along),
+  its icon's slide, and its entry in the shared `players` map. NpcBody asks
+  NpcAgent what it needs through a few hooks (`_move_speed`, `_followers`,
+  `represents_party`, `_on_enter_cell`).
 - **`group_combat.gd` (`GroupCombat`)** — the two fight loops (party vs
   monster pack, party vs party) as static functions, turn-paced by SceneTree
-  timers.
+  timers. Every blow, spell, heal and escape is reported as a
+  **`CombatEvent`** (`combat_event.gd`) on the involved player's
+  `combat_event` signal. The actions themselves are named by constants in
+  **`combat_rules.gd` (`CombatRules`)** — `ATTACK`, `SPARK`, `FIREBALL`,
+  `RECOVER`, `POTION`, with `is_heal()` / `is_offensive_spell()` — never bare
+  strings.
 - **`party_ops.gd` (`PartyOps`)** — party merging, naming, leader promotion,
   `leader_of(party)`, and item sharing. **`combat_math.gd` (`CombatMath`)** —
   pure hit/damage/win-chance math over two `NpcStats`.
@@ -87,10 +122,11 @@ helper there rather than copying it into a second test file. Pure logic
 - **`battle_window.gd` (`BattleWindow`, as `hud.battle_window`)** — the
   Final Fantasy-style battle screen below the selection column. GameManager
   says who's in the scene every frame (`show_fight`: the selected party and
-  `GroupCombat.opponents_of` them) and forwards every `NpcAgent.combat_event`
-  (sent by `GroupCombat._report`, one per blow, spell or heal), which it
-  queues and plays out in turn. It draws from its own snapshots, never the
-  live nodes, so a monster the game has already freed can still dissolve.
+  `GroupCombat.opponents_of` them) and forwards every `CombatEvent`, which
+  it queues and plays out in turn. Each figure is a **`BattleFighter`** — a
+  snapshot, never the live node, so a monster the game has already freed
+  can still dissolve — and **`BattlePainter`** does all the drawing; the
+  window itself only decides who's where and what happens next.
 
 ## Architecture conventions worth knowing before touching combat/party code
 
@@ -169,7 +205,7 @@ helper there rather than copying it into a second test file. Pure logic
   `create_tween()` on a character's `position` directly, and only `move_to()`
   an open neighbour (see `GroupCombat.claim_cell`).
 
-- **`players` entries can be stale; check with `NpcAgent.holds_cell()`.**
+- **`players` entries can be stale; check with `NpcBody.holds_cell()`.**
   An entry only counts if it's a living party leader whose `cell_pos` is
   that cell. A leftover entry once let parties fight someone on the far
   side of the maze.
