@@ -1,10 +1,11 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://scripts/game_manager.gd" id="1_gm"]
 [ext_resource type="Script" path="res://scripts/maze_view.gd" id="2_mv"]
 [ext_resource type="Script" path="res://scripts/hud.gd" id="3_hud"]
 [ext_resource type="Script" path="res://scripts/click_picker.gd" id="4_cp"]
 [ext_resource type="Script" path="res://scripts/music_player.gd" id="5_music"]
+[ext_resource type="Script" path="res://scripts/battle_window.gd" id="6_battle"]
 
 [node name="Main" type="Node2D"]
 script = ExtResource("1_gm")
@@ -116,10 +117,18 @@ visible = false
 offset_left = 20.0
 offset_top = 6.0
 offset_right = 460.0
-offset_bottom = 1060.0
+offset_bottom = 722.0
 
 [node name="LeaderboardStats" type="VBoxContainer" parent="HUD/Control"]
 offset_left = 1460.0
 offset_top = 6.0
 offset_right = 1900.0
 offset_bottom = 1060.0
+
+[node name="BattleWindow" type="Control" parent="HUD/Control"]
+offset_left = 20.0
+offset_top = 730.0
+offset_right = 460.0
+offset_bottom = 1060.0
+mouse_filter = 2
+script = ExtResource("6_battle")

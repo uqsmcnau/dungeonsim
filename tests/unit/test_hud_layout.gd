@@ -84,16 +84,34 @@ func test_leaderboard_panels_leave_out_gear():
 		assert_false(_text_in(r["panel"]).contains("Hands:"))
 	assert_string_contains(_text_in(_panel(main.npcs[0])), "STR ", "the rest is still there")
 
-func test_selected_panels_still_show_gear():
+func test_the_selected_characters_panel_still_shows_gear():
+	var leader: NpcAgent = main.npcs[0]
+	main.hud.inspect(leader)
+	var r: Dictionary = main.hud.inspector
+	assert_not_null(r["gear"])
+	var text := _text_in(r["panel"])
+	for label in ["Hands:", "Armor:", "Helmet:", "Feet:", "Accessories:", "Potions:", "Spells:"]:
+		assert_string_contains(text, label)
+
+func test_the_rest_of_their_party_get_compact_panels():
+	# Leaving room for the battle window below.
 	var leader: NpcAgent = main.npcs[0]
 	var follower: NpcAgent = main.npcs[1]
 	PartyOps.join_party_of(follower, leader)
 	main.hud.inspect(leader)
-	for r in [main.hud.inspector, main.hud.party_panels[follower]]:
-		assert_not_null(r["gear"])
-		var text := _text_in(r["panel"])
-		for label in ["Hands:", "Armor:", "Helmet:", "Feet:", "Accessories:", "Potions:", "Spells:"]:
-			assert_string_contains(text, label)
+	var r: Dictionary = main.hud.party_panels[follower]
+	assert_null(r["gear"])
+	assert_string_contains(_text_in(r["panel"]), "STR ", "the rest is still there")
+
+func test_a_full_party_fits_above_the_battle_window():
+	var leader: NpcAgent = main.npcs[0]
+	for i in range(1, 5):
+		PartyOps.join_party_of(main.npcs[i], leader)
+		main.npcs[i].stats.inventory["Health Potion"] = 2
+	main.hud.inspect(leader)
+	var column: VBoxContainer = main.hud.selection_container
+	assert_lte(column.get_combined_minimum_size().y, column.offset_bottom - column.offset_top, "five panels down the column")
+	assert_lte(column.offset_bottom, main.hud.battle_window.offset_top, "and none of it behind the window")
 
 func test_ten_leaderboard_panels_fit_down_the_column():
 	rank_npcs_by_index(main.npcs.size())

@@ -82,8 +82,15 @@ helper there rather than copying it into a second test file. Pure logic
   `leader_of(party)`, and item sharing. **`combat_math.gd` (`CombatMath`)** —
   pure hit/damage/win-chance math over two `NpcStats`.
 - **`hud.gd` (`Hud`)** — toolbar, the leaderboard (top 10, right column, compact panels without the gear section), and
-  the selection column (the selected character's panel, then the rest of
-  their party, on the left).
+  the selection column (the selected character's full panel, then compact
+  ones for the rest of their party, on the left).
+- **`battle_window.gd` (`BattleWindow`, as `hud.battle_window`)** — the
+  Final Fantasy-style battle screen below the selection column. GameManager
+  says who's in the scene every frame (`show_fight`: the selected party and
+  `GroupCombat.opponents_of` them) and forwards every `NpcAgent.combat_event`
+  (sent by `GroupCombat._report`, one per blow, spell or heal), which it
+  queues and plays out in turn. It draws from its own snapshots, never the
+  live nodes, so a monster the game has already freed can still dissolve.
 
 ## Architecture conventions worth knowing before touching combat/party code
 

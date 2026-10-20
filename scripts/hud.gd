@@ -14,10 +14,14 @@ signal volume_changed(volume: float)
 signal selection_changed
 
 ## The left column: the selected character's panel on top, then one for
-## each other living member of their party (see _sync_party_panels).
+## each other living member of their party (see _sync_party_panels) --
+## compact ones, without the gear section, leaving room for the battle
+## window below.
 @onready var selection_container: VBoxContainer = $SelectionStats
 ## The right column: the leaderboard (see _update_leaderboard).
 @onready var leaderboard_container: VBoxContainer = $LeaderboardStats
+## Bottom left, below the selection column: the selected party's battles.
+@onready var battle_window: BattleWindow = $BattleWindow
 @onready var winner_label: Label = $WinnerLabel
 @onready var fog_toggle: CheckBox = $FogToggle
 @onready var party_vision_toggle: CheckBox = $PartyVisionToggle
@@ -185,7 +189,7 @@ func register_npc(npc: NpcAgent) -> void:
 ## Builds one character's stat panel (unparented) and returns its widgets,
 ## in the shape _fill_panel expects. Shared by the leaderboard rows and the
 ## selection column's panels, so they all look and read the same -- except
-## that only `with_gear` panels (the selection's) get the gear section:
+## that only `with_gear` panels (the selected character's own) get the gear section:
 ## equipment slots, potions and spells.
 func _build_panel(npc: NpcAgent, with_gear: bool = true) -> Dictionary:
 	var panel := PanelContainer.new()
@@ -405,7 +409,7 @@ func _sync_party_panels() -> void:
 	for i in range(members.size()):
 		var m: NpcAgent = members[i]
 		if not party_panels.has(m):
-			party_panels[m] = _build_panel(m)
+			party_panels[m] = _build_panel(m, false)
 			selection_container.add_child(party_panels[m]["panel"])
 		selection_container.move_child(party_panels[m]["panel"], i + 1)
 

@@ -94,6 +94,7 @@ func _ready() -> void:
 	$ClickPicker.right_clicked.connect(_on_world_right_clicked)
 	hud.selection_changed.connect(_sync_selection_highlight)
 	hud.selection_changed.connect(_sync_fog)
+	hud.selection_changed.connect(_sync_battle_window)
 	world.stock()
 	respawner = MonsterRespawner.new(self, world)
 	_spawn_npcs()
@@ -104,6 +105,7 @@ func _process(delta: float) -> void:
 	_sync_fog()
 	_sync_guidance_marker()
 	_sync_selection_highlight()
+	_sync_battle_window()
 	guidance_cooldown_left = maxf(0.0, guidance_cooldown_left - delta)
 	hud.update_guidance(guidance_cooldown_left, GUIDANCE_COOLDOWN)
 
@@ -198,6 +200,37 @@ func _party_vision_focus() -> Array:
 		return []
 	return npc.living_party()
 
+## Tells the battle window who's in the scene: the selected character's
+## party, its leader first (front and centre) -- the selected one included
+## even once fallen, so the fight they fell in plays out to the end -- and
+## whoever that party's fighting.
+func _sync_battle_window() -> void:
+	var npc: NpcAgent = hud.inspected
+	if npc == null:
+		hud.battle_window.show_fight([], [], "")
+		return
+	var leader := PartyOps.leader_of(npc.party)
+	var members: Array = npc.living_party()
+	if leader != null:
+		members.erase(leader)
+		members.push_front(leader)
+	if npc.dead:
+		members.append(npc)
+	if leader == null:
+		hud.battle_window.show_fight(members, [], npc.current_action)
+		return
+	var status := leader.current_action
+	if leader.living_party().size() > 1 and leader.party_name != "":
+		status = "%s\n%s" % [leader.party_name, status]
+	hud.battle_window.show_fight(members, GroupCombat.opponents_of(leader, enemy_map), status, leader.is_sliding())
+
+## A blow, spell or escape in someone's fight: the battle window plays it
+## out if it's the selected party's (brought up to date first, in case the
+## fight's only just begun).
+func _on_combat_event(event: Dictionary) -> void:
+	_sync_battle_window()
+	hud.battle_window.play(event)
+
 ## Marks where the selected party has been sent by Guidance, if anywhere.
 func _sync_guidance_marker() -> void:
 	var leader := _inspected_party_leader()
@@ -264,6 +297,7 @@ func _spawn_npcs() -> void:
 		npc.reached_exit.connect(_on_npc_reached_exit)
 		npc.leveled_up.connect(_on_npc_leveled_up)
 		npc.died.connect(_on_npc_died)
+		npc.combat_event.connect(_on_combat_event)
 		npcs.append(npc)
 		hud.register_npc(npc)
 
