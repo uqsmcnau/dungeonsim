@@ -14,6 +14,10 @@ extends RefCounted
 ## array, so they're picked up from the next turn on. Turns are paced by
 ## pause-respecting SceneTree timers calling straight back into these
 ## static functions.
+##
+## Every blow, spell, heal and escape is also reported, as it happens, on
+## the combat_event signal of the character it involves (see _report), for
+## the battle window to play out.
 
 const TURN_SECONDS := 1.0
 ## Break off a fight once HP is down to this many expected enemy hits.
@@ -87,7 +91,8 @@ static func resolve_pack_turn(my_party: Array, enemy_cell: Vector2i, enemies: Di
 			break
 		var target: EnemyAgent = me.weakest_of(foes)
 		var action: String = ally.choose_combat_action(target.stats)
-		ally.apply_combat_action(action, target.stats)
+		var result: Dictionary = ally.apply_combat_action(action, target.stats)
+		_report(ally, ally, target, action, result)
 		if target.stats.hp <= 0:
 			foes.erase(target)
 			ally.share_gold_with_party(target.stats.gold)
@@ -109,8 +114,11 @@ static func resolve_pack_turn(my_party: Array, enemy_cell: Vector2i, enemies: Di
 			if crit:
 				damage = int(ceil(damage * ENEMY_CRIT_MULTIPLIER))
 			victim.stats.hp -= damage
+			_report(victim, foe, victim, "attack", {"amount": damage, "missed": false, "crit": crit})
 			if victim.stats.hp <= 0:
 				victim.die(foe.killer_description(), "%s for %d damage" % ["A critical hit" if crit else "A hit", damage])
+		else:
+			_report(victim, foe, victim, "attack", {"amount": 0, "missed": true})
 
 	# If the whole party fell, release the pack via release_pack, not
 	# `enemy.in_combat = false`: `enemy` is whoever led the pack at the start
@@ -169,6 +177,7 @@ static func claim_cell(winner: NpcAgent, cell: Vector2i) -> void:
 ## and come back to finish it. Frees every party member's is_moving lock
 ## (see engage_pack), not just the driver's.
 static func disengage_pack_fight(me: NpcAgent, enemy_cell: Vector2i) -> void:
+	_report_escape(me)
 	release_pack(me.enemies, enemy_cell)
 	for member in me.party:
 		if is_instance_valid(member):
@@ -190,8 +199,10 @@ static func disengage_pack_fight(me: NpcAgent, enemy_cell: Vector2i) -> void:
 static func engage_players(npc: NpcAgent, opponent_cell: Vector2i, opponent: NpcAgent) -> void:
 	for member in npc.living_party():
 		member.in_pvp_combat = true
+		member.pvp_foes = opponent.party
 	for member in opponent.living_party():
 		member.in_pvp_combat = true
+		member.pvp_foes = npc.party
 	run_pvp_turn(npc.party, opponent.party, npc.cell_pos, opponent_cell)
 
 ## One turn of a party-vs-party fight. `my_party`/`their_party` are the two
@@ -243,7 +254,8 @@ static func resolve_pvp_turn(my_party: Array, their_party: Array, my_cell: Vecto
 		var target: NpcAgent = me.weakest_of(foes)
 		var action: String = ally.choose_combat_action(target.stats)
 		var hp_before: int = target.stats.hp
-		ally.apply_combat_action(action, target.stats)
+		var result: Dictionary = ally.apply_combat_action(action, target.stats)
+		_report(ally, ally, target, action, result)
 		if target.stats.hp <= 0:
 			foes.erase(target)
 			target.die(ally.killer_description(), ally.killing_blow(action, hp_before - target.stats.hp))
@@ -260,7 +272,8 @@ static func resolve_pvp_turn(my_party: Array, their_party: Array, my_cell: Vecto
 		var target: NpcAgent = foe.weakest_of(allies)
 		var action: String = foe.choose_combat_action(target.stats)
 		var hp_before: int = target.stats.hp
-		foe.apply_combat_action(action, target.stats)
+		var result: Dictionary = foe.apply_combat_action(action, target.stats)
+		_report(foe, foe, target, action, result)
 		if target.stats.hp <= 0:
 			target.die(foe.killer_description(), foe.killing_blow(action, hp_before - target.stats.hp))
 
@@ -297,6 +310,7 @@ static func release_pvp(party_a: Array, party_b: Array) -> void:
 		for member in party_ref:
 			if is_instance_valid(member):
 				member.in_pvp_combat = false
+				member.pvp_foes = []
 				if not member.dead:
 					member.reset_label()
 
@@ -309,9 +323,54 @@ static func release_pvp(party_a: Array, party_b: Array) -> void:
 ## a fresh random way out before it got anywhere, the two stuck there for
 ## good.
 static func disengage_pvp(me: NpcAgent, my_party: Array, their_party: Array) -> void:
+	_report_escape(me)
 	release_pvp(my_party, their_party)
 	me.reset_label()
 	if me.is_sliding():
 		return
 	me.is_moving = false
 	me.retreat()
+
+# ============================== Reporting =================================
+
+## Who `npc`'s party is fighting right now: the living members of the
+## monster pack (looked up in `enemies`) or the other party -- or nobody.
+static func opponents_of(npc: NpcAgent, enemies: Dictionary) -> Array:
+	if npc.in_pvp_combat:
+		return npc.pvp_foes.filter(func(m): return is_instance_valid(m) and not m.dead)
+	if npc.in_pack_combat:
+		for cell in enemies:
+			var enemy := pack_at(enemies, cell)
+			if enemy != null and enemy.in_combat and is_same(enemy.fighting_party, npc.party):
+				return enemy.living_pack()
+	return []
+
+## Reports one action on `reporter`'s combat_event -- whichever of the two
+## involved is a player (a monster has no such signal). Sent before any
+## resulting death is dealt with, while both are still who they were:
+##   actor, target -- who did it to whom (the same one for a heal);
+##   action -- "attack", "spark", "fireball", "recover" or "potion_hp";
+##   amount -- the damage dealt or HP healed (0 for a miss);
+##   missed, crit -- a plain attack that missed / a monster's critical hit;
+##   target_hp, target_max_hp, actor_mp -- where things stand after it;
+##   killed -- whether it brought the target down.
+static func _report(reporter: NpcAgent, actor: Node, target: Node, action: String, result: Dictionary) -> void:
+	if action == "recover" or action == "potion_hp":
+		target = actor  # a heal's on themselves, whoever they were facing
+	reporter.combat_event.emit({
+		"kind": "action",
+		"actor": actor,
+		"target": target,
+		"action": action,
+		"amount": int(result.get("amount", 0)),
+		"missed": bool(result.get("missed", false)),
+		"crit": bool(result.get("crit", false)),
+		"target_hp": maxi(0, target.stats.hp),
+		"target_max_hp": target.stats.max_hp,
+		"actor_mp": actor.stats.mp,
+		"killed": target.stats.hp <= 0,
+	})
+
+## Reports `leader`'s party breaking off a fight.
+static func _report_escape(leader: NpcAgent) -> void:
+	leader.combat_event.emit({"kind": "escape", "actor": leader})

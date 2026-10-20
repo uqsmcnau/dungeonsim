@@ -88,6 +88,7 @@ static func join_party_of(joiner: NpcAgent, host: NpcAgent) -> void:
 		member.guidance_target = MazeQuery.NONE  # the host's party isn't ours to steer
 		member.party = host.party
 		member.in_pvp_combat = host.in_pvp_combat
+		member.pvp_foes = host.pvp_foes
 		member.in_pack_combat = host.in_pack_combat
 		if not host.party.has(member):
 			host.party.append(member)

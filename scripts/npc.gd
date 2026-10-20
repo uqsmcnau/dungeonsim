@@ -28,6 +28,10 @@ const LOW_MANA_FRACTION := 0.3
 signal reached_exit(npc: NpcAgent)
 signal leveled_up(npc: NpcAgent)
 signal died(npc: NpcAgent)
+## One blow, spell, heal or escape in a fight this character is part of
+## (see GroupCombat._report for what's in `event`) -- what the battle
+## window (BattleWindow) plays out.
+signal combat_event(event: Dictionary)
 
 @export var npc_name: String = "NPC"
 @export var move_seconds_base: float = 0.35
@@ -63,6 +67,9 @@ var players: Dictionary = {}
 ## this also has to freeze the OTHER side's own _process, since a PvP fight
 ## is driven entirely from one side's turn loop (see GroupCombat.run_pvp_turn).
 var in_pvp_combat: bool = false
+## While in_pvp_combat: the other side's shared party array (see
+## GroupCombat.engage_players), so who we're fighting can be looked up.
+var pvp_foes: Array = []
 ## Mid-fight against a monster pack (see GroupCombat.engage_pack). The is_moving lock is what
 ## actually holds the party still; this records *why*, so something that
 ## frees is_moving for its own reasons (e.g. PartyOps.relocate_to_party when
@@ -742,7 +749,11 @@ func choose_combat_action(opponent_stats: NpcStats) -> String:
 ## Applies one chosen combat action (a plain attack, a spell, a potion, or
 ## Recover) against an opponent's stat block. Shared between a monster fight
 ## and a player-vs-player one — only what each side does with it differs.
-func apply_combat_action(action: String, opponent_stats: NpcStats) -> void:
+## Returns what happened, for the battle window: {"amount": the damage dealt
+## or HP healed, "missed": whether a plain attack missed}.
+func apply_combat_action(action: String, opponent_stats: NpcStats) -> Dictionary:
+	var hp_before: int = stats.hp
+	var damage := 0
 	match action:
 		"recover":
 			stats.mp -= RECOVER_MP_COST
@@ -751,13 +762,18 @@ func apply_combat_action(action: String, opponent_stats: NpcStats) -> void:
 			_apply_consumable_effect("Health Potion")
 		"fireball":
 			stats.mp -= NpcStats.FIREBALL_MP_COST
-			opponent_stats.hp -= max(1, stats.fireball_power())
+			damage = max(1, stats.fireball_power())
 		"spark":
 			stats.mp -= NpcStats.SPARK_MP_COST
-			opponent_stats.hp -= max(1, stats.spark_power())
+			damage = max(1, stats.spark_power())
 		_:
-			if randf() < CombatMath.hit_chance_against(stats, opponent_stats):
-				opponent_stats.hp -= max(1, stats.attack_power() + randi() % 4 - opponent_stats.defense())
+			if randf() >= CombatMath.hit_chance_against(stats, opponent_stats):
+				return {"amount": 0, "missed": true}
+			damage = max(1, stats.attack_power() + randi() % 4 - opponent_stats.defense())
+	if action == "recover" or action == "potion_hp":
+		return {"amount": stats.hp - hp_before, "missed": false}
+	opponent_stats.hp -= damage
+	return {"amount": damage, "missed": false}
 
 ## HP hitting 0 is final: the character dies, is hidden from the maze, and
 ## stops doing anything further. game_manager listens for `died` to drop it
