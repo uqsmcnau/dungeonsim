@@ -63,7 +63,9 @@ func test_pack_followers_are_hidden_along_with_the_leader():
 
 	main._process(0.0)
 	assert_false(leader.visible, "the pack leader should be hidden when nobody can see the cell")
-	assert_false(follower.visible, "the follower must be hidden too -- this is the bug: enemy_map only has the leader, so a loop that only walks enemy_map never touches followers at all")
+	assert_false(follower.visible,
+		"the follower must be hidden too -- this is the bug: enemy_map only has the leader, " +
+		"so a loop that only walks enemy_map never touches followers at all")
 
 func test_pack_followers_become_visible_along_with_the_leader():
 	var cell: Vector2i = _isolated_cell()
@@ -78,7 +80,8 @@ func test_pack_followers_become_visible_along_with_the_leader():
 	main._process(0.0)
 
 	assert_true(leader.visible, "the pack leader should be visible once someone can see the cell")
-	assert_true(follower.visible, "the follower should become visible too, not stay stuck visible=true regardless of fog (the reported bug) nor stuck hidden")
+	assert_true(follower.visible,
+		"the follower should become visible too, not stay stuck visible=true regardless of fog (the reported bug) nor stuck hidden")
 
 func test_pack_followers_hide_again_once_out_of_sight():
 	var cell: Vector2i = _isolated_cell()
@@ -97,4 +100,6 @@ func test_pack_followers_hide_again_once_out_of_sight():
 	observer.cell_pos = main.start_cells[0]
 	main._process(0.0)
 	assert_false(leader.visible)
-	assert_false(follower.visible, "a follower must hide again once nothing can see that cell any more -- it shouldn't get stuck visible=true the first time it was ever shown")
+	assert_false(follower.visible,
+		"a follower must hide again once nothing can see that cell any more -- " +
+		"it shouldn't get stuck visible=true the first time it was ever shown")

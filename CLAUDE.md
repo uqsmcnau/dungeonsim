@@ -61,6 +61,22 @@ A test that waits for characters to walk or fight in real time should call
 faster until the test's `main` is freed. Fine for tests about how things
 turn out; not for the music, which plays in real time regardless.
 
+### Linting
+
+[gdtoolkit](https://github.com/Scony/godot-gdscript-toolkit) 4's `gdlint`,
+with the project's settings in `.gdlintrc` (each one explained there):
+
+```
+pip install "gdtoolkit==4.*"
+gdlint scripts tests tools
+```
+
+CI runs it on every push alongside the tests. Fix what it finds rather than
+loosening `.gdlintrc` — in particular, `npc.gd` is the file nearest the
+length limit, and the next thing to split out of it is its map label.
+`gdformat` isn't used: the code's formatted by hand, and it would reflow
+nearly every file.
+
 ### Soak test
 
 Some bugs only show up in whole games — players frozen side by side,

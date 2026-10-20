@@ -270,7 +270,8 @@ func test_pvp_does_not_freeze_when_both_sides_share_a_cell():
 	# A real conclusion is either side falling *or* the losing side fleeing
 	# once its HP gets low -- this used to demand a death within 5 turns,
 	# and flaked whenever b sensibly ran for it (or a missed a few swings).
-	assert_false(a.in_pvp_combat or b.in_pvp_combat, "the fight should reach a real conclusion -- a death or a retreat -- releasing both combat locks")
+	assert_false(a.in_pvp_combat or b.in_pvp_combat,
+		"the fight should reach a real conclusion -- a death or a retreat -- releasing both combat locks")
 
 # ============ Regression: party frozen by a stuck pack mid-fight ===========
 #
@@ -306,7 +307,8 @@ func test_engaging_a_pack_locks_is_moving_for_every_party_member_not_just_the_dr
 	GroupCombat.engage_pack(leader, cell, enemy)
 
 	assert_true(leader.is_moving, "the driver should be locked, as before")
-	assert_true(follower.is_moving, "the follower must be locked too -- otherwise it's free to wander off the moment it gets promoted to leader")
+	assert_true(follower.is_moving,
+		"the follower must be locked too -- otherwise it's free to wander off the moment it gets promoted to leader")
 
 func test_a_follower_promoted_mid_fight_cannot_act_independently():
 	var leader: NpcAgent = main.npcs[0]
@@ -520,7 +522,8 @@ func test_a_pack_freed_this_way_can_be_fought_normally_afterwards():
 
 	# Check the odds, not decide_fight itself -- that rolls randf() against a
 	# chance capped at 0.95, so it would flake ~5% of runs even here.
-	assert_gte(CombatMath.win_chance_against(newcomer.stats, enemy.stats), 0.95, "sanity: the newcomer should be confident against this weak enemy")
+	assert_gte(CombatMath.win_chance_against(newcomer.stats, enemy.stats), 0.95,
+		"sanity: the newcomer should be confident against this weak enemy")
 	GroupCombat.engage_pack(newcomer, cell, enemy)
 	assert_true(enemy.in_combat, "the pack should be engageable again, not stuck refusing all future fights")
 

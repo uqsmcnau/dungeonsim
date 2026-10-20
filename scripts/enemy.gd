@@ -59,7 +59,8 @@ var _wander_cooldown: float = 0.0
 @onready var visual: Polygon2D = $Visual
 @onready var label: Label = $Label
 
-func setup(cell: Vector2i, cs: float, enemy_level: int, maze_grid: Array, enemy_map: Dictionary, forbidden_cells: Dictionary, player_list: Array, can_wander: bool = true) -> void:
+func setup(cell: Vector2i, cs: float, enemy_level: int, maze_grid: Array, enemy_map: Dictionary,
+		forbidden_cells: Dictionary, player_list: Array, can_wander: bool = true) -> void:
 	cell_pos = cell
 	home_cell = cell
 	stats = NpcStats.for_enemy(enemy_level)

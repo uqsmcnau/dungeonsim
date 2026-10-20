@@ -166,7 +166,9 @@ func test_nothing_worn_is_a_bare_fisted_tunic():
 	})
 
 func test_everything_worn_shows():
-	var look := BattleFighter.look_of(_wearing(["Iron Sword", "Shield", "Leather Armor", "Helmet", "Leather Boots", "Sage's Amulet", "Silver Ring"]))
+	var look := BattleFighter.look_of(_wearing([
+		"Iron Sword", "Shield", "Leather Armor", "Helmet", "Leather Boots", "Sage's Amulet", "Silver Ring",
+	]))
 	assert_eq(look["weapon"], "iron_sword")
 	assert_eq(look["off_hand"], "shield")
 	assert_eq(look["armor"], "leather")

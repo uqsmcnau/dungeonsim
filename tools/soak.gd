@@ -137,7 +137,8 @@ func _check_stale_entries() -> void:
 			_stale_since[cell] = t
 		elif t - _stale_since[cell] > STALE_SECONDS:
 			var who: String = entry.npc_name if is_instance_valid(entry) else "a freed node"
-			_problem("stale:%s" % cell, "the map has %s on %s, but they don't stand for anyone there" % [who, cell], [entry] if is_instance_valid(entry) else [])
+			_problem("stale:%s" % cell, "the map has %s on %s, but they don't stand for anyone there" % [who, cell],
+				[entry] if is_instance_valid(entry) else [])
 
 func _check_dark(living: Array) -> void:
 	var view: MazeView = main.maze_view

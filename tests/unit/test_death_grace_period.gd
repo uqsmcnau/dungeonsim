@@ -52,7 +52,8 @@ func test_dying_keeps_reserving_its_leaderboard_slot_until_the_grace_period_ends
 	main._process(0.0)
 
 	assert_true(main.hud.rows[champion]["panel"].visible, "the dying champion should still show")
-	assert_false(main.hud.rows[next_in_line]["panel"].visible, "the next-strongest living character must wait -- the champion's slot is still reserved during its grace period")
+	assert_false(main.hud.rows[next_in_line]["panel"].visible,
+		"the next-strongest living character must wait -- the champion's slot is still reserved during its grace period")
 
 func test_dying_off_the_leaderboard_does_not_start_a_grace_period():
 	var n: int = main.npcs.size()

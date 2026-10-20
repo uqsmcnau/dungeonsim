@@ -1,0 +1,27 @@
+# gdlint (gdtoolkit 4) settings for DungeonSim -- run `gdlint scripts tests
+# tools` from here. Install with: pip install "gdtoolkit==4.*". Everything
+# not set below is gdtoolkit's default.
+
+disable:
+  # Related definitions sit together (a label's constants next to the
+  # label's variables) rather than in gdlint's fixed signals, consts, vars,
+  # onready order.
+  - class-definitions-order
+  # A test file holds as many tests as its concern needs, and NpcAgent's
+  # size is watched by max-file-lines below rather than capped here.
+  - max-public-methods
+
+# The code runs to about 120 columns, with the odd long signature or test
+# message; 140 catches the ones that have got out of hand.
+max-line-length: 140
+
+# Early returns as guard clauses are the house style (NpcAgent._process).
+max-returns: 10
+
+# NpcAgent.setup takes everything a character needs from the world at once.
+function-arguments-number: 12
+
+# npc.gd is the one file anywhere near this (just over 1000 lines). The next
+# thing to split out of it is its map label (show_label, sync_label and
+# company) -- do that rather than raising this again.
+max-file-lines: 1100

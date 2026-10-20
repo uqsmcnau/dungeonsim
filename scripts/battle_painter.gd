@@ -64,7 +64,8 @@ static func draw_backdrop(canvas: CanvasItem, width: float, scroll: float, time:
 ## `f` standing (or lying) at `at`, its shadow on the floor at `ground_y`,
 ## drawn `depth` times full size (smaller further back), facing left if
 ## `faces_left`; `stride` (-1 to 1) swings a walking player's legs.
-static func draw_fighter(canvas: CanvasItem, f: BattleFighter, at: Vector2, ground_y: float, depth: float, faces_left: bool, stride: float, time: float) -> void:
+static func draw_fighter(canvas: CanvasItem, f: BattleFighter, at: Vector2, ground_y: float, depth: float,
+		faces_left: bool, stride: float, time: float) -> void:
 	var color := f.color
 	var alpha := 1.0
 	if f.dissolve >= 0.0:
@@ -99,7 +100,8 @@ static func draw_fighter(canvas: CanvasItem, f: BattleFighter, at: Vector2, grou
 ## BattleFighter.look_of: sword in the front hand (or bare-fisted), shield
 ## or tome in the other, armor over their tunic, helmet, boots, amulet and
 ## ring. Fallen, they lie flat. `stride` (-1 to 1) swings the legs, mid-walk.
-static func draw_figure(canvas: CanvasItem, p: Vector2, color: Color, faces_left: bool, ko: bool, alpha: float, stride: float = 0.0, look: Dictionary = {}, time: float = 0.0) -> void:
+static func draw_figure(canvas: CanvasItem, p: Vector2, color: Color, faces_left: bool, ko: bool, alpha: float,
+		stride: float = 0.0, look: Dictionary = {}, time: float = 0.0) -> void:
 	var skin := Color(SKIN, alpha)
 	var metal := Color(METAL, alpha)
 	var leather := Color(LEATHER, alpha)
@@ -178,9 +180,11 @@ static func draw_figure(canvas: CanvasItem, p: Vector2, color: Color, faces_left
 	# crossguard), else a tome held out, else a bare fist.
 	match weapon:
 		"steel_sword":
-			_draw_sword(canvas, front_hand, front_hand + Vector2(dir * 11.0, -13.0), Color(0.88, 0.95, 1.0, alpha), Color(0.95, 0.78, 0.25, alpha), 2.4)
+			_draw_sword(canvas, front_hand, front_hand + Vector2(dir * 11.0, -13.0),
+				Color(0.88, 0.95, 1.0, alpha), Color(0.95, 0.78, 0.25, alpha), 2.4)
 		"iron_sword":
-			_draw_sword(canvas, front_hand, front_hand + Vector2(dir * 9.0, -10.0), Color(0.78, 0.78, 0.82, alpha), Color(0.45, 0.3, 0.15, alpha), 2.0)
+			_draw_sword(canvas, front_hand, front_hand + Vector2(dir * 9.0, -10.0),
+				Color(0.78, 0.78, 0.82, alpha), Color(0.45, 0.3, 0.15, alpha), 2.0)
 		_:
 			if off_hand == "tome":
 				_draw_tome(canvas, front_hand + Vector2(dir * 1.5, -2.0), alpha)
@@ -302,7 +306,8 @@ static func draw_menus(canvas: CanvasItem, size: Vector2, party: Array, foes: Ar
 	if foes.is_empty():
 		var text := status if not party.is_empty() else "Select a player to watch their battles."
 		var inner := foe_box.grow(-8.0)
-		canvas.draw_multiline_string(ThemeDB.fallback_font, inner.position + Vector2(0, 13), text, HORIZONTAL_ALIGNMENT_LEFT, inner.size.x, 13, 4, TEXT_COLOR)
+		canvas.draw_multiline_string(ThemeDB.fallback_font, inner.position + Vector2(0, 13), text,
+			HORIZONTAL_ALIGNMENT_LEFT, inner.size.x, 13, 4, TEXT_COLOR)
 	else:
 		var y := top + 18.0
 		for f in foes:

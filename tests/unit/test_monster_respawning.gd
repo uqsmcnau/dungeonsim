@@ -35,10 +35,17 @@ func _park_players_far_from(area: Vector2i) -> void:
 		npc.cell_pos = corner
 		npc.look_around()
 
+## The cell in the middle of `area`.
+func _middle_of(area: Vector2i) -> Vector2i:
+	var half := MonsterRespawner.AREA_SIZE / 2
+	return area * MonsterRespawner.AREA_SIZE + Vector2i(half, half)
+
 func _monsters_in(area: Vector2i) -> Array:
 	var result: Array = []
 	for enemy in main.enemy_container.get_children():
-		if enemy is EnemyAgent and enemy.alive and not enemy.is_boss and not enemy.is_mini_boss and main.respawner.area_of(enemy.home_cell) == area:
+		if not (enemy is EnemyAgent and enemy.alive) or enemy.is_boss or enemy.is_mini_boss:
+			continue
+		if main.respawner.area_of(enemy.home_cell) == area:
 			result.append(enemy)
 	return result
 
@@ -151,7 +158,7 @@ func test_no_respawn_where_a_player_could_see_it_happen():
 	_kill(_monsters_in(area))
 	# One player stands in the middle of the area: nowhere in it is far enough away.
 	var watcher: NpcAgent = main.npcs[0]
-	watcher.cell_pos = Vector2i(area.x * MonsterRespawner.AREA_SIZE + MonsterRespawner.AREA_SIZE / 2, area.y * MonsterRespawner.AREA_SIZE + MonsterRespawner.AREA_SIZE / 2)
+	watcher.cell_pos = _middle_of(area)
 	watcher.look_around()
 	assert_eq(main.respawner.hidden_spawn_cell(area), MazeQuery.NONE)
 	for i in range(5):
@@ -164,7 +171,7 @@ func test_respawn_waits_for_the_player_to_leave():
 	_kill(_monsters_in(area))
 	var watcher: NpcAgent = main.npcs[0]
 	var parked: Vector2i = watcher.cell_pos
-	watcher.cell_pos = Vector2i(area.x * MonsterRespawner.AREA_SIZE + MonsterRespawner.AREA_SIZE / 2, area.y * MonsterRespawner.AREA_SIZE + MonsterRespawner.AREA_SIZE / 2)
+	watcher.cell_pos = _middle_of(area)
 	watcher.look_around()
 	main.respawner.tick_respawns(MonsterRespawner.RESPAWN_SECONDS)
 	assert_eq(_population(area), 0)
@@ -189,7 +196,8 @@ func test_spawn_cells_are_hidden_far_from_players_and_free():
 		found += 1
 		assert_eq(main.respawner.area_of(c), area)
 		assert_false(watcher.sight_cells.has(c), "out of sight")
-		assert_gte(max(abs(c.x - watcher.cell_pos.x), abs(c.y - watcher.cell_pos.y)), MonsterRespawner.RESPAWN_MIN_PLAYER_DISTANCE, "and well away")
+		var distance: int = max(abs(c.x - watcher.cell_pos.x), abs(c.y - watcher.cell_pos.y))
+		assert_gte(distance, MonsterRespawner.RESPAWN_MIN_PLAYER_DISTANCE, "and well away")
 		assert_false(main.restricted_cells.has(c) or main.enemy_map.has(c) or main.chest_map.has(c))
 	assert_gt(found, 0, "sanity: the far side of the area is still fair game")
 

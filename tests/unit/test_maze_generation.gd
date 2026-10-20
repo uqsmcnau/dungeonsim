@@ -10,7 +10,7 @@ func before_each():
 
 ## Flood-fills from (0,0) through open passages and returns how many
 ## distinct cells it reached.
-func _reachable_count(grid: Array, width: int, height: int) -> int:
+func _reachable_count(grid: Array) -> int:
 	var seen: Dictionary = {Vector2i(0, 0): true}
 	var frontier: Array = [Vector2i(0, 0)]
 	while not frontier.is_empty():
@@ -27,13 +27,13 @@ func test_generated_maze_is_fully_connected():
 	var width := 20
 	var height := 20
 	var grid: Array = generator.generate(width, height)
-	assert_eq(_reachable_count(grid, width, height), width * height)
+	assert_eq(_reachable_count(grid), width * height)
 
 func test_generated_maze_stays_fully_connected_with_braiding():
 	var width := 20
 	var height := 20
 	var grid: Array = generator.generate(width, height, 0.3)
-	assert_eq(_reachable_count(grid, width, height), width * height, "adding loops should never disconnect anything")
+	assert_eq(_reachable_count(grid), width * height, "adding loops should never disconnect anything")
 
 func test_perfect_maze_has_exactly_cells_minus_one_open_edges():
 	# A perfect (unbraided) maze is a spanning tree over the grid: exactly

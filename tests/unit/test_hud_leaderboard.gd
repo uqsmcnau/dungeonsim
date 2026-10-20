@@ -47,7 +47,8 @@ func test_a_death_off_the_leaderboard_stays_hidden():
 	weakling.die()
 	main._process(0.0)
 
-	assert_false(main.hud.rows[weakling]["panel"].visible, "a death that was never on the leaderboard should just stay hidden, same as before it died")
+	assert_false(main.hud.rows[weakling]["panel"].visible,
+		"a death that was never on the leaderboard should just stay hidden, same as before it died")
 
 func test_a_lower_ranked_character_is_not_promoted_while_the_dead_ones_slot_is_still_reserved():
 	# A death that was on the leaderboard keeps occupying its slot for its
@@ -64,7 +65,8 @@ func test_a_lower_ranked_character_is_not_promoted_while_the_dead_ones_slot_is_s
 	main.npcs[n - 1].die()  # remove the current #1
 	main._process(0.0)
 
-	assert_false(main.hud.rows[just_outside]["panel"].visible, "should stay hidden -- the dead #1 is still reserving its slot during its grace period")
+	assert_false(main.hud.rows[just_outside]["panel"].visible,
+		"should stay hidden -- the dead #1 is still reserving its slot during its grace period")
 
 func test_a_lower_ranked_character_is_promoted_once_the_dead_ones_slot_frees_up():
 	var n: int = main.npcs.size()
@@ -81,4 +83,5 @@ func test_a_lower_ranked_character_is_promoted_once_the_dead_ones_slot_frees_up(
 	main.hud.dying.erase(champion)
 	main._process(0.0)
 
-	assert_true(main.hud.rows[just_outside]["panel"].visible, "once the dead #1's slot is actually freed, the next-strongest living character should be promoted into it")
+	assert_true(main.hud.rows[just_outside]["panel"].visible,
+		"once the dead #1's slot is actually freed, the next-strongest living character should be promoted into it")

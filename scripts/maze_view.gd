@@ -53,7 +53,8 @@ func set_selection_highlight(center: Vector2, radius: float) -> void:
 	selection_radius = radius
 	queue_redraw()
 
-func set_maze(new_grid: Array, new_cell_size: float, new_starts: Array, new_exit: Vector2i, new_shops: Array, new_mini_bosses: Array) -> void:
+func set_maze(new_grid: Array, new_cell_size: float, new_starts: Array, new_exit: Vector2i,
+		new_shops: Array, new_mini_bosses: Array) -> void:
 	grid = new_grid
 	cell_size = new_cell_size
 	start_cells = new_starts

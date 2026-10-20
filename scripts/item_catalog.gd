@@ -53,8 +53,10 @@ const ITEMS := [
 	# Consumables. Potions don't drop from chests (see random_item) — a shop
 	# is their only source, and unlike equipment it'll sell any number of them
 	# (see "shop_stock" / NpcStats.buy_potions).
-	{"name": "Health Potion", "kind": "consumable", "rarity": "bronze", "effect": "heal_hp", "amount": 15, "in_chests": false, "shop_stock": true},
-	{"name": "Mana Potion", "kind": "consumable", "rarity": "bronze", "effect": "restore_mp", "amount": 10, "in_chests": false, "shop_stock": true},
+	{"name": "Health Potion", "kind": "consumable", "rarity": "bronze", "effect": "heal_hp", "amount": 15,
+		"in_chests": false, "shop_stock": true},
+	{"name": "Mana Potion", "kind": "consumable", "rarity": "bronze", "effect": "restore_mp", "amount": 10,
+		"in_chests": false, "shop_stock": true},
 	{"name": "Tome of Spark", "kind": "consumable", "rarity": "bronze", "effect": "learn_spell", "spell": "spark"},
 	{"name": "Tome of Fireball", "kind": "consumable", "rarity": "silver", "effect": "learn_spell", "spell": "fireball"},
 ]

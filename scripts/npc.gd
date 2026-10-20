@@ -123,7 +123,9 @@ func _ready() -> void:
 	leveled_up.connect(_on_leveled_up)
 	_label_base_y = name_label.position.y
 
-func setup(spawn_cell: Vector2i, target_cell: Vector2i, maze_grid: Array, cs: float, color: Color, display_name: String, enemy_map: Dictionary, chest_map: Dictionary, shop_map: Dictionary, player_map: Dictionary, restricted_cells: Dictionary = {}) -> void:
+func setup(spawn_cell: Vector2i, target_cell: Vector2i, maze_grid: Array, cs: float, color: Color,
+		display_name: String, enemy_map: Dictionary, chest_map: Dictionary, shop_map: Dictionary,
+		player_map: Dictionary, restricted_cells: Dictionary = {}) -> void:
 	cell_pos = spawn_cell
 	exit_cell = target_cell
 	grid = maze_grid
