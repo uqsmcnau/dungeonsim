@@ -159,45 +159,60 @@ func _process(delta: float) -> void:
 	_reclaim_registration()
 	if finished or is_moving or in_pvp_combat:
 		return
-	## Safety net: if a live enemy is ever standing on our own cell (e.g. one
-	## wandered into our destination while we were mid-transit), resolve that
-	## before doing anything else, so an enemy can never be walked past.
-	if _has_live_enemy(cell_pos):
-		var enemy: EnemyAgent = enemies[cell_pos]
-		if enemy.in_combat:
-			_try_join_fight_against(enemy)
-			return
-		if CombatMath.decide_fight(stats, enemy.stats):
-			GroupCombat.engage_pack(self, cell_pos, enemy)
-			return
-		retreat()
-		if is_moving:
-			return
-	## Same safety net for another player ending up on our cell. Whether we
-	## throw the first punch is up to alignment (see _decide_pvp_fight) —
-	## unless we're in a safe room (a start zone, shop, mini boss room or the
-	## boss room), where PvP can never be started at all. If not fighting,
-	## we consider teaming up instead, and failing that they're just passing
-	## through (see _squeeze_past) -- so we carry on as normal.
-	if _has_live_player(cell_pos):
-		var opponent: NpcAgent = players[cell_pos]
-		if opponent.is_in_combat():
-			# Never attacked mid-fight, but they can be joined -- and it's
-			# us who joins them, since their fight can't be interrupted.
-			if PartyOps.can_form_party_with(self, opponent):
-				PartyOps.join_party_of(self, opponent)
-				return
-		else:
-			if not safe_cells.has(cell_pos) and _decide_pvp_fight(opponent):
-				GroupCombat.engage_players(self, cell_pos, opponent)
-				return
-			if PartyOps.can_form_party_with(self, opponent):
-				PartyOps.join_party_of(opponent, self)
-				return
+	# In order of priority; each says whether it took this turn.
+	if _settle_enemy_on_our_cell() or _settle_player_on_our_cell() or _see_to_ourselves():
+		return
+	_take_step()
+
+## Safety net: if a live enemy is ever standing on our own cell (e.g. one
+## wandered into our destination while we were mid-transit), resolve that
+## before doing anything else, so an enemy can never be walked past --
+## joining a fight it's already in, starting one, or backing off.
+func _settle_enemy_on_our_cell() -> bool:
+	if not _has_live_enemy(cell_pos):
+		return false
+	var enemy: EnemyAgent = enemies[cell_pos]
+	if enemy.in_combat:
+		_try_join_fight_against(enemy)
+		return true
+	if CombatMath.decide_fight(stats, enemy.stats):
+		GroupCombat.engage_pack(self, cell_pos, enemy)
+		return true
+	retreat()
+	return is_moving
+
+## Same safety net for another player ending up on our cell. Whether we
+## throw the first punch is up to alignment (see _decide_pvp_fight) --
+## unless we're in a safe room (a start zone, shop, mini boss room or the
+## boss room), where PvP can never be started at all. If not fighting,
+## we consider teaming up instead, and failing that they're just passing
+## through (see _squeeze_past) -- so we carry on as normal.
+func _settle_player_on_our_cell() -> bool:
+	if not _has_live_player(cell_pos):
+		return false
+	var opponent: NpcAgent = players[cell_pos]
+	if opponent.is_in_combat():
+		# Never attacked mid-fight, but they can be joined -- and it's us
+		# who joins them, since their fight can't be interrupted.
+		if PartyOps.can_form_party_with(self, opponent):
+			PartyOps.join_party_of(self, opponent)
+			return true
+		return false
+	if not safe_cells.has(cell_pos) and _decide_pvp_fight(opponent):
+		GroupCombat.engage_players(self, cell_pos, opponent)
+		return true
+	if PartyOps.can_form_party_with(self, opponent):
+		PartyOps.join_party_of(opponent, self)
+		return true
+	return false
+
+## Between fights: reading an unread tome, recovering when hurt (Recover,
+## else a Health Potion, else resting), and topping up low mana.
+func _see_to_ourselves() -> bool:
 	var pending_tome := _pending_tome()
 	if pending_tome != "":
 		_consume_item_idle(pending_tome)
-		return
+		return true
 	if _needs_healing():
 		if stats.mp >= RECOVER_MP_COST:
 			_cast_recover_idle()
@@ -205,11 +220,11 @@ func _process(delta: float) -> void:
 			_consume_item_idle("Health Potion")
 		else:
 			current_action = "Resting"
-		return
+		return true
 	if stats.mp < int(stats.max_mp * LOW_MANA_FRACTION) and stats.has_item("Mana Potion"):
 		_consume_item_idle("Mana Potion")
-		return
-	_take_step()
+		return true
+	return false
 
 ## Outside combat, a hurt character stops to recover rather than pressing on
 ## injured — casting Recover when it can afford it, drinking a Health Potion
