@@ -162,8 +162,7 @@ static func relocate_to_party(member: NpcAgent, host: NpcAgent) -> void:
 	# (see GroupCombat.engage_pack), and freed with them when it ends.
 	member.is_moving = member.in_pack_combat
 	member.reset_label()
-	var duration: float = member.move_seconds_base / max(member.stats.move_speed(), 0.1)
-	member.slide_to(host.position + member.party_offset, duration)
+	member.slide_to(host.position + member.party_offset, member.step_seconds())
 
 ## Whoever in `party_ref` (a party's shared array) is currently its leader
 ## -- re-checked fresh each call, since a fallen leader is replaced by a
@@ -194,7 +193,7 @@ static func promote_next_leader(former_leader: NpcAgent) -> void:
 			# leader holds it (the two were sharing a cell), which mustn't be
 			# knocked off the map in turn.
 			var owner = former_leader.players.get(former_leader.cell_pos)
-			if not NpcAgent.holds_cell(owner, former_leader.cell_pos):
+			if not NpcBody.holds_cell(owner, former_leader.cell_pos):
 				former_leader.players[former_leader.cell_pos] = member
 			return
 

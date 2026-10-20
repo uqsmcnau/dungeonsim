@@ -1,5 +1,9 @@
 class_name NpcAgent
-extends Node2D
+extends NpcBody
+
+## One autonomous character: exploring, fighting, shopping, teaming up, its
+## map label. Where it is and how it moves -- cells, steps, its icon, its
+## place on the shared `players` map -- is NpcBody's.
 
 const RECOVER_MP_COST := 5
 const RECOVER_CAST_SECONDS := 1.0
@@ -33,14 +37,9 @@ signal died(npc: NpcAgent)
 signal combat_event(event: CombatEvent)
 
 @export var npc_name: String = "NPC"
-@export var move_seconds_base: float = 0.35
 
 var stats: NpcStats
-var grid: Array = []
-var cell_size: float = 48.0
-var cell_pos: Vector2i = Vector2i.ZERO
 var exit_cell: Vector2i = Vector2i.ZERO
-var visited: Dictionary = {}
 ## This character's own map of the maze: every cell it has ever seen, plus
 ## everything its party members had seen when they teamed up (see
 ## PartyOps.pool_seen_cells) and whatever any of them has seen since. It's
@@ -51,17 +50,11 @@ var seen_cells: Dictionary = {}
 ## look_around only when this character has moved to a new cell.
 var sight_cells: Dictionary = {}
 var _sight_cell: Vector2i = MazeQuery.NONE
-## The icon's slide under way, if any (see slide_to).
-var _slide: Tween = null
 var enemies: Dictionary = {}
 var chests: Dictionary = {}
 var chest_goal: Vector2i = MazeQuery.NONE
 ## Chests set aside for now, by cell -> steps left to ignore them for.
 var skipped_chests: Dictionary = {}
-## Every living player, by current cell — shared across all NPCs, the same
-## way `enemies` is, so each can see where the others are. Only ever holds
-## PARTY LEADERS; a party's followers are found via `party`, not this dict.
-var players: Dictionary = {}
 ## True while locked in a fight against another player. Unlike `is_moving`,
 ## this also has to freeze the OTHER side's own _process, since a PvP fight
 ## is driven entirely from one side's turn loop (see GroupCombat.run_pvp_turn).
@@ -82,7 +75,6 @@ var safe_cells: Dictionary = {}
 ## eyes on (it only makes trips to shops it knows about).
 var shops: Dictionary = {}
 var known_shops: Dictionary = {}
-var is_moving: bool = false
 var finished: bool = false
 var dead: bool = false
 ## What this character is doing right now, in plain words, for the HUD.
@@ -111,7 +103,6 @@ var guidance_target: Vector2i = MazeQuery.NONE
 var killed_by: String = ""
 var death_method: String = ""
 var is_party_leader: bool = true
-var party_offset: Vector2 = Vector2.ZERO
 
 @onready var visual: Polygon2D = $Visual
 @onready var name_label: Label = $NameLabel
@@ -551,17 +542,6 @@ func _has_live_enemy(cell: Vector2i) -> bool:
 	var enemy = enemies[cell]
 	return enemy != null and is_instance_valid(enemy) and enemy.alive
 
-func _has_live_player(cell: Vector2i) -> bool:
-	return players.has(cell) and players[cell] != self and holds_cell(players[cell], cell)
-
-## Whether `other` (an entry in `players`) really is a living party leader
-## standing on `cell`. Anything else is a stale entry left behind -- which
-## used to count as someone being there, so a party could get into a fight
-## with someone on the far side of the maze, and the winner then walked
-## straight across it to "claim" the loser's cell.
-static func holds_cell(other, cell: Vector2i) -> bool:
-	return other != null and is_instance_valid(other) and not other.dead and other.is_party_leader and other.cell_pos == cell
-
 ## If the destination holds a live enemy, decide whether to fight (a battle
 ## fought in 1-second turns) or flee (retreat toward already-explored ground
 ## instead). A live enemy always blocks the cell until it's defeated. If
@@ -860,40 +840,17 @@ func _step_toward_frontier() -> Vector2i:
 
 	return cell_pos
 
-func move_to(next_cell: Vector2i) -> void:
-	is_moving = true
-	var duration: float = move_seconds_base / max(stats.move_speed(), 0.1)
-	slide_to(_cell_to_world(next_cell), duration).finished.connect(_on_move_finished.bind(next_cell))
-	for member in party:
-		if member != self and is_instance_valid(member) and not member.dead:
-			member._follow_to(next_cell, duration)
+## Quicker on their feet the more dexterous (see NpcBody.step_seconds).
+func _move_speed() -> float:
+	return stats.move_speed()
 
-## Every step the leader takes, each follower tags along to the same cell,
-## offset slightly so the whole party stays visible as distinct members.
-func _follow_to(next_cell: Vector2i, duration: float) -> void:
-	cell_pos = next_cell
-	slide_to(_cell_to_world(next_cell) + party_offset, duration).finished.connect(func(): visited[cell_pos] = true)
+## The rest of the party, still standing, tag along on every step.
+func _followers() -> Array:
+	return party.filter(func(m): return m != self and is_instance_valid(m) and not m.dead)
 
-## Slides this character's icon to `world_pos` over `seconds`, first
-## stopping any slide still under way -- one at a time, so whichever move
-## came last decides both where the icon ends up and (through its finished
-## callback, which a stopped slide never fires) where cell_pos says it is.
-## Two at once used to pull the icon one way while the other's arrival set
-## cell_pos somewhere else, leaving the fog lit around an empty spot.
-func slide_to(world_pos: Vector2, seconds: float) -> Tween:
-	stop_sliding()
-	_slide = create_tween()
-	_slide.tween_property(self, "position", world_pos, seconds)
-	return _slide
-
-func is_sliding() -> bool:
-	return _slide != null and _slide.is_valid() and _slide.is_running()
-
-## Stops the icon wherever it is, dropping the slide's finished callback.
-func stop_sliding() -> void:
-	if _slide != null and _slide.is_valid():
-		_slide.kill()
-	_slide = null
+## Only a party's living leader stands for it on the map.
+func represents_party() -> bool:
+	return not dead and is_party_leader
 
 ## What this character can see from where it stands (`sight_cells`), noting
 ## it on its own map and on the maps of everyone in its party -- party
@@ -909,30 +866,9 @@ func look_around() -> Dictionary:
 	seen_cells.merge(sight_cells)  # in case this character isn't in its own party list
 	return sight_cells
 
-## Puts this (leading) character back in `players` if its cell's entry has
-## gone -- as when someone passed through it (see _squeeze_past), took over
-## the entry, and then moved on, taking the entry with them -- or if the
-## entry is stale (see holds_cell).
-func _reclaim_registration() -> void:
-	if not holds_cell(players.get(cell_pos), cell_pos):
-		players[cell_pos] = self
-
-## Removes this character's own entry from `players` -- and only its own.
-## Followers share their leader's cell, and two leaders can briefly share
-## one too, so a blind `players.erase(cell_pos)` would wipe out whoever
-## else is registered there (e.g. a follower dying used to erase its
-## leader, leaving the party invisible to everyone and its fight loop
-## unable to find it).
-func unregister() -> void:
-	if players.get(cell_pos) == self:
-		players.erase(cell_pos)
-
-func _on_move_finished(next_cell: Vector2i) -> void:
-	unregister()
-	cell_pos = next_cell
-	is_moving = false
-	_on_enter_cell()
-
+## Arriving in a cell: note it, look around, take our place on the map,
+## open any chest, and see whether it's the exit or a shop we've business
+## with.
 func _on_enter_cell() -> void:
 	visited[cell_pos] = true
 	look_around()
@@ -985,9 +921,6 @@ func _check_for_chest() -> void:
 	if parts.is_empty():
 		return
 	show_label("%s found %s!" % [map_name(), ", ".join(parts)], LABEL_MESSAGE_SECONDS)
-
-func _cell_to_world(cell: Vector2i) -> Vector2:
-	return Vector2((cell.x + 0.5) * cell_size, (cell.y + 0.5) * cell_size)
 
 ## Shows `text` on this character's map label in place of its resting text,
 ## for `seconds` -- or, if 0, until reset_label puts it back (e.g. at the
