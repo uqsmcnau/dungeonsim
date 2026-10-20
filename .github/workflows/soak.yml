@@ -1,0 +1,52 @@
+name: Soak
+
+# Plays whole games headless, watching for frozen leaders, icons adrift
+# from their cells, stale map entries and fog lit with nobody near (see
+# tools/soak.gd). Too slow for every push -- run it by hand from the Actions
+# tab. A failing game replays exactly from the seed it reports.
+
+on:
+  workflow_dispatch:
+    inputs:
+      games:
+        description: "How many games"
+        default: "8"
+      first_seed:
+        description: "Seed of the first game (the rest follow on)"
+        default: "1"
+      seconds:
+        description: "Game seconds each, at most"
+        default: "600"
+
+env:
+  GODOT_VERSION: 4.7.2-stable
+
+jobs:
+  soak:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Godot
+        id: cache-godot
+        uses: actions/cache@v4
+        with:
+          path: /opt/godot
+          key: godot-${{ env.GODOT_VERSION }}-linux-x86_64
+
+      - name: Download Godot
+        if: steps.cache-godot.outputs.cache-hit != 'true'
+        run: |
+          curl -L -o /tmp/godot.zip "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
+          mkdir -p /opt/godot
+          unzip -q /tmp/godot.zip -d /opt/godot
+          mv "/opt/godot/Godot_v${GODOT_VERSION}_linux.x86_64" /opt/godot/godot
+          chmod +x /opt/godot/godot
+
+      - name: Import project (generates .godot/ cache and class_name registry)
+        run: /opt/godot/godot --headless --editor --path . --quit
+
+      - name: Soak
+        env:
+          GODOT: /opt/godot/godot
+        run: tools/soak.sh "${{ inputs.games }}" "${{ inputs.first_seed }}" "${{ inputs.seconds }}"

@@ -25,6 +25,10 @@ const GRAVE_SCENE: PackedScene = preload("res://scenes/Gravestone.tscn")
 ## than what everyone has. Starts the toolbar's "Party Vision" toggle in
 ## this state. Has no effect with the fog of war turned off.
 @export var party_vision: bool = true
+## 0 (the default) plays a fresh random game each time; anything else
+## replays the same maze, roster and dice rolls -- so a game that went wrong
+## (see tools/soak.gd) can be played again to see what happened.
+@export var game_seed: int = 0
 
 ## One distinct entry per NPC_COUNT -- kept at exactly 20 so no two of the
 ## 20 starting characters share both a name and a color (they'd otherwise
@@ -82,7 +86,10 @@ var respawner: MonsterRespawner
 @onready var music: MusicPlayer = $MusicPlayer
 
 func _ready() -> void:
-	randomize()
+	if game_seed != 0:
+		seed(game_seed)
+	else:
+		randomize()
 	world = WorldBuilder.new(self)
 	world.build_maze()
 	hud.fog_toggled.connect(_on_fog_toggled)
