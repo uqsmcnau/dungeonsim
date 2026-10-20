@@ -29,9 +29,8 @@ signal reached_exit(npc: NpcAgent)
 signal leveled_up(npc: NpcAgent)
 signal died(npc: NpcAgent)
 ## One blow, spell, heal or escape in a fight this character is part of
-## (see GroupCombat._report for what's in `event`) -- what the battle
-## window (BattleWindow) plays out.
-signal combat_event(event: Dictionary)
+## (a CombatEvent) -- what the battle window (BattleWindow) plays out.
+signal combat_event(event: CombatEvent)
 
 @export var npc_name: String = "NPC"
 @export var move_seconds_base: float = 0.35
@@ -729,20 +728,20 @@ func living_party() -> Array:
 func choose_combat_action(opponent_stats: NpcStats) -> String:
 	if stats.hp < int(stats.max_hp * IN_COMBAT_HEAL_THRESHOLD):
 		if stats.mp >= RECOVER_MP_COST:
-			return "recover"
+			return CombatRules.RECOVER
 		if stats.has_item("Health Potion"):
-			return "potion_hp"
+			return CombatRules.POTION
 
-	var best_action := "attack"
+	var best_action := CombatRules.ATTACK
 	var best_damage: float = CombatMath.expected_damage_dealt(stats, opponent_stats)
 	# Never spend the last of its mana on offense — always keep enough in
 	# reserve for one emergency Recover, so a spellcaster can't run itself
 	# out of healing by attacking too aggressively.
 	if stats.knows_spell("spark") and stats.mp - NpcStats.SPARK_MP_COST >= RECOVER_MP_COST and stats.spark_power() > best_damage:
-		best_action = "spark"
+		best_action = CombatRules.SPARK
 		best_damage = stats.spark_power()
 	if stats.knows_spell("fireball") and stats.mp - NpcStats.FIREBALL_MP_COST >= RECOVER_MP_COST and stats.fireball_power() > best_damage:
-		best_action = "fireball"
+		best_action = CombatRules.FIREBALL
 		best_damage = stats.fireball_power()
 	return best_action
 
@@ -755,22 +754,22 @@ func apply_combat_action(action: String, opponent_stats: NpcStats) -> Dictionary
 	var hp_before: int = stats.hp
 	var damage := 0
 	match action:
-		"recover":
+		CombatRules.RECOVER:
 			stats.mp -= RECOVER_MP_COST
 			stats.hp = min(stats.max_hp, stats.hp + stats.recover_power())
-		"potion_hp":
+		CombatRules.POTION:
 			_apply_consumable_effect("Health Potion")
-		"fireball":
+		CombatRules.FIREBALL:
 			stats.mp -= NpcStats.FIREBALL_MP_COST
 			damage = max(1, stats.fireball_power())
-		"spark":
+		CombatRules.SPARK:
 			stats.mp -= NpcStats.SPARK_MP_COST
 			damage = max(1, stats.spark_power())
 		_:
 			if randf() >= CombatMath.hit_chance_against(stats, opponent_stats):
 				return {"amount": 0, "missed": true}
 			damage = max(1, stats.attack_power() + randi() % 4 - opponent_stats.defense())
-	if action == "recover" or action == "potion_hp":
+	if CombatRules.is_heal(action):
 		return {"amount": stats.hp - hp_before, "missed": false}
 	opponent_stats.hp -= damage
 	return {"amount": damage, "missed": false}
@@ -820,16 +819,13 @@ func killer_description() -> String:
 ## "Iron Sword for 6 damage", "Bare hands for 3 damage".
 func killing_blow(action: String, damage: int) -> String:
 	var weapon := "Bare hands"
-	match action:
-		"fireball":
-			weapon = "Fireball"
-		"spark":
-			weapon = "Spark"
-		_:
-			for item_name in stats.equipped_in("hand"):
-				if ItemCatalog.find(item_name).get("effects", {}).has("attack"):
-					weapon = item_name
-					break
+	if CombatRules.is_offensive_spell(action):
+		weapon = CombatRules.ACTION_NAMES[action]
+	else:
+		for item_name in stats.equipped_in("hand"):
+			if ItemCatalog.find(item_name).get("effects", {}).has("attack"):
+				weapon = item_name
+				break
 	return "%s for %d damage" % [weapon, damage]
 
 func retreat() -> void:

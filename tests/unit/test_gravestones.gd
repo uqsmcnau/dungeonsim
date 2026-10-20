@@ -163,13 +163,13 @@ func test_killer_description_names_their_party():
 func test_killing_blows_name_the_spell_or_weapon():
 	var npc: NpcAgent = main.npcs[0]
 	npc.stats.equipped.clear()
-	assert_eq(npc.killing_blow("fireball", 12), "Fireball for 12 damage")
-	assert_eq(npc.killing_blow("spark", 5), "Spark for 5 damage")
-	assert_eq(npc.killing_blow("attack", 3), "Bare hands for 3 damage")
+	assert_eq(npc.killing_blow(CombatRules.FIREBALL, 12), "Fireball for 12 damage")
+	assert_eq(npc.killing_blow(CombatRules.SPARK, 5), "Spark for 5 damage")
+	assert_eq(npc.killing_blow(CombatRules.ATTACK, 3), "Bare hands for 3 damage")
 	npc.stats.acquire_item("Shield")
-	assert_eq(npc.killing_blow("attack", 3), "Bare hands for 3 damage", "a shield isn't a weapon")
+	assert_eq(npc.killing_blow(CombatRules.ATTACK, 3), "Bare hands for 3 damage", "a shield isn't a weapon")
 	npc.stats.acquire_item("Iron Sword")
-	assert_eq(npc.killing_blow("attack", 6), "Iron Sword for 6 damage")
+	assert_eq(npc.killing_blow(CombatRules.ATTACK, 6), "Iron Sword for 6 damage")
 
 func test_monster_killer_descriptions():
 	var monster := new_enemy()

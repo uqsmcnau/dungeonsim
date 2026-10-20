@@ -227,7 +227,7 @@ func _sync_battle_window() -> void:
 ## A blow, spell or escape in someone's fight: the battle window plays it
 ## out if it's the selected party's (brought up to date first, in case the
 ## fight's only just begun).
-func _on_combat_event(event: Dictionary) -> void:
+func _on_combat_event(event: CombatEvent) -> void:
 	_sync_battle_window()
 	hud.battle_window.play(event)
 
