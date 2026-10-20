@@ -10,6 +10,7 @@ var newcomer: NpcAgent
 
 func before_each():
 	load_main()
+	fast_forward()  # outcomes, not timings: no need to watch it in real time
 	host = main.npcs[0]
 	newcomer = main.npcs[1]
 	for npc in [host, newcomer]:

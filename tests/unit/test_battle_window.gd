@@ -462,6 +462,7 @@ func test_joining_a_player_fight_takes_on_the_same_foes():
 	assert_eq(GroupCombat.opponents_of(c, main.enemy_map), [b])
 
 func test_the_selected_partys_fight_plays_out_in_the_window():
+	fast_forward()
 	PartyOps.join_party_of(b, a)
 	for m in [a, b]:
 		set_stats(m, 5, 80, 6, 6)

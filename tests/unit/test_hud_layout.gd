@@ -201,6 +201,7 @@ func test_a_fallen_member_stays_listed_greyed_out_for_a_moment():
 	assert_gt(r["flash"].color.a, 0.0, "the death flash plays")
 
 func test_a_fallen_member_drops_off_the_list_after_the_grace_period():
+	fast_forward()
 	var leader: NpcAgent = main.npcs[0]
 	var follower: NpcAgent = main.npcs[1]
 	PartyOps.join_party_of(follower, leader)

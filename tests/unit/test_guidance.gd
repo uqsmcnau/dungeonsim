@@ -121,6 +121,7 @@ func test_arriving_clears_the_order():
 	assert_eq(a.guidance_target, MazeQuery.NONE)
 
 func test_party_actually_walks_to_the_ordered_spot():
+	fast_forward()
 	# Unexplored ground lies to the right, which its own AI would head for --
 	# the order sends it back left over ground it's already covered.
 	_isolate(corridor(9), Vector2i(4, 0), _row(0, 5))

@@ -17,6 +17,15 @@ func load_main() -> Node:
 	main = add_child_autofree(MAIN_SCENE.instantiate())
 	return main
 
+## Runs the game `factor` times faster -- steps, fight turns, timers, and
+## GUT's own waiting along with them, so a test that waits for characters
+## to walk somewhere takes a fraction of the time -- until this test's
+## `main` is freed. For tests about how things turn out, not exactly when;
+## never with music, which plays in real time regardless.
+func fast_forward(factor: float = 4.0) -> void:
+	Engine.time_scale = factor
+	main.tree_exiting.connect(func(): Engine.time_scale = 1.0, CONNECT_ONE_SHOT)
+
 ## A fresh monster, not yet set up (call setup() on it), freed after the test.
 func new_enemy() -> EnemyAgent:
 	return add_child_autofree(ENEMY_SCENE.instantiate())

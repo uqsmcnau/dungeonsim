@@ -12,6 +12,7 @@ var players: Dictionary = {}
 
 func before_each():
 	load_main()
+	fast_forward()  # outcomes, not timings: no need to watch it in real time
 	a = main.npcs[0]
 	b = main.npcs[1]
 
