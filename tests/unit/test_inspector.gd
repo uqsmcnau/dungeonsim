@@ -9,12 +9,15 @@ func before_each():
 func after_each():
 	get_tree().paused = false
 
+## A real left click -- press and release on the same spot -- through the
+## viewport's input, as the mouse would send it.
 func _click_at_world(world_pos: Vector2) -> void:
-	var event := InputEventMouseButton.new()
-	event.button_index = MOUSE_BUTTON_LEFT
-	event.pressed = true
-	event.position = get_viewport().get_canvas_transform() * world_pos
-	get_viewport().push_input(event)
+	for pressed in [true, false]:
+		var event := InputEventMouseButton.new()
+		event.button_index = MOUSE_BUTTON_LEFT
+		event.pressed = pressed
+		event.position = get_viewport().get_canvas_transform() * world_pos
+		get_viewport().push_input(event)
 
 func test_npc_at_finds_the_character_under_the_click():
 	var npc: NpcAgent = main.npcs[0]

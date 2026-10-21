@@ -1,4 +1,4 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://scripts/game_manager.gd" id="1_gm"]
 [ext_resource type="Script" path="res://scripts/maze_view.gd" id="2_mv"]
@@ -6,6 +6,7 @@
 [ext_resource type="Script" path="res://scripts/click_picker.gd" id="4_cp"]
 [ext_resource type="Script" path="res://scripts/music_player.gd" id="5_music"]
 [ext_resource type="Script" path="res://scripts/battle_window.gd" id="6_battle"]
+[ext_resource type="Script" path="res://scripts/map_camera.gd" id="7_camera"]
 
 [node name="Main" type="Node2D"]
 script = ExtResource("1_gm")
@@ -24,6 +25,11 @@ script = ExtResource("2_mv")
 
 [node name="Graves" type="Node2D" parent="World"]
 
+[node name="MapCamera" type="Camera2D" parent="."]
+process_mode = 3
+anchor_mode = 0
+script = ExtResource("7_camera")
+
 [node name="MusicPlayer" type="Node" parent="."]
 script = ExtResource("5_music")
 
@@ -38,6 +44,23 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 mouse_filter = 2
 script = ExtResource("3_hud")
+
+[node name="LeftFrame" type="ColorRect" parent="HUD/Control"]
+offset_right = 470.0
+offset_bottom = 1080.0
+color = Color(0.22, 0.22, 0.25, 1)
+
+[node name="RightFrame" type="ColorRect" parent="HUD/Control"]
+offset_left = 1456.0
+offset_right = 1920.0
+offset_bottom = 1080.0
+color = Color(0.22, 0.22, 0.25, 1)
+
+[node name="TopFrame" type="ColorRect" parent="HUD/Control"]
+offset_left = 470.0
+offset_right = 1456.0
+offset_bottom = 48.0
+color = Color(0.22, 0.22, 0.25, 1)
 
 [node name="FogToggle" type="CheckBox" parent="HUD/Control"]
 process_mode = 3

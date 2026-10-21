@@ -86,6 +86,8 @@ var respawner: MonsterRespawner
 @onready var grave_container: Node2D = $World/Graves
 @onready var hud: Hud = $HUD/Control
 @onready var music: MusicPlayer = $MusicPlayer
+## The view of the maze: zoom and move it about (see MapCamera).
+@onready var camera: MapCamera = $MapCamera
 
 func _ready() -> void:
 	if game_seed != 0:
@@ -94,6 +96,12 @@ func _ready() -> void:
 		randomize()
 	world = WorldBuilder.new(self)
 	world.build_maze()
+	# The view starts on the whole maze, border and all, which can't then be
+	# moved wholly out of view.
+	var border := Vector2.ONE * MazeView.BORDER_WIDTH * CELL_SIZE
+	camera.set_bounds(Rect2(maze_view.global_position - border, Vector2(MAZE_WIDTH, MAZE_HEIGHT) * CELL_SIZE + 2.0 * border))
+	camera.set_view_area(hud.map_area())
+	camera.frame(camera.maze_rect)
 	hud.fog_toggled.connect(_on_fog_toggled)
 	hud.party_vision_toggle.set_pressed_no_signal(party_vision)
 	hud.party_vision_toggled.connect(_on_party_vision_toggled)

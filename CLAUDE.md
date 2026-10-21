@@ -4,10 +4,10 @@ A Godot 4.7 (GDScript) spectator simulation: 20 autonomous, AI-controlled
 characters explore a procedurally generated maze, gain RPG levels through
 encounters, form parties, fight monsters and each other, and race for a
 boss room at the center of a circular maze. Each `NpcAgent` drives
-itself from `_process`; the spectator can only watch, pause, inspect (click
-a character or gravestone), toggle the fog of war / Party Vision, and give
-the selected party Guidance (right-click a cell, on a cooldown) — they never
-control anyone directly.
+itself from `_process`; the spectator can only watch, pause, zoom and move
+the view about, inspect (click a character or gravestone), toggle the fog of
+war / Party Vision, and give the selected party Guidance (right-click a
+cell, on a cooldown) — they never control anyone directly.
 
 ## Running it
 
@@ -115,6 +115,13 @@ also runs by hand on GitHub (Actions → Soak).
   (true off the grid too) rather than bounds checks — anything that
   enumerates or picks cells (spawning, respawning, sight, route planning,
   Guidance) has to skip rock. `MazeView` draws a stone border round it.
+- **`map_camera.gd` (`MapCamera`, as `main.camera`)** — zooming (wheel,
+  +/-) and moving the view (left- or middle-drag, WASD/arrows, Home to
+  reset). Its default is exactly the uncamera'd layout. The HUD has solid
+  frames down each side and along the top, so the maze only shows in
+  `hud.map_area()` between them. A left click only counts if the mouse
+  didn't move between press and release (`ClickPicker`), so dragging never
+  selects.
 - **`monster_respawner.gd` (`MonsterRespawner`, as `main.respawner`)** —
   splits the maze into 8x8 areas, remembers each area's starting monster
   count, and slowly respawns lost monsters out of every player's sight, never

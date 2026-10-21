@@ -22,6 +22,11 @@ signal selection_changed
 @onready var leaderboard_container: VBoxContainer = $LeaderboardStats
 ## Bottom left, below the selection column: the selected party's battles.
 @onready var battle_window: BattleWindow = $BattleWindow
+## Solid backing for the left and right columns and the toolbar, so a
+## zoomed or moved maze only shows in the space between them (map_area).
+@onready var left_frame: ColorRect = $LeftFrame
+@onready var right_frame: ColorRect = $RightFrame
+@onready var top_frame: ColorRect = $TopFrame
 @onready var winner_label: Label = $WinnerLabel
 @onready var fog_toggle: CheckBox = $FogToggle
 @onready var party_vision_toggle: CheckBox = $PartyVisionToggle
@@ -71,6 +76,12 @@ var party_panels: Dictionary = {}
 ## for DEATH_GRACE_SECONDS rather than vanishing from the list at once --
 ## the same courtesy the leaderboard gives (see mark_dead).
 var fallen_party_members: Dictionary = {}
+
+## The part of the screen the maze is seen through: between the columns,
+## below the toolbar.
+func map_area() -> Rect2:
+	var top_left := Vector2(left_frame.get_rect().end.x, top_frame.get_rect().end.y)
+	return Rect2(top_left, Vector2(right_frame.position.x, left_frame.get_rect().end.y) - top_left)
 
 func _ready() -> void:
 	winner_label.visible = false
