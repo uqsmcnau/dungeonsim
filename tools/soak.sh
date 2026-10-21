@@ -2,10 +2,13 @@
 # Soak test: plays several whole games at once, headless, each watched by
 # tools/soak.gd (frozen leaders, icons adrift from their cells, stale map
 # entries, fog lit with nobody near) -- and flags any script errors too.
-# Exits 1 if anything turned up; each game replays exactly from its seed:
-#   godot --headless --path . --fixed-fps 60 -s tools/soak.gd -- --seed=N
+# Exits 1 if anything turned up; each game replays exactly from its seed and
+# speed:
+#   godot --headless --path . --fixed-fps 60 --time-scale S -s tools/soak.gd -- --seed=N
 #
-# Usage, from anywhere: tools/soak.sh [games=8] [first_seed=1] [seconds=600]
+# Usage, from anywhere: tools/soak.sh [games=8] [first_seed=1] [seconds=600] [speed=1]
+# `speed` is the toolbar's game speed (1, 2, 5 or 10): x10 gets through a
+# game in about a tenth of the frames, which is what CI runs on every push.
 # Set GODOT to the Godot binary if it isn't on the PATH as `godot`.
 set -u
 cd "$(dirname "$0")/.."
@@ -13,10 +16,11 @@ godot_bin=${GODOT:-godot}
 games=${1:-8}
 first=${2:-1}
 seconds=${3:-600}
+speed=${4:-1}
 logs=$(mktemp -d)
 
 for ((s = first; s < first + games; s++)); do
-	"$godot_bin" --headless --path . --fixed-fps 60 -s tools/soak.gd -- --seed="$s" --seconds="$seconds" >"$logs/$s.log" 2>&1 &
+	"$godot_bin" --headless --path . --fixed-fps 60 --time-scale "$speed" -s tools/soak.gd -- --seed="$s" --seconds="$seconds" >"$logs/$s.log" 2>&1 &
 done
 wait
 

@@ -2,10 +2,15 @@ name: Soak
 
 # Plays whole games headless, watching for frozen leaders, icons adrift
 # from their cells, stale map entries and fog lit with nobody near (see
-# tools/soak.gd). Too slow for every push -- run it by hand from the Actions
-# tab. A failing game replays exactly from the seed it reports.
+# tools/soak.gd). Every push plays a few games at x10 game speed, starting
+# from a different seed each run (the run number), so over time it sees
+# plenty of different games; run it by hand from the Actions tab for more,
+# or at another speed. A failing game replays exactly from the seed and
+# speed it reports.
 
 on:
+  push:
+  pull_request:
   workflow_dispatch:
     inputs:
       games:
@@ -17,6 +22,9 @@ on:
       seconds:
         description: "Game seconds each, at most"
         default: "600"
+      speed:
+        description: "Game speed (1, 2, 5 or 10)"
+        default: "1"
 
 env:
   GODOT_VERSION: 4.7.2-stable
@@ -49,4 +57,9 @@ jobs:
       - name: Soak
         env:
           GODOT: /opt/godot/godot
-        run: tools/soak.sh "${{ inputs.games }}" "${{ inputs.first_seed }}" "${{ inputs.seconds }}"
+        run: >-
+          tools/soak.sh
+          "${{ inputs.games || '3' }}"
+          "${{ inputs.first_seed || github.run_number }}"
+          "${{ inputs.seconds || '600' }}"
+          "${{ inputs.speed || '10' }}"

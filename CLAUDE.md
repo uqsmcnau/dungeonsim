@@ -45,7 +45,7 @@ godot --headless --path . -s addons/gut/gut_cmdln.gd
 `.gutconfig.json` in the project root already points the runner at
 `tests/unit`, so no extra flags are needed. Exits 0 on success, 1 if any
 test fails — safe to gate CI on (see `.github/workflows/tests.yml`). The
-whole suite takes about 50 seconds.
+whole suite takes about a minute.
 
 Test scripts extend **`DungeonTest`** (`tests/dungeon_test.gd`, outside
 `tests/unit` so GUT doesn't collect it) rather than `GutTest`. It provides
@@ -96,15 +96,18 @@ soak test plays whole games headless and watches for those (see the top of
 that touches movement, combat or parties:
 
 ```
-tools/soak.sh [games=8] [first_seed=1] [seconds=600]
+tools/soak.sh [games=8] [first_seed=1] [seconds=600] [speed=1]
 ```
 
-Eight 600-second games take five minutes or so. It exits 1 on any problem,
-printing the seed and the recent history of whoever's involved. A game
-replays exactly from its seed (`GameManager.game_seed`; 0, the default, is
-a fresh random game), so a failure can be played again one game at a time:
-`godot --headless --path . --fixed-fps 60 -s tools/soak.gd -- --seed=N`. It
-also runs by hand on GitHub (Actions → Soak).
+Eight 600-second games take five minutes or so; at `speed` 10 (the
+toolbar's x10) a game takes a tenth of the frames. It exits 1 on any
+problem, printing the seed, speed and the recent history of whoever's
+involved. A game replays exactly from its seed and speed
+(`GameManager.game_seed`; 0, the default, is a fresh random game), so a
+failure can be played again one game at a time:
+`godot --headless --path . --fixed-fps 60 --time-scale S -s tools/soak.gd -- --seed=N`.
+On GitHub it plays 3 games at x10 on every push, from a new seed each run
+(Actions → Soak), and runs by hand there for more.
 
 ## Where things live
 

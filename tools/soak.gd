@@ -18,6 +18,8 @@ extends SceneTree
 ##   godot --headless --path . --fixed-fps 60 -s tools/soak.gd -- --seed=7
 ## Options (after the --): --seed=N (default 1; a game replays exactly from
 ## its seed), --seconds=N (game seconds before calling it a day; default 600).
+## Godot's own --time-scale=N (before the -s) plays it at the toolbar's game
+## speed xN; a game replays exactly only at the speed it was played at.
 ## Several games at once: tools/soak.sh.
 
 const STUCK_SECONDS := 10.0
@@ -69,7 +71,8 @@ func _process(delta: float) -> bool:
 	_check_dark(living)
 	if t >= max_seconds or main.winner != null or living.is_empty():
 		var winner: String = main.winner.npc_name if main.winner != null else "none"
-		print("SOAK seed=%d t=%.0f winner=%s alive=%d problems=%d" % [game_seed, t, winner, living.size(), problems])
+		print("SOAK seed=%d speed=x%d t=%.0f winner=%s alive=%d problems=%d" % [
+			game_seed, int(Engine.time_scale), t, winner, living.size(), problems])
 		main.free()
 		main = null
 	return false
@@ -163,7 +166,7 @@ func _problem(key: String, text: String, involved: Array) -> void:
 		return
 	_reported[key] = true
 	problems += 1
-	print("PROBLEM seed=%d t=%.1f: %s" % [game_seed, t, text])
+	print("PROBLEM seed=%d speed=x%d t=%.1f: %s" % [game_seed, int(Engine.time_scale), t, text])
 	for n in involved:
 		if not is_instance_valid(n):
 			continue
