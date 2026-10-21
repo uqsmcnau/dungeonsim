@@ -16,19 +16,17 @@ func before_each():
 	a = main.npcs[0]
 	b = main.npcs[1]
 	players = {}
-	var enemies: Dictionary = {}
+	# Maps of their own, shared by the two of them (see _place for the maze).
+	var maps := DungeonMaps.new()
+	maps.players = players
 	for npc in [a, b]:
 		main.player_map.erase(npc.cell_pos)
-		npc.players = players
-		npc.enemies = enemies
-		npc.chests = {}
-		npc.shops = {}
+		npc.use_maps(maps)
 		npc.known_shops = {}
 		npc.visited = {}
 		npc.party = [npc]
 		npc.is_party_leader = true
 		npc.finished = false
-		npc.storm = null  # the real map's storm has nothing to do with these mazes
 		npc.is_moving = false
 		npc.stats.alignment = NpcStats.ALIGNMENT_GOOD
 		npc.stats.inventory.clear()

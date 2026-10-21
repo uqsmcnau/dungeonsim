@@ -324,19 +324,33 @@ func _sync_fog() -> void:
 	for npc in graves:
 		graves[npc].visible = maze_view.is_discovered(npc.cell_pos)
 
+## The dungeon as the characters see it (see DungeonMaps): this game's maze,
+## its shared maps of who and what is where, and its storm.
+func shared_maps() -> DungeonMaps:
+	var maps := DungeonMaps.new(grid)
+	maps.cell_size = CELL_SIZE
+	maps.exit_cell = exit_cell
+	maps.enemies = enemy_map
+	maps.chests = chest_map
+	maps.shops = shop_map
+	maps.players = player_map
+	maps.safe_cells = restricted_cells
+	maps.storm = storm
+	return maps
+
 func _spawn_npcs() -> void:
+	var maps := shared_maps()
 	for i in range(NPC_COUNT):
 		var npc: NpcAgent = NPC_SCENE.instantiate()
 		npc_container.add_child(npc)
 		var color: Color = npc_colors[i % npc_colors.size()]
 		var display_name: String = npc_names[i % npc_names.size()]
 		var start_cell: Vector2i = start_cells[i]
-		npc.setup(start_cell, exit_cell, grid, CELL_SIZE, color, display_name, enemy_map, chest_map, shop_map, player_map, restricted_cells)
+		npc.setup(start_cell, color, display_name, maps)
 		npc.reached_exit.connect(_on_npc_reached_exit)
 		npc.leveled_up.connect(_on_npc_leveled_up)
 		npc.died.connect(_on_npc_died)
 		npc.combat_event.connect(_on_combat_event)
-		npc.storm = storm
 		npcs.append(npc)
 		hud.register_npc(npc)
 

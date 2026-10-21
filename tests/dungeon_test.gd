@@ -149,20 +149,16 @@ static func ring_maze() -> Array:
 ## `explored` (and its own cell).
 func isolate(npc: NpcAgent, g: Array, cell: Vector2i, players: Dictionary, explored: Array = []) -> void:
 	main.player_map.erase(npc.cell_pos)
-	npc.players = players
-	npc.enemies = {}
-	npc.chests = {}
-	npc.shops = {}
+	var maps := DungeonMaps.new(g)
+	maps.players = players
+	npc.use_maps(maps)
 	npc.known_shops = {}
-	npc.safe_cells = {}
 	npc.party = [npc]
 	npc.is_party_leader = true
 	npc.is_moving = false
 	npc.finished = false
 	npc.guidance_target = MazeQuery.NONE
-	npc.storm = null  # the real map's storm has nothing to do with this one
 	npc.stats.inventory.clear()
-	npc.grid = g
 	npc.cell_pos = cell
 	npc.position = npc._cell_to_world(cell)
 	npc.visited = {}

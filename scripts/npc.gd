@@ -114,19 +114,12 @@ var _storm_damage := 0.0
 func _ready() -> void:
 	leveled_up.connect(_on_leveled_up)
 
-func setup(spawn_cell: Vector2i, target_cell: Vector2i, maze_grid: Array, cs: float, color: Color,
-		display_name: String, enemy_map: Dictionary, chest_map: Dictionary, shop_map: Dictionary,
-		player_map: Dictionary, restricted_cells: Dictionary = {}) -> void:
+## A new character called `display_name`, starting on `spawn_cell` of the
+## dungeon `maps` describes.
+func setup(spawn_cell: Vector2i, color: Color, display_name: String, maps: DungeonMaps) -> void:
+	use_maps(maps)
 	cell_pos = spawn_cell
-	exit_cell = target_cell
-	grid = maze_grid
-	cell_size = cs
 	npc_name = display_name
-	enemies = enemy_map
-	chests = chest_map
-	shops = shop_map
-	players = player_map
-	safe_cells = restricted_cells
 	party = [self]
 	stats = NpcStats.new()
 	stats.roll_ability_scores()
@@ -138,6 +131,19 @@ func setup(spawn_cell: Vector2i, target_cell: Vector2i, maze_grid: Array, cs: fl
 	players[cell_pos] = self
 	reset_label()
 	_check_for_chest()
+
+## Works from `maps` (see DungeonMaps) from now on: its maze, and the
+## shared maps of who and what is where on it.
+func use_maps(maps: DungeonMaps) -> void:
+	grid = maps.grid
+	cell_size = maps.cell_size
+	exit_cell = maps.exit_cell
+	enemies = maps.enemies
+	chests = maps.chests
+	shops = maps.shops
+	players = maps.players
+	safe_cells = maps.safe_cells
+	storm = maps.storm
 
 func _process(delta: float) -> void:
 	if dead:

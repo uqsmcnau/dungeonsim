@@ -160,6 +160,12 @@ also runs by hand on GitHub (Actions → Soak).
   its icon's slide, and its entry in the shared `players` map. NpcBody asks
   NpcAgent what it needs through a few hooks (`_move_speed`, `_followers`,
   `represents_party`, `_on_enter_cell`).
+- **`dungeon_maps.gd` (`DungeonMaps`)** — what a character works from: the
+  maze, the shared who's-where maps (monsters, chests, shops, players, safe
+  zones) and the storm. `NpcAgent.setup` takes one, from
+  `GameManager.shared_maps()` (the very dictionaries GameManager owns, not
+  copies); `NpcAgent.use_maps` swaps it, as `DungeonTest.isolate` does to
+  stand a character on a hand-built maze. A new shared map goes here.
 - **`group_combat.gd` (`GroupCombat`)** — the two fight loops (party vs
   monster pack, party vs party) as static functions, turn-paced by SceneTree
   timers. Every blow, spell, heal and escape is reported as a
