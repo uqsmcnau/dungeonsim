@@ -8,6 +8,9 @@ signal fog_toggled(enabled: bool)
 signal party_vision_toggled(enabled: bool)
 ## Forwarded from the toolbar's music volume slider (0 to 1).
 signal volume_changed(volume: float)
+## From the toolbar's speed button: the game should now run `speed` times
+## as fast (one of GAME_SPEEDS).
+signal speed_changed(speed: float)
 ## Whenever the selected (inspected) character changes -- including to
 ## nobody -- so GameManager can move the map highlight right away, even
 ## while paused (when its _process isn't running).
@@ -38,6 +41,9 @@ signal selection_changed
 ## Pauses the whole SceneTree. It (and the fog toggle) run with
 ## PROCESS_MODE_ALWAYS so they stay clickable while everything else freezes.
 @onready var pause_button: Button = $PauseButton
+## Cycles through GAME_SPEEDS: a click speeds the game up, a right-click
+## slows it down. PROCESS_MODE_ALWAYS, so the speed can be set while paused.
+@onready var speed_button: Button = $SpeedButton
 @onready var players_left_label: Label = $PlayersLeftLabel
 ## Shows whether Guidance (right-click "go there", see
 ## GameManager._on_world_right_clicked) is ready, or how long until it is.
@@ -53,6 +59,9 @@ const GUIDANCE_COOLING_COLOR := Color(0.4, 0.45, 0.55)
 ## period (below). A dying character keeps occupying its slot until that
 ## grace period actually ends, so a lower-ranked living character isn't
 ## promoted into its place early.
+## The speeds the toolbar's speed button steps through, slowest first.
+const GAME_SPEEDS: Array[float] = [1.0, 2.0, 5.0, 10.0]
+
 const VISIBLE_HUD_COUNT := 10
 ## A character that was on the leaderboard at the moment it died keeps its
 ## panel on screen (playing the death flash, then sitting frozen and grey)
@@ -93,6 +102,8 @@ func _ready() -> void:
 	party_vision_toggle.toggled.connect(func(pressed: bool): party_vision_toggled.emit(pressed))
 	volume_slider.value_changed.connect(func(value: float): volume_changed.emit(value))
 	pause_button.toggled.connect(set_paused)
+	speed_button.pressed.connect(func(): step_speed(1))
+	speed_button.gui_input.connect(_on_speed_button_input)
 	var space := InputEventKey.new()
 	space.keycode = KEY_SPACE
 	pause_button.shortcut = Shortcut.new()
@@ -104,6 +115,7 @@ func _ready() -> void:
 	fog_toggle.focus_mode = Control.FOCUS_NONE
 	party_vision_toggle.focus_mode = Control.FOCUS_NONE
 	volume_slider.focus_mode = Control.FOCUS_NONE
+	speed_button.focus_mode = Control.FOCUS_NONE
 
 	guidance_widget = _make_stat_bar(GUIDANCE_READY_COLOR)
 	var guidance_bar: Control = guidance_widget["container"]
@@ -125,6 +137,28 @@ func set_paused(paused: bool) -> void:
 	get_tree().paused = paused
 	pause_button.set_pressed_no_signal(paused)
 	pause_button.text = "Resume" if paused else "Pause"
+
+## The game speed currently showing on the speed button.
+var game_speed := 1.0
+
+## Moves the game speed `steps` along GAME_SPEEDS (negative to slow down),
+## stopping at either end.
+func step_speed(steps: int) -> void:
+	var i := clampi(GAME_SPEEDS.find(game_speed) + steps, 0, GAME_SPEEDS.size() - 1)
+	if GAME_SPEEDS[i] == game_speed:
+		return
+	show_speed(GAME_SPEEDS[i])
+	speed_changed.emit(game_speed)
+
+func show_speed(speed: float) -> void:
+	game_speed = speed
+	speed_button.text = "Speed x%d" % int(speed)
+
+func _on_speed_button_input(event: InputEvent) -> void:
+	var mouse := event as InputEventMouseButton
+	if mouse != null and mouse.pressed and mouse.button_index == MOUSE_BUTTON_RIGHT:
+		step_speed(-1)
+		speed_button.accept_event()
 
 ## Keeps the storm line at the top of the map up to date: the countdown to
 ## it gathering, then to it closing in completely.

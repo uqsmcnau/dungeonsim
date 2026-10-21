@@ -135,6 +135,14 @@ func test_the_keyboard_moves_it():
 	_hold_key(KEY_D, false)
 	assert_almost_eq(cam.position.x - start_position.x, MapCamera.KEY_PAN_SPEED * 0.5 / start_zoom, 0.01, "the view moves right")
 
+func test_the_keys_move_it_at_the_same_pace_whatever_the_game_speed():
+	_hold_key(KEY_D, true)
+	Engine.time_scale = 10.0
+	cam._process(0.5 * 10.0)  # half a real second, at x10
+	Engine.time_scale = 1.0
+	_hold_key(KEY_D, false)
+	assert_almost_eq(cam.position.x - start_position.x, MapCamera.KEY_PAN_SPEED * 0.5 / start_zoom, 0.01)
+
 func test_the_maze_cant_be_lost_off_screen():
 	var area: Rect2 = main.hud.map_area()
 	for push in [Vector2(-100000, 0), Vector2(100000, 0), Vector2(0, -100000), Vector2(0, 100000)]:

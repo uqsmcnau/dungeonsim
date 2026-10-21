@@ -4,10 +4,11 @@ A Godot 4.7 (GDScript) spectator simulation: 20 autonomous, AI-controlled
 characters explore a procedurally generated maze, gain RPG levels through
 encounters, form parties, fight monsters and each other, and race for a
 boss room at the center of a circular maze. Each `NpcAgent` drives
-itself from `_process`; the spectator can only watch, pause, zoom and move
-the view about, inspect (click a character or gravestone), toggle the fog of
-war / Party Vision, and give the selected party Guidance (right-click a
-cell, on a cooldown) — they never control anyone directly.
+itself from `_process`; the spectator can only watch, pause, speed the
+game up (x2/x5/x10, via `Engine.time_scale`), zoom and move the view about,
+inspect (click a character or gravestone), toggle the fog of war / Party
+Vision, and give the selected party Guidance (right-click a cell, on a
+cooldown) — they never control anyone directly.
 
 ## Running it
 
@@ -156,7 +157,10 @@ also runs by hand on GitHub (Actions → Soak).
 - **`party_ops.gd` (`PartyOps`)** — party merging, naming, leader promotion,
   `leader_of(party)`, and item sharing. **`combat_math.gd` (`CombatMath`)** —
   pure hit/damage/win-chance math over two `NpcStats`.
-- **`hud.gd` (`Hud`)** — toolbar, the leaderboard (top 10, right column, compact panels without the gear section), and
+- **`hud.gd` (`Hud`)** — toolbar (including the game speed button, which
+  `GameManager.set_game_speed` turns into `Engine.time_scale` — so anything
+  that must keep real-time pace, like keyboard panning, divides it back
+  out), the leaderboard (top 10, right column, compact panels without the gear section), and
   the selection column (the selected character's full panel, then compact
   ones for the rest of their party, on the left).
 - **`battle_window.gd` (`BattleWindow`, as `hud.battle_window`)** — the

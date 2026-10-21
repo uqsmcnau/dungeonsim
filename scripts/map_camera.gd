@@ -134,8 +134,9 @@ func _process(delta: float) -> void:
 	if Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN):
 		direction.y += 1.0
 	if direction != Vector2.ZERO:
-		# Moving the view right moves the maze left across the screen.
-		pan_by(-direction.normalized() * KEY_PAN_SPEED * delta)
+		# Moving the view right moves the maze left across the screen -- at
+		# the same pace whatever the game speed (which scales `delta`).
+		pan_by(-direction.normalized() * KEY_PAN_SPEED * delta / Engine.time_scale)
 
 func _view_area() -> Rect2:
 	return view_area if view_area.size != Vector2.ZERO else get_viewport_rect()

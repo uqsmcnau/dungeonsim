@@ -77,51 +77,60 @@ horizontal_alignment = 1
 process_mode = 3
 offset_left = 490.0
 offset_top = 6.0
-offset_right = 640.0
+offset_right = 620.0
 offset_bottom = 40.0
 button_pressed = true
 text = "Fog of War"
 
 [node name="PauseButton" type="Button" parent="HUD/Control"]
 process_mode = 3
-offset_left = 650.0
+offset_left = 628.0
 offset_top = 6.0
-offset_right = 750.0
+offset_right = 708.0
 offset_bottom = 40.0
 toggle_mode = true
 text = "Pause"
 
+[node name="SpeedButton" type="Button" parent="HUD/Control"]
+process_mode = 3
+offset_left = 716.0
+offset_top = 6.0
+offset_right = 816.0
+offset_bottom = 40.0
+tooltip_text = "Game speed: click to speed up, right-click to slow down."
+text = "Speed x1"
+
 [node name="GuidanceIndicator" type="Control" parent="HUD/Control"]
 process_mode = 3
-offset_left = 760.0
+offset_left = 824.0
 offset_top = 6.0
-offset_right = 910.0
+offset_right = 974.0
 offset_bottom = 40.0
 tooltip_text = "Guidance: select a player, then right-click the maze to send their party there."
 
 [node name="PartyVisionToggle" type="CheckBox" parent="HUD/Control"]
 process_mode = 3
-offset_left = 920.0
+offset_left = 982.0
 offset_top = 6.0
-offset_right = 1070.0
+offset_right = 1112.0
 offset_bottom = 40.0
 tooltip_text = "Party Vision: while a player is selected, the fog of war shows only what their party can see and has explored."
 button_pressed = true
 text = "Party Vision"
 
 [node name="VolumeLabel" type="Label" parent="HUD/Control"]
-offset_left = 1080.0
+offset_left = 1120.0
 offset_top = 6.0
-offset_right = 1100.0
+offset_right = 1138.0
 offset_bottom = 40.0
 vertical_alignment = 1
 text = "♪"
 
 [node name="VolumeSlider" type="HSlider" parent="HUD/Control"]
 process_mode = 3
-offset_left = 1102.0
+offset_left = 1140.0
 offset_top = 6.0
-offset_right = 1222.0
+offset_right = 1230.0
 offset_bottom = 40.0
 tooltip_text = "Music volume"
 max_value = 1.0

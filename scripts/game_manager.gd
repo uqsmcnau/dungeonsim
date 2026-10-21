@@ -109,6 +109,7 @@ func _ready() -> void:
 	hud.party_vision_toggled.connect(_on_party_vision_toggled)
 	hud.volume_slider.set_value_no_signal(music.volume)
 	hud.volume_changed.connect(music.set_volume)
+	hud.speed_changed.connect(set_game_speed)
 	$ClickPicker.clicked.connect(_on_world_clicked)
 	$ClickPicker.right_clicked.connect(_on_world_right_clicked)
 	hud.selection_changed.connect(_sync_selection_highlight)
@@ -132,6 +133,16 @@ func _process(delta: float) -> void:
 	_sync_battle_window()
 	guidance_cooldown_left = maxf(0.0, guidance_cooldown_left - delta)
 	hud.update_guidance(guidance_cooldown_left, GUIDANCE_COOLDOWN)
+
+## Runs the whole game -- steps, fights, the storm, timers -- `speed` times
+## as fast. The music plays on in real time.
+func set_game_speed(speed: float) -> void:
+	Engine.time_scale = speed
+	hud.show_speed(speed)
+
+## Game speed is engine-wide, so it mustn't outlive the game.
+func _exit_tree() -> void:
+	Engine.time_scale = 1.0
 
 ## The fog checkbox stays usable while paused, but _process doesn't run then,
 ## so re-sync immediately or enemies/chests wouldn't appear/hide until resume.
