@@ -27,6 +27,8 @@ signal selection_changed
 @onready var left_frame: ColorRect = $LeftFrame
 @onready var right_frame: ColorRect = $RightFrame
 @onready var top_frame: ColorRect = $TopFrame
+## Across the top of the map: how long till the storm, or till it closes.
+@onready var storm_label: Label = $StormLabel
 @onready var winner_label: Label = $WinnerLabel
 @onready var fog_toggle: CheckBox = $FogToggle
 @onready var party_vision_toggle: CheckBox = $PartyVisionToggle
@@ -123,6 +125,23 @@ func set_paused(paused: bool) -> void:
 	get_tree().paused = paused
 	pause_button.set_pressed_no_signal(paused)
 	pause_button.text = "Resume" if paused else "Pause"
+
+## Keeps the storm line at the top of the map up to date: the countdown to
+## it gathering, then to it closing in completely.
+func update_storm(storm: Storm) -> void:
+	storm_label.text = storm_text(storm)
+
+static func storm_text(storm: Storm) -> String:
+	if storm.is_closed():
+		return "The storm covers everything"
+	if not storm.has_started():
+		return "The storm gathers in %s" % _clock(Storm.START_SECONDS - storm.elapsed)
+	return "The storm is closing in: %s until it covers everything" % _clock(Storm.CLOSED_SECONDS - storm.elapsed)
+
+## Seconds as m:ss, rounded up -- a countdown never shows 0:00 early.
+static func _clock(seconds: float) -> String:
+	var whole := ceili(seconds)
+	return "%d:%02d" % [whole / 60, whole % 60]
 
 ## Fills up as Guidance recharges: gold "Guidance ready" when it's usable,
 ## otherwise a greyed bar counting down the seconds left.

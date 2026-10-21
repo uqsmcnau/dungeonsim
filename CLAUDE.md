@@ -115,6 +115,15 @@ also runs by hand on GitHub (Actions → Soak).
   (true off the grid too) rather than bounds checks — anything that
   enumerates or picks cells (spawning, respawning, sight, route planning,
   Guidance) has to skip rock. `MazeView` draws a stone border round it.
+- **`storm.gd` (`Storm`, as `main.storm`, shared into every `NpcAgent`)** —
+  the battle-royale storm: gathering for 30s, then a ring shrinking from
+  the maze's edge to its centre, closing completely at 600s (game time, so
+  it pauses with the game). Anyone outside the ring loses HP and can't heal
+  (`NpcAgent._weather_the_storm`); a leader caught in it heads out first
+  (`_escape_the_storm`), and every route the AI picks steers round
+  `storm.covered` where there's another way (`_step_avoiding_storm`,
+  `_choose_candidate`, Guidance, retreating), going through only if it must.
+  `MazeView` draws it; the HUD counts it down.
 - **`map_camera.gd` (`MapCamera`, as `main.camera`)** — zooming (wheel,
   +/-) and moving the view (left- or middle-drag, WASD/arrows, Home to
   reset). Its default is exactly the uncamera'd layout. The HUD has solid
@@ -235,6 +244,10 @@ also runs by hand on GitHub (Actions → Soak).
   door), walls stayed lit around a spot the icon had left. Don't
   `create_tween()` on a character's `position` directly, and only `move_to()`
   an open neighbour (see `GroupCombat.claim_cell`).
+
+- **Healing goes through `NpcStats.heal()`.** Never raise `hp` directly:
+  `heal()` honours `can_heal`, which the storm switches off — a heal that
+  skips it would let someone recover out in the storm.
 
 - **`players` entries can be stale; check with `NpcBody.holds_cell()`.**
   An entry only counts if it's a living party leader whose `cell_pos` is

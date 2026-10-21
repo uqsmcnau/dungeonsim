@@ -116,7 +116,7 @@ static func ring_maze() -> Array:
 ## Takes `npc` out of the real game and stands it alone on cell `cell` of the
 ## hand-built maze `g`, registered in `players` (a map shared by whoever's
 ## isolated together) rather than the game's own -- no monsters, chests,
-## shops or safe rooms, no party, nothing in hand -- having explored
+## shops, safe rooms or storm, no party, nothing in hand -- having explored
 ## `explored` (and its own cell).
 func isolate(npc: NpcAgent, g: Array, cell: Vector2i, players: Dictionary, explored: Array = []) -> void:
 	main.player_map.erase(npc.cell_pos)
@@ -131,6 +131,7 @@ func isolate(npc: NpcAgent, g: Array, cell: Vector2i, players: Dictionary, explo
 	npc.is_moving = false
 	npc.finished = false
 	npc.guidance_target = MazeQuery.NONE
+	npc.storm = null  # the real map's storm has nothing to do with this one
 	npc.stats.inventory.clear()
 	npc.grid = g
 	npc.cell_pos = cell

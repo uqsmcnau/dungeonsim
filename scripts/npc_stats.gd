@@ -371,6 +371,20 @@ func _apply_effects(effects: Dictionary, sign: int) -> void:
 ## MP regenerates passively over time at a baseline of 1 per second, scaled
 ## by intelligence (an INT of 5 — the top of the starting range — gives
 ## exactly that baseline rate; higher INT from leveling regens faster).
+## False while its owner's out in the storm (see NpcAgent._weather_the_storm):
+## no HP comes back then -- not from Recover, a potion, or a level-up's
+## refill (see heal).
+var can_heal := true
+
+## Heals up to `amount` HP (never past max_hp), unless can_heal is off.
+## Returns how much was actually healed.
+func heal(amount: int) -> int:
+	if not can_heal:
+		return 0
+	var before := hp
+	hp = mini(max_hp, hp + amount)
+	return hp - before
+
 func regen_mp(delta: float) -> void:
 	if mp >= max_mp:
 		_mp_regen_accumulator = 0.0
@@ -404,7 +418,8 @@ func add_xp(amount: int) -> bool:
 		level += 1
 		xp_to_next = int(xp_to_next * 1.5)
 		max_hp += 6
-		hp = max_hp
+		if can_heal:
+			hp = max_hp
 		max_mp += 2
 		mp = max_mp
 		_boost_random_ability()

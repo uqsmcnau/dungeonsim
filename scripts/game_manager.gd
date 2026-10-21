@@ -78,6 +78,8 @@ var graves: Dictionary = {}
 var world: WorldBuilder
 ## Brings monster numbers back up over time (see MonsterRespawner).
 var respawner: MonsterRespawner
+## The storm closing in on the maze (see Storm).
+var storm: Storm
 
 @onready var maze_view: MazeView = $World/MazeView
 @onready var npc_container: Node2D = $World/NPCs
@@ -114,11 +116,16 @@ func _ready() -> void:
 	hud.selection_changed.connect(_sync_battle_window)
 	world.stock()
 	respawner = MonsterRespawner.new(self, world)
+	storm = Storm.new(maze_shape, grid)
+	maze_view.storm = storm
 	_spawn_npcs()
 
 func _process(delta: float) -> void:
 	hud.update_positions(npcs)
 	respawner.tick(delta)
+	storm.advance(delta)
+	hud.update_storm(storm)
+	maze_view.queue_redraw()  # the storm moves, fog or no fog
 	_sync_fog()
 	_sync_guidance_marker()
 	_sync_selection_highlight()
@@ -315,6 +322,7 @@ func _spawn_npcs() -> void:
 		npc.leveled_up.connect(_on_npc_leveled_up)
 		npc.died.connect(_on_npc_died)
 		npc.combat_event.connect(_on_combat_event)
+		npc.storm = storm
 		npcs.append(npc)
 		hud.register_npc(npc)
 

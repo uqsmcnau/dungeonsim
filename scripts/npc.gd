@@ -103,6 +103,10 @@ var guidance_target: Vector2i = MazeQuery.NONE
 var killed_by: String = ""
 var death_method: String = ""
 var is_party_leader: bool = true
+## The storm closing in (GameManager.storm, shared by everyone), or null --
+## no storm at all, as in a test's hand-built maze.
+var storm: Storm = null
+var _storm_damage := 0.0
 
 @onready var visual: Polygon2D = $Visual
 @onready var name_label: Label = $NameLabel
@@ -153,6 +157,9 @@ func _process(delta: float) -> void:
 		return
 	stats.regen_mp(delta)
 	_tick_label(delta)
+	_weather_the_storm(delta)
+	if dead:
+		return  # the storm took them
 	## Followers don't act independently at all — they just tag along with
 	## the leader (movement) and fight alongside it (combat), both driven
 	## entirely from the leader's own logic.
@@ -162,9 +169,57 @@ func _process(delta: float) -> void:
 	if finished or is_moving or in_pvp_combat:
 		return
 	# In order of priority; each says whether it took this turn.
-	if _settle_enemy_on_our_cell() or _settle_player_on_our_cell() or _see_to_ourselves():
+	if _settle_enemy_on_our_cell() or _settle_player_on_our_cell() or _escape_the_storm() or _see_to_ourselves():
 		return
 	_take_step()
+
+## Out in the storm (follower or leader, mid-fight or not): HP drains away
+## (Storm.DAMAGE_PER_SECOND), and none comes back (see NpcStats.can_heal).
+func _weather_the_storm(delta: float) -> void:
+	var exposed := storm != null and storm.covers(cell_pos)
+	stats.can_heal = not exposed
+	if not exposed:
+		return
+	_storm_damage += Storm.DAMAGE_PER_SECOND * delta
+	var damage := int(_storm_damage)
+	if damage <= 0:
+		return
+	_storm_damage -= damage
+	stats.hp -= damage
+	if stats.hp <= 0:
+		die("the storm", "Caught out in the storm")
+
+## Caught in the storm: heads for the nearest ground it doesn't cover, round
+## any monsters if there's a way. Comes straight after dealing with whoever's
+## on our own cell -- before healing, which the storm won't allow anyway.
+func _escape_the_storm() -> bool:
+	if storm == null or storm.is_closed() or not storm.covers(cell_pos):
+		return false
+	var step := MazeQuery.step_out_of(grid, cell_pos, storm.covered, _live_enemy_cells())
+	if step == cell_pos:
+		step = MazeQuery.step_out_of(grid, cell_pos, storm.covered)
+	if step == cell_pos:
+		return false  # nowhere left to run: carry on as best we can
+	current_action = "Escaping the storm"
+	_attempt_move(step)
+	return true
+
+## The cells the storm covers right now (none if there's no storm), for
+## routes to steer round.
+func _storm_cells() -> Dictionary:
+	return storm.covered if storm != null else {}
+
+## First step towards `to`, staying out of the storm if there's a way (and
+## round `blocked` cells), else through it.
+func _step_avoiding_storm(to: Vector2i, max_depth: int, blocked: Dictionary = {}) -> Vector2i:
+	var storm_cells := _storm_cells()
+	if not storm_cells.is_empty() and not storm_cells.has(to):
+		var avoiding: Dictionary = blocked.duplicate()
+		avoiding.merge(storm_cells)
+		var step := MazeQuery.step_toward(grid, cell_pos, to, max_depth, avoiding)
+		if step != cell_pos:
+			return step
+	return MazeQuery.step_toward(grid, cell_pos, to, max_depth, blocked)
 
 ## Safety net: if a live enemy is ever standing on our own cell (e.g. one
 ## wandered into our destination while we were mid-transit), resolve that
@@ -215,7 +270,7 @@ func _see_to_ourselves() -> bool:
 	if pending_tome != "":
 		_consume_item_idle(pending_tome)
 		return true
-	if _needs_healing():
+	if _needs_healing() and stats.can_heal:  # no use trying in the storm
 		if stats.mp >= RECOVER_MP_COST:
 			_cast_recover_idle()
 		elif stats.has_item("Health Potion"):
@@ -255,7 +310,7 @@ func _cast_recover_idle() -> void:
 
 func _finish_recover_idle() -> void:
 	stats.mp -= RECOVER_MP_COST
-	stats.hp = min(stats.max_hp, stats.hp + stats.recover_power())
+	stats.heal(stats.recover_power())
 	is_moving = false
 	reset_label()
 
@@ -265,7 +320,7 @@ func _apply_consumable_effect(item_name: String) -> void:
 	var item := ItemCatalog.find(item_name)
 	match item.get("effect", ""):
 		"heal_hp":
-			stats.hp = min(stats.max_hp, stats.hp + int(item["amount"]))
+			stats.heal(int(item["amount"]))
 		"restore_mp":
 			stats.mp = min(stats.max_mp, stats.mp + int(item["amount"]))
 		"learn_spell":
@@ -384,6 +439,7 @@ func _follow_guidance() -> bool:
 func _guidance_step() -> Vector2i:
 	var known := _party_known_cells()
 	var avoid := _live_enemy_cells()
+	avoid.merge(_storm_cells())  # (the target itself is never avoided)
 	for c in players:
 		if c != cell_pos and _has_live_player(c):
 			avoid[c] = true
@@ -407,7 +463,7 @@ func _party_up_step() -> Vector2i:
 	var target := MazeQuery.nearest_visible(grid, cell_pos, SIGHT_RANGE, candidates)
 	if target == MazeQuery.NONE:
 		return cell_pos
-	var step := MazeQuery.step_toward(grid, cell_pos, target, PARTY_PATH_DEPTH, _live_enemy_cells())
+	var step := _step_avoiding_storm(target, PARTY_PATH_DEPTH, _live_enemy_cells())
 	if step != cell_pos:
 		current_action = "Heading to join %s" % players[target].npc_name
 	return step
@@ -443,11 +499,15 @@ func _shop_step() -> Vector2i:
 	var nearest := MazeQuery.NONE
 	var nearest_dist := 1 << 30
 	for c in known_shops:
+		if _storm_cells().has(c):
+			continue  # not worth a trip into the storm
 		var d: int = abs(c.x - cell_pos.x) + abs(c.y - cell_pos.y)
 		if d < nearest_dist:
 			nearest = c
 			nearest_dist = d
-	return MazeQuery.step_toward(grid, cell_pos, nearest, SHOP_PATH_DEPTH)
+	if nearest == MazeQuery.NONE:
+		return cell_pos
+	return _step_avoiding_storm(nearest, SHOP_PATH_DEPTH)
 
 ## Whether a shop visit would do anything for anyone in the party -- the
 ## whole party shops together (see _finish_shopping).
@@ -502,7 +562,7 @@ func _chest_step() -> Vector2i:
 		chest_goal = MazeQuery.nearest_visible(grid, cell_pos, SIGHT_RANGE, _chests_worth_trying())
 	if chest_goal == MazeQuery.NONE:
 		return cell_pos
-	var step := MazeQuery.step_toward(grid, cell_pos, chest_goal, CHEST_PATH_DEPTH, _live_enemy_cells())
+	var step := _step_avoiding_storm(chest_goal, CHEST_PATH_DEPTH, _live_enemy_cells())
 	if step == cell_pos:
 		skipped_chests[chest_goal] = CHEST_SKIP_STEPS
 		chest_goal = MazeQuery.NONE
@@ -514,12 +574,14 @@ func _tick_skipped_chests() -> void:
 		if skipped_chests[c] <= 0:
 			skipped_chests.erase(c)
 
+## The chests worth going for: not set aside, and not out in the storm.
 func _chests_worth_trying() -> Dictionary:
-	if skipped_chests.is_empty():
+	var storm_cells := _storm_cells()
+	if skipped_chests.is_empty() and storm_cells.is_empty():
 		return chests
 	var result: Dictionary = {}
 	for c in chests:
-		if not skipped_chests.has(c):
+		if not skipped_chests.has(c) and not storm_cells.has(c):
 			result[c] = chests[c]
 	return result
 
@@ -533,25 +595,29 @@ func _live_enemy_cells() -> Dictionary:
 ## Prefers an unvisited, enemy-free cell; falls back to any unvisited cell
 ## (even an enemy's) once safe options run out, then to the BFS frontier
 ## search, then to a random already-visited neighbor if fully boxed in.
+##
+## Ground the storm covers comes last: an unvisited cell out of it first,
+## then the frontier by a route that stays out of it, and only then
+## unvisited cells or a route in it.
 func _choose_candidate(open_dirs: Array) -> Vector2i:
-	var unvisited: Array = []
-	for c in open_dirs:
-		if not visited.has(c):
-			unvisited.append(c)
-
-	if unvisited.is_empty():
-		var frontier_step := _step_toward_frontier()
-		if frontier_step != cell_pos:
-			return frontier_step
-		return open_dirs[randi() % open_dirs.size()]
-
-	var safe: Array = []
-	for c in unvisited:
-		if not _has_live_enemy(c):
-			safe.append(c)
-	if safe.size() > 0:
+	var storm_cells := _storm_cells()
+	var unvisited: Array = open_dirs.filter(func(c): return not visited.has(c))
+	var dry: Array = unvisited.filter(func(c): return not storm_cells.has(c))
+	var safe: Array = dry.filter(func(c): return not _has_live_enemy(c))
+	if not safe.is_empty():
 		return safe[randi() % safe.size()]
-	return unvisited[randi() % unvisited.size()]
+	if not dry.is_empty():
+		return dry[randi() % dry.size()]
+	var frontier_step := _step_toward_frontier(storm_cells)
+	if frontier_step != cell_pos:
+		return frontier_step
+	if not unvisited.is_empty():
+		var calm: Array = unvisited.filter(func(c): return not _has_live_enemy(c))
+		return calm[randi() % calm.size()] if not calm.is_empty() else unvisited[randi() % unvisited.size()]
+	frontier_step = _step_toward_frontier()
+	if frontier_step != cell_pos:
+		return frontier_step
+	return open_dirs[randi() % open_dirs.size()]
 
 func _has_live_enemy(cell: Vector2i) -> bool:
 	if not enemies.has(cell):
@@ -723,7 +789,7 @@ func living_party() -> Array:
 ## they've leveled up or found a sword — this compares them fresh each turn
 ## rather than always preferring magic once it's known.
 func choose_combat_action(opponent_stats: NpcStats) -> String:
-	if stats.hp < int(stats.max_hp * IN_COMBAT_HEAL_THRESHOLD):
+	if stats.hp < int(stats.max_hp * IN_COMBAT_HEAL_THRESHOLD) and stats.can_heal:
 		if stats.mp >= RECOVER_MP_COST:
 			return CombatRules.RECOVER
 		if stats.has_item("Health Potion"):
@@ -753,7 +819,7 @@ func apply_combat_action(action: String, opponent_stats: NpcStats) -> Dictionary
 	match action:
 		CombatRules.RECOVER:
 			stats.mp -= RECOVER_MP_COST
-			stats.hp = min(stats.max_hp, stats.hp + stats.recover_power())
+			stats.heal(stats.recover_power())
 		CombatRules.POTION:
 			_apply_consumable_effect("Health Potion")
 		CombatRules.FIREBALL:
@@ -825,27 +891,41 @@ func killing_blow(action: String, damage: int) -> String:
 				break
 	return "%s for %d damage" % [weapon, damage]
 
+## Backs off a step onto ground already covered, clear of monsters and
+## other players (see _retreat_cell) -- or stays put if there's none.
 func retreat() -> void:
-	var open_dirs := MazeQuery.open_neighbors(grid, cell_pos)
+	var cell := _retreat_cell()
+	if cell != cell_pos:
+		move_to(cell)
+
+## Where retreat would back off to: a random neighbour already explored and
+## clear of monsters and players -- out of the storm rather than into it,
+## where there's the choice -- or our own cell if there's nowhere.
+func _retreat_cell() -> Vector2i:
 	var retreat_options: Array = []
-	for c in open_dirs:
+	for c in MazeQuery.open_neighbors(grid, cell_pos):
 		if visited.has(c) and not _has_live_enemy(c) and not _has_live_player(c):
 			retreat_options.append(c)
 	if retreat_options.is_empty():
-		return
-	move_to(retreat_options[randi() % retreat_options.size()])
+		return cell_pos
+	var storm_cells := _storm_cells()
+	var dry: Array = retreat_options.filter(func(c): return not storm_cells.has(c))
+	if not dry.is_empty():
+		retreat_options = dry
+	return retreat_options[randi() % retreat_options.size()]
 
 ## BFS over cells reachable through open passages, looking for the nearest
 ## cell that still has an unvisited neighbor. Returns the first step along
-## the way there, or cell_pos itself if nothing is left to discover.
-func _step_toward_frontier() -> Vector2i:
+## the way there, or cell_pos itself if nothing is left to discover --
+## never going through an `avoid` cell (the storm, say) on the way.
+func _step_toward_frontier(avoid: Dictionary = {}) -> Vector2i:
 	var queue: Array = [cell_pos]
 	var came_from: Dictionary = {cell_pos: cell_pos}
 
 	while queue.size() > 0:
 		var cur: Vector2i = queue.pop_front()
 		for n in MazeQuery.open_neighbors(grid, cur):
-			if came_from.has(n):
+			if came_from.has(n) or avoid.has(n):
 				continue
 			came_from[n] = cur
 			if not visited.has(n):

@@ -62,6 +62,17 @@ offset_right = 1456.0
 offset_bottom = 48.0
 color = Color(0.22, 0.22, 0.25, 1)
 
+[node name="StormLabel" type="Label" parent="HUD/Control"]
+offset_left = 470.0
+offset_top = 52.0
+offset_right = 1456.0
+offset_bottom = 80.0
+theme_override_colors/font_color = Color(0.9, 0.75, 1, 1)
+theme_override_colors/font_outline_color = Color(0.1, 0.02, 0.15, 1)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 16
+horizontal_alignment = 1
+
 [node name="FogToggle" type="CheckBox" parent="HUD/Control"]
 process_mode = 3
 offset_left = 490.0

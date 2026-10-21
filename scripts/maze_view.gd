@@ -22,6 +22,13 @@ const FLOOR_COLOR := Color(0.3, 0.3, 0.3)
 var _border := PackedVector2Array()
 var _floor: Array = []
 
+## The storm closing in (see Storm), drawn over everything outside its ring
+## -- the maze, the border -- as a purple haze with a glowing edge.
+var storm: Storm = null
+const STORM_COLOR := Color(0.45, 0.15, 0.7, 0.4)
+const STORM_EDGE_COLOR := Color(0.85, 0.55, 1.0, 0.95)
+const STORM_EDGE_WIDTH := 3.0
+
 ## Fog of war: cells any character has ever seen stay in `discovered`
 ## forever. `currently_visible` is recomputed every tick from where
 ## characters are right now, plus any `sticky_cells` that have already
@@ -227,6 +234,8 @@ func _draw() -> void:
 			if walls & MazeGenerator.WALL_W:
 				draw_line(top_left, bottom_left, wall_color, thickness)
 
+	_draw_storm()
+
 	if guidance_marker != MazeQuery.NONE:
 		var center := Vector2((guidance_marker.x + 0.5) * cell_size, (guidance_marker.y + 0.5) * cell_size)
 		draw_arc(center, cell_size * 0.4, 0.0, TAU, 24, Color(1.0, 0.85, 0.2, 0.95), 2.0)
@@ -243,3 +252,18 @@ func _draw_marker_if_visible(cell: Vector2i, color: Color) -> void:
 func _draw_marker(cell: Vector2i, color: Color) -> void:
 	var top_left := Vector2(cell.x * cell_size, cell.y * cell_size)
 	draw_rect(Rect2(top_left, Vector2(cell_size, cell_size)), color)
+
+## The storm, once it's begun: a haze over everything outside its ring, out
+## past the border, and the ring itself picked out as it closes. Once it's
+## closed it covers the lot.
+func _draw_storm() -> void:
+	if storm == null or not storm.has_started():
+		return
+	var middle := storm.center * cell_size
+	var outer := (storm.start_radius + BORDER_WIDTH + 0.5) * cell_size
+	var inner := storm.radius * cell_size
+	if inner <= 0.0:
+		draw_circle(middle, outer, STORM_COLOR)
+		return
+	draw_arc(middle, (inner + outer) / 2.0, 0.0, TAU, 128, STORM_COLOR, outer - inner)
+	draw_arc(middle, inner, 0.0, TAU, 128, STORM_EDGE_COLOR, STORM_EDGE_WIDTH, true)

@@ -101,6 +101,31 @@ static func step_toward(grid: Array, from: Vector2i, to: Vector2i, max_depth: in
 		depth += 1
 	return from
 
+## First step of a shortest path from `from` out of `region` (cells as
+## keys) -- to the nearest cell that isn't in it -- never entering `blocked`
+## cells on the way. Returns `from` itself if it's already out, or there's
+## no way out.
+static func step_out_of(grid: Array, from: Vector2i, region: Dictionary, blocked: Dictionary = {}) -> Vector2i:
+	if not region.has(from):
+		return from
+	var came_from: Dictionary = {from: from}
+	var frontier: Array = [from]
+	while not frontier.is_empty():
+		var next_frontier: Array = []
+		for cur in frontier:
+			for n in open_neighbors(grid, cur):
+				if came_from.has(n) or blocked.has(n):
+					continue
+				came_from[n] = cur
+				if not region.has(n):
+					var step: Vector2i = n
+					while came_from[step] != from:
+						step = came_from[step]
+					return step
+				next_frontier.append(n)
+		frontier = next_frontier
+	return from
+
 ## First step of an A* search from `from` to `to` across a maze that's only
 ## partly known: a passage touching a `known` cell is as the grid says (seeing
 ## a cell means seeing its walls), but between two unknown cells it's assumed
