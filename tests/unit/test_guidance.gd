@@ -272,7 +272,7 @@ func test_right_click_with_nobody_selected_does_nothing():
 func test_right_click_works_while_paused():
 	var target := _explored_neighbor(a)
 	main.hud.inspect(a)
-	main.hud.set_paused(true)
+	main.hud.toolbar.set_paused(true)
 	main._on_world_right_clicked(_world_center(target))
 	assert_eq(a.guidance_target, target)
 
@@ -286,7 +286,7 @@ func test_giving_guidance_starts_the_cooldown():
 	main.hud.inspect(a)
 	_guide(target)
 	assert_eq(main.guidance_cooldown_left, main.GUIDANCE_COOLDOWN)
-	assert_eq(main.hud.guidance_widget["label"].text, "Guidance 15s")
+	assert_eq(main.hud.toolbar.guidance_widget["label"].text, "Guidance 15s")
 
 func test_guidance_is_refused_while_on_cooldown():
 	var first := _explored_neighbor(a, 0)
@@ -303,7 +303,7 @@ func test_guidance_is_usable_again_once_the_cooldown_runs_out():
 	_guide(first)
 	main._process(main.GUIDANCE_COOLDOWN)
 	assert_eq(main.guidance_cooldown_left, 0.0)
-	assert_eq(main.hud.guidance_widget["label"].text, "Guidance ready")
+	assert_eq(main.hud.toolbar.guidance_widget["label"].text, "Guidance ready")
 	_guide(second)
 	assert_eq(a.guidance_target, second)
 
@@ -312,8 +312,8 @@ func test_indicator_fills_up_as_guidance_recharges():
 	main.hud.inspect(a)
 	_guide(target)
 	main._process(main.GUIDANCE_COOLDOWN / 2.0)
-	assert_almost_eq(main.hud.guidance_widget["bar"].value, 0.5, 0.01)
-	assert_eq(main.hud.guidance_widget["label"].text, "Guidance 8s")
+	assert_almost_eq(main.hud.toolbar.guidance_widget["bar"].value, 0.5, 0.01)
+	assert_eq(main.hud.toolbar.guidance_widget["label"].text, "Guidance 8s")
 
 func test_right_click_that_gives_no_guidance_does_not_use_up_the_cooldown():
 	main.hud.inspect(a)
@@ -330,7 +330,7 @@ func test_right_click_with_nobody_selected_does_not_use_up_the_cooldown():
 func test_cooldown_does_not_tick_while_paused():
 	var target := _explored_neighbor(a)
 	main.hud.inspect(a)
-	main.hud.set_paused(true)
+	main.hud.toolbar.set_paused(true)
 	_guide(target)
 	# Not wait_seconds(): GUT's own waiting freezes along with the paused
 	# tree and would never return. A process_always timer keeps running.

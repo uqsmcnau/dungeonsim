@@ -106,9 +106,9 @@ func test_a_passing_message_goes_back_to_rest_on_its_own():
 func test_a_passing_message_waits_while_paused():
 	var leader: NpcAgent = main.npcs[0]
 	PartyOps.join_party_of(main.npcs[1], leader)
-	main.hud.set_paused(true)
+	main.hud.toolbar.set_paused(true)
 	await get_tree().create_timer(MapLabel.MESSAGE_SECONDS + 0.3, true).timeout
-	main.hud.set_paused(false)
+	main.hud.toolbar.set_paused(false)
 	assert_string_contains(leader.name_label.text, "grew to 2!")
 
 func test_a_new_leader_finishes_a_message_the_fallen_one_was_showing():

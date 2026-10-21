@@ -178,9 +178,9 @@ func test_setting_the_volume_sets_the_music_bus():
 
 func test_the_toolbar_slider_controls_the_volume_even_while_paused():
 	load_main()
-	var slider: HSlider = main.hud.volume_slider
+	var slider: HSlider = main.hud.toolbar.volume_slider
 	assert_almost_eq(slider.value, main.music.volume, 0.001, "starts where the music does")
-	main.hud.set_paused(true)
+	main.hud.toolbar.set_paused(true)
 	slider.value = 0.2
 	assert_almost_eq(main.music.volume, 0.2, 0.001)
 	assert_almost_eq(AudioServer.get_bus_volume_db(_bus()), linear_to_db(0.2), 0.01)
@@ -188,10 +188,10 @@ func test_the_toolbar_slider_controls_the_volume_even_while_paused():
 
 func test_the_slider_doesnt_steal_the_spacebar():
 	load_main()
-	assert_eq(main.hud.volume_slider.focus_mode, Control.FOCUS_NONE)
+	assert_eq(main.hud.toolbar.volume_slider.focus_mode, Control.FOCUS_NONE)
 
 func test_the_game_starts_at_ten_percent_volume():
 	load_main()
 	assert_almost_eq(main.music.volume, 0.1, 0.001)
-	assert_almost_eq(main.hud.volume_slider.value, 0.1, 0.001)
+	assert_almost_eq(main.hud.toolbar.volume_slider.value, 0.1, 0.001)
 	assert_almost_eq(AudioServer.get_bus_volume_db(_bus()), linear_to_db(0.1), 0.01)

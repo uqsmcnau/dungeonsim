@@ -105,7 +105,7 @@ func test_inspected_character_stays_shown_after_dying():
 
 func test_inspecting_while_paused_shows_current_stats():
 	var npc: NpcAgent = main.npcs[0]
-	main.hud.set_paused(true)
+	main.hud.toolbar.set_paused(true)
 	npc.stats.gold = 777
 	main._on_world_clicked(npc.global_position)
 	assert_string_contains(main.hud.inspector["header"].text, "777g", "should refresh immediately, since _process isn't running while paused")

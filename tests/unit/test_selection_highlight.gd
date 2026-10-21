@@ -61,12 +61,12 @@ func test_clicking_anywhere_else_on_the_map_deselects():
 
 func test_closing_the_panel_clears_the_ring_even_while_paused():
 	click_on(main.npcs[0])
-	main.hud.set_paused(true)
+	main.hud.toolbar.set_paused(true)
 	main.hud.inspector["close_button"].pressed.emit()
 	assert_eq(main.maze_view.selection_radius, 0.0)
 
 func test_selecting_while_paused_rings_them_straight_away():
-	main.hud.set_paused(true)
+	main.hud.toolbar.set_paused(true)
 	click_on(main.npcs[0])
 	assert_gt(main.maze_view.selection_radius, 0.0)
 

@@ -52,7 +52,7 @@ func test_clicking_a_gravestone_works_while_paused():
 	var npc: NpcAgent = main.npcs[0]
 	npc.die()
 	main._process(0.0)
-	main.hud.set_paused(true)
+	main.hud.toolbar.set_paused(true)
 	_click(main.graves[npc].position)
 	assert_eq(main.hud.inspected, npc)
 

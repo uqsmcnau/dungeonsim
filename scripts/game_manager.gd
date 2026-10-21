@@ -107,12 +107,12 @@ func _ready() -> void:
 	camera.set_bounds(Rect2(maze_view.global_position - border, Vector2(MAZE_WIDTH, MAZE_HEIGHT) * CELL_SIZE + 2.0 * border))
 	camera.set_view_area(hud.map_area())
 	camera.frame(camera.maze_rect)
-	hud.fog_toggled.connect(_on_fog_toggled)
-	hud.party_vision_toggle.set_pressed_no_signal(party_vision)
-	hud.party_vision_toggled.connect(_on_party_vision_toggled)
-	hud.volume_slider.set_value_no_signal(music.volume)
-	hud.volume_changed.connect(music.set_volume)
-	hud.speed_changed.connect(set_game_speed)
+	hud.toolbar.fog_toggled.connect(_on_fog_toggled)
+	hud.toolbar.party_vision_toggle.set_pressed_no_signal(party_vision)
+	hud.toolbar.party_vision_toggled.connect(_on_party_vision_toggled)
+	hud.toolbar.volume_slider.set_value_no_signal(music.volume)
+	hud.toolbar.volume_changed.connect(music.set_volume)
+	hud.toolbar.speed_changed.connect(set_game_speed)
 	$ClickPicker.clicked.connect(_on_world_clicked)
 	$ClickPicker.right_clicked.connect(_on_world_right_clicked)
 	hud.selection_changed.connect(_sync_selection_highlight)
@@ -135,13 +135,13 @@ func _process(delta: float) -> void:
 	_sync_selection_highlight()
 	_sync_battle_window()
 	guidance_cooldown_left = maxf(0.0, guidance_cooldown_left - delta)
-	hud.update_guidance(guidance_cooldown_left, GUIDANCE_COOLDOWN)
+	hud.toolbar.update_guidance(guidance_cooldown_left, GUIDANCE_COOLDOWN)
 
 ## Runs the whole game -- steps, fights, the storm, timers -- `speed` times
 ## as fast. The music plays on in real time.
 func set_game_speed(speed: float) -> void:
 	Engine.time_scale = speed
-	hud.show_speed(speed)
+	hud.toolbar.show_speed(speed)
 
 ## Game speed is engine-wide, so it mustn't outlive the game.
 func _exit_tree() -> void:
@@ -185,11 +185,11 @@ func _on_world_right_clicked(world_pos: Vector2) -> void:
 	if MazeGenerator.is_outside(grid, cell):  # off the map, or the rock around the maze
 		return
 	if guidance_cooldown_left > 0.0:
-		hud.guidance_denied()
+		hud.toolbar.guidance_denied()
 		return
 	if leader.guide_to(cell):
 		guidance_cooldown_left = GUIDANCE_COOLDOWN
-		hud.update_guidance(guidance_cooldown_left, GUIDANCE_COOLDOWN)
+		hud.toolbar.update_guidance(guidance_cooldown_left, GUIDANCE_COOLDOWN)
 	_sync_guidance_marker()
 
 ## The leader of the selected character's party, or null if nobody's

@@ -8,13 +8,13 @@ func before_each():
 func test_counter_starts_at_full_headcount():
 	main._process(0.0)
 	var n: int = main.npcs.size()
-	assert_eq(main.hud.players_left_label.text, "Players left: %d / %d" % [n, n])
+	assert_eq(main.hud.toolbar.players_left_label.text, "Players left: %d / %d" % [n, n])
 
 func test_counter_drops_when_a_player_dies():
 	var n: int = main.npcs.size()
 	main.npcs[0].die()
 	main._process(0.0)
-	assert_eq(main.hud.players_left_label.text, "Players left: %d / %d" % [n - 1, n])
+	assert_eq(main.hud.toolbar.players_left_label.text, "Players left: %d / %d" % [n - 1, n])
 
 func test_counter_reaches_zero_when_everyone_has_fallen():
 	var n: int = main.npcs.size()
@@ -22,4 +22,4 @@ func test_counter_reaches_zero_when_everyone_has_fallen():
 	for npc in main.npcs.duplicate():
 		npc.die()
 	main._process(0.0)
-	assert_eq(main.hud.players_left_label.text, "Players left: 0 / %d" % n)
+	assert_eq(main.hud.toolbar.players_left_label.text, "Players left: 0 / %d" % n)

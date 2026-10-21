@@ -111,7 +111,7 @@ func test_the_pooled_map_is_kept_by_each_member_separately():
 
 func test_party_vision_is_on_by_default():
 	assert_true(main.party_vision)
-	assert_true(main.hud.party_vision_toggle.button_pressed)
+	assert_true(main.hud.toolbar.party_vision_toggle.button_pressed)
 
 func test_party_vision_hides_what_only_others_have_seen():
 	var elsewhere := _known_only_to(b, a)
@@ -144,16 +144,16 @@ func test_deselecting_shows_everyones_view_again():
 func test_switching_party_vision_off_shows_everyones_view_even_while_paused():
 	var elsewhere := _known_only_to(b, a)
 	click_on(a)
-	main.hud.set_paused(true)
-	main.hud.party_vision_toggle.button_pressed = false
+	main.hud.toolbar.set_paused(true)
+	main.hud.toolbar.party_vision_toggle.button_pressed = false
 	assert_false(main.party_vision)
 	assert_true(main.maze_view.is_discovered(elsewhere))
-	main.hud.party_vision_toggle.button_pressed = true
+	main.hud.toolbar.party_vision_toggle.button_pressed = true
 	assert_false(main.maze_view.is_discovered(elsewhere), "and back on again")
 
 func test_selecting_while_paused_applies_party_vision_straight_away():
 	var elsewhere := _known_only_to(b, a)
-	main.hud.set_paused(true)
+	main.hud.toolbar.set_paused(true)
 	click_on(a)
 	assert_false(main.maze_view.is_discovered(elsewhere))
 
@@ -167,7 +167,7 @@ func test_no_party_vision_for_a_dead_selection():
 func test_fog_off_still_shows_everything():
 	var elsewhere := _known_only_to(b, a)
 	click_on(a)
-	main.hud.fog_toggle.button_pressed = false
+	main.hud.toolbar.fog_toggle.button_pressed = false
 	assert_true(main.maze_view.is_discovered(elsewhere))
 	assert_true(main.maze_view.is_currently_visible(b.cell_pos))
 

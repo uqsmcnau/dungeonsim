@@ -234,7 +234,7 @@ func test_deselecting_clears_the_left_column_even_while_paused():
 	var leader: NpcAgent = main.npcs[0]
 	PartyOps.join_party_of(main.npcs[1], leader)
 	main.hud.inspect(leader)
-	main.hud.set_paused(true)
+	main.hud.toolbar.set_paused(true)
 	main.hud.inspector["close_button"].pressed.emit()
 	assert_eq(_selection_panels().size(), 0)
 
@@ -254,7 +254,7 @@ func test_discarded_panels_are_freed_not_leaked():
 func test_selecting_while_paused_lists_the_party_straight_away():
 	var leader: NpcAgent = main.npcs[0]
 	PartyOps.join_party_of(main.npcs[1], leader)
-	main.hud.set_paused(true)
+	main.hud.toolbar.set_paused(true)
 	main.hud.inspect(leader)
 	assert_eq(_selection_panels().size(), 2)
 

@@ -1,16 +1,6 @@
 class_name Hud
 extends Control
 
-## Forwarded from the fog-of-war checkbox so GameManager can wire it
-## straight to MazeView without Hud needing to know about MazeView at all.
-signal fog_toggled(enabled: bool)
-## Forwarded from the Party Vision checkbox (see GameManager.party_vision).
-signal party_vision_toggled(enabled: bool)
-## Forwarded from the toolbar's music volume slider (0 to 1).
-signal volume_changed(volume: float)
-## From the toolbar's speed button: the game should now run `speed` times
-## as fast (one of GAME_SPEEDS).
-signal speed_changed(speed: float)
 ## Whenever the selected (inspected) character changes -- including to
 ## nobody -- so GameManager can move the map highlight right away, even
 ## while paused (when its _process isn't running).
@@ -33,25 +23,8 @@ signal selection_changed
 ## Across the top of the map: how long till the storm, or till it closes.
 @onready var storm_label: Label = $StormLabel
 @onready var winner_label: Label = $WinnerLabel
-@onready var fog_toggle: CheckBox = $FogToggle
-@onready var party_vision_toggle: CheckBox = $PartyVisionToggle
-## Music volume, 0 to 1 (see MusicPlayer). PROCESS_MODE_ALWAYS, so it can be
-## adjusted while paused.
-@onready var volume_slider: HSlider = $VolumeSlider
-## Pauses the whole SceneTree. It (and the fog toggle) run with
-## PROCESS_MODE_ALWAYS so they stay clickable while everything else freezes.
-@onready var pause_button: Button = $PauseButton
-## Cycles through GAME_SPEEDS: a click speeds the game up, a right-click
-## slows it down. PROCESS_MODE_ALWAYS, so the speed can be set while paused.
-@onready var speed_button: Button = $SpeedButton
-@onready var players_left_label: Label = $PlayersLeftLabel
-## Shows whether Guidance (right-click "go there", see
-## GameManager._on_world_right_clicked) is ready, or how long until it is.
-## PROCESS_MODE_ALWAYS so its "not ready" flash still plays while paused.
-@onready var guidance_indicator: Control = $GuidanceIndicator
-var guidance_widget: Dictionary = {}
-const GUIDANCE_READY_COLOR := Color(0.95, 0.75, 0.2)
-const GUIDANCE_COOLING_COLOR := Color(0.4, 0.45, 0.55)
+## Across the top: pause, game speed, the fog toggles and so on (see Toolbar).
+@onready var toolbar: Toolbar = $Toolbar
 
 ## Only this many HUD panels are ever shown at once -- whichever characters
 ## currently rank highest by combat power (see NpcStats.combat_power),
@@ -59,9 +32,6 @@ const GUIDANCE_COOLING_COLOR := Color(0.4, 0.45, 0.55)
 ## period (below). A dying character keeps occupying its slot until that
 ## grace period actually ends, so a lower-ranked living character isn't
 ## promoted into its place early.
-## The speeds the toolbar's speed button steps through, slowest first.
-const GAME_SPEEDS: Array[float] = [1.0, 2.0, 5.0, 10.0]
-
 const VISIBLE_HUD_COUNT := 10
 ## A character that was on the leaderboard at the moment it died keeps its
 ## panel on screen (playing the death flash, then sitting frozen and grey)
@@ -98,67 +68,11 @@ func _ready() -> void:
 	winner_label.visible = false
 	selection_container.add_theme_constant_override("separation", 2)
 	leaderboard_container.add_theme_constant_override("separation", 2)
-	fog_toggle.toggled.connect(func(pressed: bool): fog_toggled.emit(pressed))
-	party_vision_toggle.toggled.connect(func(pressed: bool): party_vision_toggled.emit(pressed))
-	volume_slider.value_changed.connect(func(value: float): volume_changed.emit(value))
-	pause_button.toggled.connect(set_paused)
-	speed_button.pressed.connect(func(): step_speed(1))
-	speed_button.gui_input.connect(_on_speed_button_input)
-	var space := InputEventKey.new()
-	space.keycode = KEY_SPACE
-	pause_button.shortcut = Shortcut.new()
-	pause_button.shortcut.events = [space]
-	# Space also "presses" whichever button has keyboard focus, so once the
-	# fog checkbox had been clicked it would swallow Space as a fog toggle.
-	# Keep the toolbar buttons out of focus so Space always means pause.
-	pause_button.focus_mode = Control.FOCUS_NONE
-	fog_toggle.focus_mode = Control.FOCUS_NONE
-	party_vision_toggle.focus_mode = Control.FOCUS_NONE
-	volume_slider.focus_mode = Control.FOCUS_NONE
-	speed_button.focus_mode = Control.FOCUS_NONE
-
-	guidance_widget = _make_stat_bar(GUIDANCE_READY_COLOR)
-	var guidance_bar: Control = guidance_widget["container"]
-	guidance_bar.set_anchors_preset(Control.PRESET_FULL_RECT)
-	# Let hovers through to the indicator itself, which carries the tooltip.
-	guidance_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	guidance_widget["bar"].mouse_filter = Control.MOUSE_FILTER_IGNORE
-	guidance_widget["label"].add_theme_font_size_override("font_size", 14)
-	guidance_indicator.add_child(guidance_bar)
-	update_guidance(0.0, 1.0)
-
 	# The banner sits just below the toolbar (which has no room left for it
 	# in the middle), on a translucent strip so it reads over the maze.
 	var banner_bg := StyleBoxFlat.new()
 	banner_bg.bg_color = Color(0.0, 0.0, 0.0, 0.65)
 	winner_label.add_theme_stylebox_override("normal", banner_bg)
-
-func set_paused(paused: bool) -> void:
-	get_tree().paused = paused
-	pause_button.set_pressed_no_signal(paused)
-	pause_button.text = "Resume" if paused else "Pause"
-
-## The game speed currently showing on the speed button.
-var game_speed := 1.0
-
-## Moves the game speed `steps` along GAME_SPEEDS (negative to slow down),
-## stopping at either end.
-func step_speed(steps: int) -> void:
-	var i := clampi(GAME_SPEEDS.find(game_speed) + steps, 0, GAME_SPEEDS.size() - 1)
-	if GAME_SPEEDS[i] == game_speed:
-		return
-	show_speed(GAME_SPEEDS[i])
-	speed_changed.emit(game_speed)
-
-func show_speed(speed: float) -> void:
-	game_speed = speed
-	speed_button.text = "Speed x%d" % int(speed)
-
-func _on_speed_button_input(event: InputEvent) -> void:
-	var mouse := event as InputEventMouseButton
-	if mouse != null and mouse.pressed and mouse.button_index == MOUSE_BUTTON_RIGHT:
-		step_speed(-1)
-		speed_button.accept_event()
 
 ## Keeps the storm line at the top of the map up to date: the countdown to
 ## it gathering, then to it closing in completely.
@@ -177,29 +91,6 @@ static func _clock(seconds: float) -> String:
 	var whole := ceili(seconds)
 	return "%d:%02d" % [whole / 60, whole % 60]
 
-## Fills up as Guidance recharges: gold "Guidance ready" when it's usable,
-## otherwise a greyed bar counting down the seconds left.
-func update_guidance(cooldown_left: float, cooldown_total: float) -> void:
-	var bar: ProgressBar = guidance_widget["bar"]
-	var fill: StyleBoxFlat = guidance_widget["fill"]
-	var label: Label = guidance_widget["label"]
-	bar.step = 0.0  # continuous -- a fraction, not whole numbers
-	bar.max_value = 1.0
-	if cooldown_left <= 0.0:
-		bar.value = 1.0
-		fill.bg_color = GUIDANCE_READY_COLOR
-		label.text = "Guidance ready"
-	else:
-		bar.value = 1.0 - cooldown_left / cooldown_total
-		fill.bg_color = GUIDANCE_COOLING_COLOR
-		label.text = "Guidance %ds" % ceili(cooldown_left)
-
-## A quick red flash on the indicator when Guidance is tried on cooldown.
-func guidance_denied() -> void:
-	guidance_indicator.modulate = Color(1.0, 0.35, 0.35)
-	var tween := guidance_indicator.create_tween()
-	tween.tween_property(guidance_indicator, "modulate", Color.WHITE, 0.4)
-
 ## A single cell for the equipment/potions/spells grid: a fixed-width,
 ## word-wrapping label, so two long entries sharing a row wrap instead of
 ## pushing the panel wider than its column.
@@ -215,7 +106,7 @@ func _make_grid_cell() -> Label:
 ## Builds a progress bar with its value text centered directly on top of it,
 ## instead of as a separate line, returning the pieces the caller needs to
 ## keep updating.
-func _make_stat_bar(fill_color: Color) -> Dictionary:
+static func make_stat_bar(fill_color: Color) -> Dictionary:
 	var container := Control.new()
 	container.custom_minimum_size = Vector2(0, 14)
 
@@ -307,10 +198,10 @@ func _build_panel(npc: NpcAgent, with_gear: bool = true) -> Dictionary:
 	death_label.visible = false
 	vbox.add_child(death_label)
 
-	var hp_widget := _make_stat_bar(Color(0.2, 0.8, 0.3))
+	var hp_widget := make_stat_bar(Color(0.2, 0.8, 0.3))
 	vbox.add_child(hp_widget["container"])
 
-	var mp_widget := _make_stat_bar(Color(0.25, 0.55, 0.95))
+	var mp_widget := make_stat_bar(Color(0.25, 0.55, 0.95))
 	vbox.add_child(mp_widget["container"])
 
 	var abilities_label := Label.new()
@@ -484,7 +375,7 @@ func _update_players_left(npcs: Array) -> void:
 	for npc in npcs:
 		if not npc.dead:
 			alive += 1
-	players_left_label.text = "Players left: %d / %d" % [alive, rows.size()]
+	toolbar.show_players_left(alive, rows.size())
 
 ## Ranks every living character (dead ones are already excluded from
 ## `npcs` by the time this is called -- see GameManager._on_npc_died) plus

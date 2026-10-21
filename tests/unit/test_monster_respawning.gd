@@ -146,7 +146,7 @@ func test_respawning_stops_while_paused():
 	var area := _busiest_area()
 	_park_players_far_from(area)
 	_kill(_monsters_in(area))
-	main.hud.set_paused(true)
+	main.hud.toolbar.set_paused(true)
 	await get_tree().create_timer(0.3, true).timeout
 	assert_eq(_population(area), 0)
 

@@ -177,12 +177,16 @@ also runs by hand on GitHub (Actions → Soak).
 - **`party_ops.gd` (`PartyOps`)** — party merging, naming, leader promotion,
   `leader_of(party)`, and item sharing. **`combat_math.gd` (`CombatMath`)** —
   pure hit/damage/win-chance math over two `NpcStats`.
-- **`hud.gd` (`Hud`)** — toolbar (including the game speed button, which
-  `GameManager.set_game_speed` turns into `Engine.time_scale` — so anything
-  that must keep real-time pace, like keyboard panning, divides it back
-  out), the leaderboard (top 10, right column, compact panels without the gear section), and
-  the selection column (the selected character's full panel, then compact
-  ones for the rest of their party, on the left).
+- **`hud.gd` (`Hud`)** — the leaderboard (top 10, right column, compact
+  panels without the gear section), the selection column (the selected
+  character's full panel, then compact ones for the rest of their party, on
+  the left), the storm countdown and the winner banner.
+- **`toolbar.gd` (`Toolbar`, as `hud.toolbar`)** — the strip across the
+  top: fog / Party Vision, pause (`set_paused`), Guidance's readiness,
+  volume, players left, and game speed, which `GameManager.set_game_speed`
+  turns into `Engine.time_scale` — so anything that must keep real-time
+  pace, like keyboard panning, divides it back out. Its controls run with
+  `PROCESS_MODE_ALWAYS`, usable while paused.
 - **`battle_window.gd` (`BattleWindow`, as `hud.battle_window`)** — the
   Final Fantasy-style battle screen below the selection column. GameManager
   says who's in the scene every frame (`show_fight`: the selected party and
