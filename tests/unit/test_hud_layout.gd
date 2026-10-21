@@ -207,10 +207,7 @@ func test_a_fallen_member_drops_off_the_list_after_the_grace_period():
 	PartyOps.join_party_of(follower, leader)
 	main.hud.inspect(leader)
 	follower.die()
-	# Hold everyone still through the wait, so nobody else wanders up and
-	# joins the party and adds a panel of their own.
-	for npc in main.npcs:
-		npc.set_process(false)
+	hold_everyone_else()  # or someone could join the party in the meantime
 	await wait_seconds(Hud.DEATH_GRACE_SECONDS + 0.2)
 	main._process(0.0)
 	assert_eq(_selection_panels(), [main.hud.inspector["panel"]])

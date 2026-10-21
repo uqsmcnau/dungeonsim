@@ -18,31 +18,14 @@ func before_each():
 func after_each():
 	get_tree().paused = false
 
-## Moves `a` onto its own hand-built maze and maps, out of the real game's way.
+## Moves `a` onto its own hand-built maze and maps, out of the real game's
+## way (see isolate), having seen nothing there yet.
 func _isolate(g: Array, cell: Vector2i, explored: Array) -> void:
-	main.player_map.erase(a.cell_pos)
 	players = {}
-	a.players = players
-	a.enemies = {}
-	a.chests = {}
-	a.shops = {}
-	a.known_shops = {}
-	a.party = [a]
-	a.is_party_leader = true
-	a.is_moving = false
-	a.finished = false
-	a.stats.inventory.clear()
-	a.grid = g
-	a.cell_pos = cell
-	a.position = a._cell_to_world(cell)
-	a.visited = {}
+	isolate(a, g, cell, players, explored)
 	a.seen_cells = {}
 	a.sight_cells = {}
 	a._sight_cell = cell  # so nothing gets "seen" until it moves
-	for c in explored:
-		a.visited[c] = true
-	a.visited[cell] = true
-	players[cell] = a
 
 func _row(from_x: int, to_x: int) -> Array:
 	var cells: Array = []

@@ -42,6 +42,19 @@ func fast_forward(factor: float = 4.0) -> void:
 	Engine.time_scale = factor
 	main.tree_exiting.connect(func(): Engine.time_scale = 1.0, CONNECT_ONE_SHOT)
 
+## Holds the rest of the game still around a test that waits while it runs
+## on the real map: every character not in `keep` stops acting, and every
+## monster not in `keep` stops roaming (it can still fight) -- so nobody
+## wanders into what's under test, joining a party or picking a fight.
+## (Characters isolate()d on a maze of their own don't need it.)
+func hold_everyone_else(keep: Array = []) -> void:
+	for npc in main.npcs:
+		if not keep.has(npc):
+			npc.set_process(false)
+	for enemy in main.enemy_container.get_children():
+		if not keep.has(enemy):
+			enemy.wanders = false
+
 ## A fresh monster, not yet set up (call setup() on it), freed after the test.
 func new_enemy() -> EnemyAgent:
 	return add_child_autofree(ENEMY_SCENE.instantiate())

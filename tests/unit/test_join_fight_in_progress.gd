@@ -21,6 +21,7 @@ func before_each():
 		# Tanky enough that nobody flees or dies mid-test by accident.
 		set_stats(npc, 10, 10000, 20, 20)
 		main.player_map[npc.cell_pos] = npc
+	hold_everyone_else([host, newcomer])
 
 ## Starts `host` fighting a pack too tough to finish within the test.
 func _start_monster_fight() -> Array:

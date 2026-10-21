@@ -28,6 +28,7 @@ func before_each():
 		npc.party = [npc]
 		npc.is_party_leader = true
 		npc.finished = false
+		npc.storm = null  # the real map's storm has nothing to do with these mazes
 		npc.is_moving = false
 		npc.stats.alignment = NpcStats.ALIGNMENT_GOOD
 		npc.stats.inventory.clear()

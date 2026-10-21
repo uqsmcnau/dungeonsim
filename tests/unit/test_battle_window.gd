@@ -469,6 +469,7 @@ func test_the_selected_partys_fight_plays_out_in_the_window():
 	for m in [a, b]:
 		set_stats(m, 5, 80, 6, 6)
 	_toughen_pack()
+	hold_everyone_else([a, b] + foe.living_pack())
 	main.hud.inspect(a)
 	GroupCombat.engage_pack(a, foe.cell_pos, foe)
 	await wait_seconds(GroupCombat.TURN_SECONDS + 0.8)

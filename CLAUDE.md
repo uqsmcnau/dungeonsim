@@ -52,11 +52,11 @@ Test scripts extend **`DungeonTest`** (`tests/dungeon_test.gd`, outside
 `main` / `load_main()` for tests that need the whole generated game, plus
 the shared helpers: `clear_cell()`, `set_stats()`, `new_enemy()`,
 `rank_npcs_by_index()`, `click_on()`, `isolate()` (a character alone on a
-hand-built maze), `fast_forward()`, and hand-built mazes (`walled_grid()`,
-`open_between()`, `corridor()`, `ring_maze()`). Add a helper there rather
-than copying it into a second test file. Pure logic (`NpcStats`,
-`CombatMath`, a bare `MazeGenerator`) is tested without loading `Main` at
-all.
+hand-built maze), `fast_forward()`, `hold_everyone_else()`, and hand-built
+mazes (`walled_grid()`, `open_between()`, `corridor()`, `ring_maze()`). Add
+a helper there rather than copying it into a second test file. Pure logic
+(`NpcStats`, `CombatMath`, a bare `MazeGenerator`) is tested without
+loading `Main` at all.
 
 Each test's game is the same every run: `load_main()` seeds it from the
 test's own name, so a failure fails the same way again. To try every test
@@ -66,7 +66,10 @@ on other games, set `TEST_SEED` (any value shuffles them all):
 A test that waits for characters to walk or fight in real time should call
 `fast_forward()` first: it runs the game (and GUT's own waiting) four times
 faster until the test's `main` is freed. Fine for tests about how things
-turn out; not for the music, which plays in real time regardless.
+turn out; not for the music, which plays in real time regardless. While it
+waits, the rest of the game plays on around it: a test on the real map
+calls `hold_everyone_else(keep)` so nobody wanders in, joining a party or
+picking a fight; one `isolate()`d on a maze of its own needn't.
 
 ### Linting
 

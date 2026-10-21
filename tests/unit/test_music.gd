@@ -5,23 +5,26 @@ extends DungeonTest
 ## game, and the toolbar's volume control. Uses short generated tracks in
 ## a scratch folder rather than whatever's in res://BGM (not in git).
 
-const TEST_DIR := "user://test_bgm"
 const TRACK_SECONDS := 3.0
+
+## The scratch folder: one per test run, so runs side by side (one per
+## worktree, say -- they share user://) don't trip over each other's tracks.
+var test_dir := "user://test_bgm_%d" % OS.get_process_id()
 
 var music: MusicPlayer
 
 func before_all():
-	DirAccess.make_dir_recursive_absolute(TEST_DIR)
+	DirAccess.make_dir_recursive_absolute(test_dir)
 	for track_name in ["a.wav", "b.wav", "c.wav"]:
-		_silent_wav(TRACK_SECONDS).save_to_wav(TEST_DIR.path_join(track_name))
+		_silent_wav(TRACK_SECONDS).save_to_wav(test_dir.path_join(track_name))
 	# Not music, so never picked.
-	FileAccess.open(TEST_DIR.path_join("notes.txt"), FileAccess.WRITE).store_string("hi")
-	FileAccess.open(TEST_DIR.path_join("a.wav.import"), FileAccess.WRITE).store_string("[remap]")
+	FileAccess.open(test_dir.path_join("notes.txt"), FileAccess.WRITE).store_string("hi")
+	FileAccess.open(test_dir.path_join("a.wav.import"), FileAccess.WRITE).store_string("[remap]")
 
 func after_all():
-	for file in DirAccess.get_files_at(TEST_DIR):
-		DirAccess.remove_absolute(TEST_DIR.path_join(file))
-	DirAccess.remove_absolute(TEST_DIR)
+	for file in DirAccess.get_files_at(test_dir):
+		DirAccess.remove_absolute(test_dir.path_join(file))
+	DirAccess.remove_absolute(test_dir)
 
 func after_each():
 	get_tree().paused = false
@@ -36,9 +39,9 @@ static func _silent_wav(seconds: float) -> AudioStreamWAV:
 	return wav
 
 ## A music player on the scratch tracks, started the way the game starts it.
-func _music(dir: String = TEST_DIR) -> MusicPlayer:
+func _music(dir: String = "") -> MusicPlayer:
 	music = MusicPlayer.new()
-	music.music_dir = dir
+	music.music_dir = dir if dir != "" else test_dir
 	add_child_autofree(music)
 	return music
 
@@ -53,8 +56,8 @@ func _playing_players() -> Array:
 # ================================ Tracks ==================================
 
 func test_only_audio_files_count_as_tracks():
-	var tracks := MusicPlayer.find_tracks(TEST_DIR)
-	assert_eq(tracks, [TEST_DIR.path_join("a.wav"), TEST_DIR.path_join("b.wav"), TEST_DIR.path_join("c.wav")])
+	var tracks := MusicPlayer.find_tracks(test_dir)
+	assert_eq(tracks, [test_dir.path_join("a.wav"), test_dir.path_join("b.wav"), test_dir.path_join("c.wav")])
 
 func test_a_random_track_starts_playing_at_once():
 	_music()
@@ -109,15 +112,15 @@ func test_a_track_that_ends_without_a_crossfade_goes_straight_on():
 	assert_true(music.active_player().playing)
 
 func test_one_track_on_its_own_loops_back_round():
-	DirAccess.make_dir_recursive_absolute(TEST_DIR + "_solo")
-	_silent_wav(TRACK_SECONDS).save_to_wav(TEST_DIR + "_solo/only.wav")
-	_music(TEST_DIR + "_solo")
+	DirAccess.make_dir_recursive_absolute(test_dir + "_solo")
+	_silent_wav(TRACK_SECONDS).save_to_wav(test_dir + "_solo/only.wav")
+	_music(test_dir + "_solo")
 	_near_the_end(0.5)
 	await wait_process_frames(2)
 	assert_true(music.is_fading())
-	assert_eq(music.current_track, TEST_DIR + "_solo/only.wav")
-	DirAccess.remove_absolute(TEST_DIR + "_solo/only.wav")
-	DirAccess.remove_absolute(TEST_DIR + "_solo")
+	assert_eq(music.current_track, test_dir + "_solo/only.wav")
+	DirAccess.remove_absolute(test_dir + "_solo/only.wav")
+	DirAccess.remove_absolute(test_dir + "_solo")
 
 # ================================= Pause ==================================
 
