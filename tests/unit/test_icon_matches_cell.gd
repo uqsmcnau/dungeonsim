@@ -144,8 +144,8 @@ func test_a_stale_map_entry_doesnt_count_as_someone_there():
 	_stand(a, g, Vector2i(2, 0))
 	_stand(b, g, Vector2i(1, 0))
 	players[Vector2i(3, 0)] = b
-	assert_false(a._has_live_player(Vector2i(3, 0)))
-	assert_true(a._has_live_player(Vector2i(1, 0)), "sanity: where b really is still counts")
+	assert_false(a.has_live_player(Vector2i(3, 0)))
+	assert_true(a.has_live_player(Vector2i(1, 0)), "sanity: where b really is still counts")
 
 func test_a_follower_left_on_the_map_doesnt_count_as_someone_there():
 	var g := corridor(4)
@@ -155,7 +155,7 @@ func test_a_follower_left_on_the_map_doesnt_count_as_someone_there():
 	players[b.cell_pos] = b  # as a step finishing after the merge used to
 	var c: NpcAgent = main.npcs[2]
 	_stand(c, g, Vector2i(2, 0))
-	assert_false(c._has_live_player(Vector2i(1, 0)), "b follows a, it doesn't lead a party of its own")
+	assert_false(c.has_live_player(Vector2i(1, 0)), "b follows a, it doesn't lead a party of its own")
 
 func test_a_leader_takes_its_cell_back_from_a_stale_entry():
 	var g := corridor(4)

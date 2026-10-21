@@ -105,7 +105,7 @@ func _cell_to_world(cell: Vector2i) -> Vector2:
 # ============================== On the map ================================
 
 ## Whether someone other than us stands for a party on `cell`.
-func _has_live_player(cell: Vector2i) -> bool:
+func has_live_player(cell: Vector2i) -> bool:
 	return players.has(cell) and players[cell] != self and holds_cell(players[cell], cell)
 
 ## Whether `other` (an entry in `players`) really does stand for a party on

@@ -109,23 +109,10 @@ var storm: Storm = null
 var _storm_damage := 0.0
 
 @onready var visual: Polygon2D = $Visual
-@onready var name_label: Label = $NameLabel
-## In a party, the one label left showing (the leader's -- see sync_label)
-## sits this much higher, clear of the members' icons standing around it.
-const PARTY_LABEL_LIFT := 10.0
-var _label_base_y: float = 0.0
-## How long a passing message (a find, a sale, a party growing) stays up
-## before the label goes back to rest.
-const LABEL_MESSAGE_SECONDS := 1.5
-## Whether the label is showing something other than its resting text (see
-## show_label), and for a passing message, the seconds until it goes back
-## -- 0 means until something calls reset_label (e.g. a fight ending).
-var _label_busy: bool = false
-var _label_time_left: float = 0.0
+@onready var name_label: MapLabel = $NameLabel
 
 func _ready() -> void:
 	leveled_up.connect(_on_leveled_up)
-	_label_base_y = name_label.position.y
 
 func setup(spawn_cell: Vector2i, target_cell: Vector2i, maze_grid: Array, cs: float, color: Color,
 		display_name: String, enemy_map: Dictionary, chest_map: Dictionary, shop_map: Dictionary,
@@ -156,7 +143,8 @@ func _process(delta: float) -> void:
 	if dead:
 		return
 	stats.regen_mp(delta)
-	_tick_label(delta)
+	if name_label.tick(delta):
+		reset_label()
 	_weather_the_storm(delta)
 	if dead:
 		return  # the storm took them
@@ -189,44 +177,23 @@ func _weather_the_storm(delta: float) -> void:
 	if stats.hp <= 0:
 		die("the storm", "Caught out in the storm")
 
-## Caught in the storm: heads for the nearest ground it doesn't cover, round
-## any monsters if there's a way. Comes straight after dealing with whoever's
-## on our own cell -- before healing, which the storm won't allow anyway.
+## Caught in the storm: heads for the nearest ground it doesn't cover (see
+## NpcRoutes.out_of_storm). Comes straight after dealing with whoever's on
+## our own cell -- before healing, which the storm won't allow anyway.
 func _escape_the_storm() -> bool:
-	if storm == null or storm.is_closed() or not storm.covers(cell_pos):
-		return false
-	var step := MazeQuery.step_out_of(grid, cell_pos, storm.covered, _live_enemy_cells())
+	var step := NpcRoutes.out_of_storm(self)
 	if step == cell_pos:
-		step = MazeQuery.step_out_of(grid, cell_pos, storm.covered)
-	if step == cell_pos:
-		return false  # nowhere left to run: carry on as best we can
+		return false  # not caught in it, or nowhere left to run
 	current_action = "Escaping the storm"
 	_attempt_move(step)
 	return true
-
-## The cells the storm covers right now (none if there's no storm), for
-## routes to steer round.
-func _storm_cells() -> Dictionary:
-	return storm.covered if storm != null else {}
-
-## First step towards `to`, staying out of the storm if there's a way (and
-## round `blocked` cells), else through it.
-func _step_avoiding_storm(to: Vector2i, max_depth: int, blocked: Dictionary = {}) -> Vector2i:
-	var storm_cells := _storm_cells()
-	if not storm_cells.is_empty() and not storm_cells.has(to):
-		var avoiding: Dictionary = blocked.duplicate()
-		avoiding.merge(storm_cells)
-		var step := MazeQuery.step_toward(grid, cell_pos, to, max_depth, avoiding)
-		if step != cell_pos:
-			return step
-	return MazeQuery.step_toward(grid, cell_pos, to, max_depth, blocked)
 
 ## Safety net: if a live enemy is ever standing on our own cell (e.g. one
 ## wandered into our destination while we were mid-transit), resolve that
 ## before doing anything else, so an enemy can never be walked past --
 ## joining a fight it's already in, starting one, or backing off.
 func _settle_enemy_on_our_cell() -> bool:
-	if not _has_live_enemy(cell_pos):
+	if not has_live_enemy(cell_pos):
 		return false
 	var enemy: EnemyAgent = enemies[cell_pos]
 	if enemy.in_combat:
@@ -245,7 +212,7 @@ func _settle_enemy_on_our_cell() -> bool:
 ## we consider teaming up instead, and failing that they're just passing
 ## through (see _squeeze_past) -- so we carry on as normal.
 func _settle_player_on_our_cell() -> bool:
-	if not _has_live_player(cell_pos):
+	if not has_live_player(cell_pos):
 		return false
 	var opponent: NpcAgent = players[cell_pos]
 	if opponent.is_in_combat():
@@ -365,19 +332,19 @@ func _take_step() -> void:
 		return
 
 	var shop_step := _shop_step()
-	if shop_step != cell_pos and not _has_live_enemy(shop_step):
+	if shop_step != cell_pos and not has_live_enemy(shop_step):
 		move_to(shop_step)
 		return
 
 	var chest_step := _chest_step()
-	if chest_step != cell_pos and not _has_live_enemy(chest_step):
+	if chest_step != cell_pos and not has_live_enemy(chest_step):
 		move_to(chest_step)
 		return
 
 	var open_dirs := MazeQuery.open_neighbors(grid, cell_pos)
 	if open_dirs.is_empty():
 		return
-	var candidate := _choose_candidate(open_dirs)
+	var candidate := NpcRoutes.explore(self, open_dirs)
 	if candidate == cell_pos:
 		return
 	_attempt_move(candidate)
@@ -425,7 +392,7 @@ func _follow_guidance() -> bool:
 		return false
 
 	current_action = "Following guidance"
-	var contested := _has_live_enemy(step) or _has_live_player(step)
+	var contested := has_live_enemy(step) or has_live_player(step)
 	_attempt_move(step)
 	if contested and is_party_leader and not is_in_combat():
 		guidance_target = MazeQuery.NONE
@@ -438,10 +405,10 @@ func _follow_guidance() -> bool:
 ## re-planned every step as more of the maze comes into view.
 func _guidance_step() -> Vector2i:
 	var known := _party_known_cells()
-	var avoid := _live_enemy_cells()
-	avoid.merge(_storm_cells())  # (the target itself is never avoided)
+	var avoid := NpcRoutes.live_enemy_cells(self)
+	avoid.merge(NpcRoutes.storm_cells(self))  # (the target itself is never avoided)
 	for c in players:
-		if c != cell_pos and _has_live_player(c):
+		if c != cell_pos and has_live_player(c):
 			avoid[c] = true
 	var step := MazeQuery.explore_step(grid, cell_pos, guidance_target, known, avoid)
 	if step == cell_pos:
@@ -463,7 +430,7 @@ func _party_up_step() -> Vector2i:
 	var target := MazeQuery.nearest_visible(grid, cell_pos, SIGHT_RANGE, candidates)
 	if target == MazeQuery.NONE:
 		return cell_pos
-	var step := _step_avoiding_storm(target, PARTY_PATH_DEPTH, _live_enemy_cells())
+	var step := NpcRoutes.step_toward(self, target, PARTY_PATH_DEPTH, NpcRoutes.live_enemy_cells(self))
 	if step != cell_pos:
 		current_action = "Heading to join %s" % players[target].npc_name
 	return step
@@ -499,7 +466,7 @@ func _shop_step() -> Vector2i:
 	var nearest := MazeQuery.NONE
 	var nearest_dist := 1 << 30
 	for c in known_shops:
-		if _storm_cells().has(c):
+		if NpcRoutes.storm_cells(self).has(c):
 			continue  # not worth a trip into the storm
 		var d: int = abs(c.x - cell_pos.x) + abs(c.y - cell_pos.y)
 		if d < nearest_dist:
@@ -507,7 +474,7 @@ func _shop_step() -> Vector2i:
 			nearest_dist = d
 	if nearest == MazeQuery.NONE:
 		return cell_pos
-	return _step_avoiding_storm(nearest, SHOP_PATH_DEPTH)
+	return NpcRoutes.step_toward(self, nearest, SHOP_PATH_DEPTH)
 
 ## Whether a shop visit would do anything for anyone in the party -- the
 ## whole party shops together (see _finish_shopping).
@@ -539,7 +506,7 @@ func _finish_shopping() -> void:
 		bought += member.stats.buy_potions().size()
 	is_moving = false
 	if sold > 0 or bought > 0:
-		show_label("%s sold %d, bought %d" % [map_name(), sold, bought], LABEL_MESSAGE_SECONDS)
+		show_label("%s sold %d, bought %d" % [map_name(), sold, bought], MapLabel.MESSAGE_SECONDS)
 	else:
 		reset_label()
 
@@ -562,7 +529,7 @@ func _chest_step() -> Vector2i:
 		chest_goal = MazeQuery.nearest_visible(grid, cell_pos, SIGHT_RANGE, _chests_worth_trying())
 	if chest_goal == MazeQuery.NONE:
 		return cell_pos
-	var step := _step_avoiding_storm(chest_goal, CHEST_PATH_DEPTH, _live_enemy_cells())
+	var step := NpcRoutes.step_toward(self, chest_goal, CHEST_PATH_DEPTH, NpcRoutes.live_enemy_cells(self))
 	if step == cell_pos:
 		skipped_chests[chest_goal] = CHEST_SKIP_STEPS
 		chest_goal = MazeQuery.NONE
@@ -576,7 +543,7 @@ func _tick_skipped_chests() -> void:
 
 ## The chests worth going for: not set aside, and not out in the storm.
 func _chests_worth_trying() -> Dictionary:
-	var storm_cells := _storm_cells()
+	var storm_cells := NpcRoutes.storm_cells(self)
 	if skipped_chests.is_empty() and storm_cells.is_empty():
 		return chests
 	var result: Dictionary = {}
@@ -585,41 +552,9 @@ func _chests_worth_trying() -> Dictionary:
 			result[c] = chests[c]
 	return result
 
-func _live_enemy_cells() -> Dictionary:
-	var result: Dictionary = {}
-	for c in enemies:
-		if _has_live_enemy(c):
-			result[c] = true
 	return result
 
-## Prefers an unvisited, enemy-free cell; falls back to any unvisited cell
-## (even an enemy's) once safe options run out, then to the BFS frontier
-## search, then to a random already-visited neighbor if fully boxed in.
-##
-## Ground the storm covers comes last: an unvisited cell out of it first,
-## then the frontier by a route that stays out of it, and only then
-## unvisited cells or a route in it.
-func _choose_candidate(open_dirs: Array) -> Vector2i:
-	var storm_cells := _storm_cells()
-	var unvisited: Array = open_dirs.filter(func(c): return not visited.has(c))
-	var dry: Array = unvisited.filter(func(c): return not storm_cells.has(c))
-	var safe: Array = dry.filter(func(c): return not _has_live_enemy(c))
-	if not safe.is_empty():
-		return safe[randi() % safe.size()]
-	if not dry.is_empty():
-		return dry[randi() % dry.size()]
-	var frontier_step := _step_toward_frontier(storm_cells)
-	if frontier_step != cell_pos:
-		return frontier_step
-	if not unvisited.is_empty():
-		var calm: Array = unvisited.filter(func(c): return not _has_live_enemy(c))
-		return calm[randi() % calm.size()] if not calm.is_empty() else unvisited[randi() % unvisited.size()]
-	frontier_step = _step_toward_frontier()
-	if frontier_step != cell_pos:
-		return frontier_step
-	return open_dirs[randi() % open_dirs.size()]
-
-func _has_live_enemy(cell: Vector2i) -> bool:
+func has_live_enemy(cell: Vector2i) -> bool:
 	if not enemies.has(cell):
 		return false
 	var enemy = enemies[cell]
@@ -640,7 +575,7 @@ func _has_live_enemy(cell: Vector2i) -> bool:
 ## turn on, without their fight being interrupted -- and if it can't join,
 ## it backs off rather than wading into someone else's fight.
 func _attempt_move(next_cell: Vector2i) -> void:
-	if _has_live_enemy(next_cell):
+	if has_live_enemy(next_cell):
 		var enemy: EnemyAgent = enemies[next_cell]
 		if enemy.in_combat:
 			if not _try_join_fight_against(enemy):
@@ -650,7 +585,7 @@ func _attempt_move(next_cell: Vector2i) -> void:
 		else:
 			retreat()
 		return
-	if _has_live_player(next_cell):
+	if has_live_player(next_cell):
 		var opponent: NpcAgent = players[next_cell]
 		if opponent.is_in_combat():
 			if PartyOps.can_form_party_with(self, opponent):
@@ -892,50 +827,11 @@ func killing_blow(action: String, damage: int) -> String:
 	return "%s for %d damage" % [weapon, damage]
 
 ## Backs off a step onto ground already covered, clear of monsters and
-## other players (see _retreat_cell) -- or stays put if there's none.
+## other players (see NpcRoutes.retreat_cell) -- or stays put if there's none.
 func retreat() -> void:
-	var cell := _retreat_cell()
+	var cell := NpcRoutes.retreat_cell(self)
 	if cell != cell_pos:
 		move_to(cell)
-
-## Where retreat would back off to: a random neighbour already explored and
-## clear of monsters and players -- out of the storm rather than into it,
-## where there's the choice -- or our own cell if there's nowhere.
-func _retreat_cell() -> Vector2i:
-	var retreat_options: Array = []
-	for c in MazeQuery.open_neighbors(grid, cell_pos):
-		if visited.has(c) and not _has_live_enemy(c) and not _has_live_player(c):
-			retreat_options.append(c)
-	if retreat_options.is_empty():
-		return cell_pos
-	var storm_cells := _storm_cells()
-	var dry: Array = retreat_options.filter(func(c): return not storm_cells.has(c))
-	if not dry.is_empty():
-		retreat_options = dry
-	return retreat_options[randi() % retreat_options.size()]
-
-## BFS over cells reachable through open passages, looking for the nearest
-## cell that still has an unvisited neighbor. Returns the first step along
-## the way there, or cell_pos itself if nothing is left to discover --
-## never going through an `avoid` cell (the storm, say) on the way.
-func _step_toward_frontier(avoid: Dictionary = {}) -> Vector2i:
-	var queue: Array = [cell_pos]
-	var came_from: Dictionary = {cell_pos: cell_pos}
-
-	while queue.size() > 0:
-		var cur: Vector2i = queue.pop_front()
-		for n in MazeQuery.open_neighbors(grid, cur):
-			if came_from.has(n) or avoid.has(n):
-				continue
-			came_from[n] = cur
-			if not visited.has(n):
-				var step: Vector2i = n
-				while came_from[step] != cell_pos:
-					step = came_from[step]
-				return step
-			queue.append(n)
-
-	return cell_pos
 
 ## Quicker on their feet the more dexterous (see NpcBody.step_seconds).
 func _move_speed() -> float:
@@ -1017,40 +913,25 @@ func _check_for_chest() -> void:
 		parts.append("%dg" % gold)
 	if parts.is_empty():
 		return
-	show_label("%s found %s!" % [map_name(), ", ".join(parts)], LABEL_MESSAGE_SECONDS)
+	show_label("%s found %s!" % [map_name(), ", ".join(parts)], MapLabel.MESSAGE_SECONDS)
 
 ## Shows `text` on this character's map label in place of its resting text,
 ## for `seconds` -- or, if 0, until reset_label puts it back (e.g. at the
 ## end of the fight it's describing).
 func show_label(text: String, seconds: float = 0.0) -> void:
-	name_label.text = text
-	_label_busy = true
-	_label_time_left = seconds
-
-## Counts down a passing message (see show_label). Runs from _process, so
-## it freezes while the game's paused.
-func _tick_label(delta: float) -> void:
-	if _label_time_left <= 0.0:
-		return
-	_label_time_left -= delta
-	if _label_time_left <= 0.0:
-		reset_label()
+	name_label.show_message(text, seconds)
 
 ## A newly promoted leader carries on showing whatever the fallen one's
 ## label was, message countdown and all -- a countdown left running on the
 ## dead leader would never put the label back.
 func take_over_label(former_leader: NpcAgent) -> void:
-	name_label.text = former_leader.name_label.text
-	_label_busy = former_leader._label_busy
-	_label_time_left = former_leader._label_time_left
+	name_label.copy_from(former_leader.name_label)
 	sync_label()
 
 ## Puts the label back to rest (see _level_tag) once whatever it was
 ## showing is over.
 func reset_label() -> void:
-	_label_busy = false
-	_label_time_left = 0.0
-	name_label.text = _level_tag()
+	name_label.rest(_level_tag())
 	current_action = "Exploring"
 	sync_label()
 
@@ -1078,10 +959,7 @@ func _shows_party_name() -> bool:
 ## when it goes back to rest.
 func sync_label() -> void:
 	var in_party := living_party().size() > 1
-	name_label.visible = is_party_leader or not in_party
-	name_label.position.y = _label_base_y - (PARTY_LABEL_LIFT if in_party else 0.0)
-	if not _label_busy:
-		name_label.text = _level_tag()
+	name_label.place(is_party_leader or not in_party, in_party, _level_tag())
 
 ## Keeps the "Name Lv.N" tag above this character current when it levels
 ## up. Otherwise only reset_label refreshes it, which followers almost
@@ -1091,5 +969,5 @@ func sync_label() -> void:
 ## shopping) alone: those revert via reset_label when they're done,
 ## picking up the new level then.
 func _on_leveled_up(_npc: NpcAgent) -> void:
-	if not _label_busy:
+	if not name_label.busy:
 		name_label.text = _level_tag()

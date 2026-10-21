@@ -98,16 +98,16 @@ func test_a_passing_message_goes_back_to_rest_on_its_own():
 	var leader: NpcAgent = main.npcs[0]
 	PartyOps.join_party_of(main.npcs[1], leader)
 	assert_string_contains(leader.name_label.text, "grew to 2!")
-	leader._process(NpcAgent.LABEL_MESSAGE_SECONDS / 2.0)
+	leader._process(MapLabel.MESSAGE_SECONDS / 2.0)
 	assert_string_contains(leader.name_label.text, "grew to 2!", "not yet")
-	leader._process(NpcAgent.LABEL_MESSAGE_SECONDS / 2.0)
+	leader._process(MapLabel.MESSAGE_SECONDS / 2.0)
 	assert_eq(leader.name_label.text, leader.party_name)
 
 func test_a_passing_message_waits_while_paused():
 	var leader: NpcAgent = main.npcs[0]
 	PartyOps.join_party_of(main.npcs[1], leader)
 	main.hud.set_paused(true)
-	await get_tree().create_timer(NpcAgent.LABEL_MESSAGE_SECONDS + 0.3, true).timeout
+	await get_tree().create_timer(MapLabel.MESSAGE_SECONDS + 0.3, true).timeout
 	main.hud.set_paused(false)
 	assert_string_contains(leader.name_label.text, "grew to 2!")
 
@@ -117,15 +117,15 @@ func test_a_new_leader_finishes_a_message_the_fallen_one_was_showing():
 	var members := _party_of(3)
 	var leader: NpcAgent = members[0]
 	var next: NpcAgent = members[1]
-	leader.show_label("%s found Helmet!" % leader.party_name, NpcAgent.LABEL_MESSAGE_SECONDS)
+	leader.show_label("%s found Helmet!" % leader.party_name, MapLabel.MESSAGE_SECONDS)
 	leader.die()
 	assert_eq(next.name_label.text, "%s found Helmet!" % next.party_name, "carried over")
-	next._process(NpcAgent.LABEL_MESSAGE_SECONDS)
+	next._process(MapLabel.MESSAGE_SECONDS)
 	assert_eq(next.name_label.text, next.party_name, "and put back on time")
 
 func test_a_fight_isnt_cut_short_by_a_message_running_out():
 	var leader: NpcAgent = main.npcs[0]
-	leader.show_label("%s found Helmet!" % leader.npc_name, NpcAgent.LABEL_MESSAGE_SECONDS)
+	leader.show_label("%s found Helmet!" % leader.npc_name, MapLabel.MESSAGE_SECONDS)
 	leader.show_label("%s ⚔ Lv.3" % leader.npc_name)  # a fight starts
-	leader._process(NpcAgent.LABEL_MESSAGE_SECONDS * 2)
+	leader._process(MapLabel.MESSAGE_SECONDS * 2)
 	assert_eq(leader.name_label.text, "%s ⚔ Lv.3" % leader.npc_name)

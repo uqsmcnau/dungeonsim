@@ -82,8 +82,8 @@ gdlint scripts tests tools
 ```
 
 CI runs it on every push alongside the tests. Fix what it finds rather than
-loosening `.gdlintrc` — in particular, `npc.gd` is the file nearest the
-length limit, and the next thing to split out of it is its map label.
+loosening `.gdlintrc` — in particular, when a file nears the length limit
+(`npc.gd` is the likeliest), split a coherent piece out of it.
 `gdformat` isn't used: the code's formatted by hand, and it would reflow
 nearly every file.
 
@@ -130,8 +130,8 @@ also runs by hand on GitHub (Actions → Soak).
   it pauses with the game). Anyone outside the ring loses HP and can't heal
   (`NpcAgent._weather_the_storm`); a leader caught in it heads out first
   (`_escape_the_storm`), and every route the AI picks steers round
-  `storm.covered` where there's another way (`_step_avoiding_storm`,
-  `_choose_candidate`, Guidance, retreating), going through only if it must.
+  `storm.covered` where there's another way (see `NpcRoutes`), going
+  through only if it must.
   `MazeView` draws it; the HUD counts it down.
 - **`map_camera.gd` (`MapCamera`, as `main.camera`)** — zooming (wheel,
   +/-) and moving the view (left- or middle-drag, WASD/arrows, Home to
@@ -146,9 +146,15 @@ also runs by hand on GitHub (Actions → Soak).
   above that count. Monsters belong to the area of their *home* cell (they're
   leashed to it).
 - **`npc.gd` (`NpcAgent`)** — one character: exploring, chests, shopping,
-  consumables, Guidance, sight (`seen_cells`/`sight_cells`), its map label,
-  and its own combat tactics (`choose_combat_action`,
-  `apply_combat_action`). Still the biggest file. It extends
+  consumables, Guidance, sight (`seen_cells`/`sight_cells`), what its map
+  label says, and its own combat tactics (`choose_combat_action`,
+  `apply_combat_action`). Still the biggest file: when it grows, move a
+  coherent piece out rather than loosening the line limit. Which way it
+  steps next (exploring, routes round the storm and monsters, escaping the
+  storm, backing off) is **`npc_routes.gd` (`NpcRoutes`)**, static functions
+  taking the character; the label itself (passing messages, their
+  countdown, sitting raised over a party) is **`map_label.gd`
+  (`MapLabel`)**, the `NameLabel` node's script. It extends
   **`npc_body.gd` (`NpcBody`)**: where the character is and how it gets
   around — its cell, stepping (`move_to`, the party tagging along),
   its icon's slide, and its entry in the shared `players` map. NpcBody asks

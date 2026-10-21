@@ -85,7 +85,7 @@ func test_idle_safety_net_refuses_to_start_pvp_in_a_safe_room():
 	var safe_cell: Vector2i = main.start_cells[0]
 	c.cell_pos = safe_cell
 	d.cell_pos = safe_cell  # simulate d having wandered onto c's cell
-	main.player_map[safe_cell] = d  # what c's _has_live_player(cell_pos) should find -- not itself
+	main.player_map[safe_cell] = d  # what c's has_live_player(cell_pos) should find -- not itself
 	c.in_pvp_combat = false
 	d.in_pvp_combat = false
 

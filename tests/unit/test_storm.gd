@@ -203,20 +203,20 @@ func test_exploring_prefers_ground_out_of_the_storm():
 	# Unexplored both ways from (1,0); only (2,0) is out of the storm.
 	_stand_in_storm(a, corridor(3), Vector2i(1, 0), [Vector2i(0, 0)])
 	for i in range(20):
-		assert_eq(a._choose_candidate(MazeQuery.open_neighbors(a.grid, a.cell_pos)), Vector2i(2, 0))
+		assert_eq(NpcRoutes.explore(a, MazeQuery.open_neighbors(a.grid, a.cell_pos)), Vector2i(2, 0))
 
 func test_but_it_will_explore_the_storm_if_thats_all_there_is():
 	_stand_in_storm(a, corridor(3), Vector2i(1, 0), [Vector2i(0, 0)], [Vector2i(2, 0)])
-	assert_eq(a._choose_candidate(MazeQuery.open_neighbors(a.grid, a.cell_pos)), Vector2i(0, 0))
+	assert_eq(NpcRoutes.explore(a, MazeQuery.open_neighbors(a.grid, a.cell_pos)), Vector2i(0, 0))
 
 func test_routes_steer_round_the_storm():
 	# Straight along the top to (2,0) is quicker -- but the storm's on (1,0).
 	_stand_in_storm(a, ring_maze(), Vector2i(0, 0), [Vector2i(1, 0)])
-	assert_eq(a._step_avoiding_storm(Vector2i(2, 0), 10), Vector2i(0, 1))
+	assert_eq(NpcRoutes.step_toward(a, Vector2i(2, 0), 10), Vector2i(0, 1))
 
 func test_through_the_storm_when_theres_no_other_way():
 	_stand_in_storm(a, corridor(4), Vector2i(0, 0), [Vector2i(1, 0), Vector2i(2, 0)])
-	assert_eq(a._step_avoiding_storm(Vector2i(3, 0), 10), Vector2i(1, 0))
+	assert_eq(NpcRoutes.step_toward(a, Vector2i(3, 0), 10), Vector2i(1, 0))
 
 func test_guidance_steers_round_the_storm_too():
 	_stand_in_storm(a, ring_maze(), Vector2i(0, 0), [Vector2i(1, 0)])
@@ -231,8 +231,8 @@ func test_chests_in_the_storm_arent_worth_it():
 func test_backing_off_backs_out_of_the_storm():
 	_stand_in_storm(a, corridor(3), Vector2i(1, 0), [Vector2i(0, 0)], [Vector2i(0, 0), Vector2i(2, 0)])
 	for i in range(20):
-		assert_eq(a._retreat_cell(), Vector2i(2, 0))
+		assert_eq(NpcRoutes.retreat_cell(a), Vector2i(2, 0))
 
 func test_but_into_it_if_theres_nowhere_else():
 	_stand_in_storm(a, corridor(2), Vector2i(1, 0), [Vector2i(0, 0)], [Vector2i(0, 0)])
-	assert_eq(a._retreat_cell(), Vector2i(0, 0))
+	assert_eq(NpcRoutes.retreat_cell(a), Vector2i(0, 0))

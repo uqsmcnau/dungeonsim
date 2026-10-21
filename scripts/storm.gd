@@ -25,7 +25,7 @@ var elapsed := 0.0
 ## The ring's radius right now.
 var radius := 0.0
 ## Every maze cell the storm covers right now, for the AI to steer round
-## (see NpcAgent._storm_cells) -- worked out again each time the ring's
+## (see NpcRoutes.storm_cells) -- worked out again each time the ring's
 ## shrunk another RECOUNT_STEP, not every frame.
 var covered: Dictionary = {}
 var _grid: Array = []

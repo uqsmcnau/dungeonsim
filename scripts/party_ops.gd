@@ -107,7 +107,7 @@ static func join_party_of(joiner: NpcAgent, host: NpcAgent) -> void:
 	if host.is_in_combat():
 		return
 	host.current_action = "%s grew to %d" % [host.party_name, host.party.size()]
-	host.show_label("%s grew to %d!" % [host.party_name, host.party.size()], NpcAgent.LABEL_MESSAGE_SECONDS)
+	host.show_label("%s grew to %d!" % [host.party_name, host.party.size()], MapLabel.MESSAGE_SECONDS)
 
 ## Everyone in `members` ends up with the combined map of all of them --
 ## including what each had seen before they ever met. Each keeps their own
