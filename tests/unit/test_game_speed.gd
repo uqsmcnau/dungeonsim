@@ -54,15 +54,22 @@ func test_it_can_be_changed_while_paused():
 	hud.speed_button.pressed.emit()
 	assert_eq(Engine.time_scale, 2.0)
 
+## Game seconds (by the storm's clock) per real second, over a little under
+## half a real second -- long enough for Godot's frame-time smoothing to
+## catch up with a change of speed.
+func _pace() -> float:
+	await wait_frames(5)
+	var game_before: float = main.storm.elapsed
+	var real_before := Time.get_ticks_usec()
+	while Time.get_ticks_usec() - real_before < 400000:
+		await wait_frames(1)
+	return (main.storm.elapsed - game_before) / ((Time.get_ticks_usec() - real_before) / 1000000.0)
+
 func test_the_game_runs_faster():
 	main.set_game_speed(10.0)
-	var before: float = main.storm.elapsed
-	await wait_frames(10)
-	var game_seconds: float = main.storm.elapsed - before
+	assert_gt(await _pace(), 6.0, "the storm (and everything else) at ten times the pace")
 	main.set_game_speed(1.0)
-	before = main.storm.elapsed
-	await wait_frames(10)
-	assert_gt(game_seconds, (main.storm.elapsed - before) * 5.0, "the storm (and everything else) at ten times the pace")
+	assert_lt(await _pace(), 1.5)
 
 func test_normal_speed_once_the_game_is_gone():
 	main.set_game_speed(10.0)

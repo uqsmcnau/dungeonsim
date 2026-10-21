@@ -13,9 +13,25 @@ var main: Node
 
 ## Instantiates the whole game -- maze, characters, monsters, HUD -- as
 ## `main`. Usually called from before_each.
+##
+## Each test gets its own game, the same one every run (see
+## game_seed_for_test), so a failure fails the same way again. (Only "the
+## same way": a test that waits in real time can still see a different
+## number of frames.)
 func load_main() -> Node:
-	main = add_child_autofree(MAIN_SCENE.instantiate())
+	var game: GameManager = MAIN_SCENE.instantiate()
+	game.game_seed = game_seed_for_test()
+	main = add_child_autofree(game)
 	return main
+
+## The seed of this test's game: from the test's own name, so different tests
+## see different mazes but each sees the same one every run -- shuffled by
+## the TEST_SEED environment variable, to try every test on other games:
+##   TEST_SEED=7 godot --headless --path . -s addons/gut/gut_cmdln.gd
+func game_seed_for_test() -> int:
+	var test_name := "%s:%s" % [get_script().resource_path, gut.get_current_test_object().name]
+	var game_seed := hash(test_name + OS.get_environment("TEST_SEED"))
+	return game_seed if game_seed != 0 else 1  # 0 would mean "random"
 
 ## Runs the game `factor` times faster -- steps, fight turns, timers, and
 ## GUT's own waiting along with them, so a test that waits for characters

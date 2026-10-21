@@ -58,6 +58,11 @@ than copying it into a second test file. Pure logic (`NpcStats`,
 `CombatMath`, a bare `MazeGenerator`) is tested without loading `Main` at
 all.
 
+Each test's game is the same every run: `load_main()` seeds it from the
+test's own name, so a failure fails the same way again. To try every test
+on other games, set `TEST_SEED` (any value shuffles them all):
+`TEST_SEED=7 godot --headless --path . -s addons/gut/gut_cmdln.gd`.
+
 A test that waits for characters to walk or fight in real time should call
 `fast_forward()` first: it runs the game (and GUT's own waiting) four times
 faster until the test's `main` is freed. Fine for tests about how things
