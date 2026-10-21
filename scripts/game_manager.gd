@@ -4,7 +4,7 @@ extends Node2D
 const MAZE_WIDTH := 68
 const MAZE_HEIGHT := 68
 const CELL_SIZE := 20.0
-const NPC_COUNT := 20
+const NPC_COUNT := 26
 ## How far (in pixels) from a character's icon center a click still selects
 ## it -- about half a cell, matching the 16px icon.
 const PICK_RADIUS := 10.0
@@ -30,21 +30,24 @@ const GRAVE_SCENE: PackedScene = preload("res://scenes/Gravestone.tscn")
 ## (see tools/soak.gd) can be played again to see what happened.
 @export var game_seed: int = 0
 
-## One distinct entry per NPC_COUNT -- kept at exactly 20 so no two of the
-## 20 starting characters share both a name and a color (they'd otherwise
-## cycle and repeat via the modulo indexing below once NPC_COUNT exceeded
-## the list length).
+## One distinct entry per NPC_COUNT -- kept at exactly 26 (a name for each
+## letter) so no two of the starting characters share both a name and a
+## color (they'd otherwise cycle and repeat via the modulo indexing below
+## once NPC_COUNT exceeded the list length).
 var npc_colors := [
 	Color.RED, Color.BLUE, Color.GREEN, Color.YELLOW,
 	Color.ORANGE, Color.PURPLE, Color.CYAN, Color.MAGENTA,
-	Color.LIME, Color.PINK, Color.TEAL, Color.GOLD,
+	Color.FOREST_GREEN, Color.PINK, Color.TEAL, Color.GOLD,
 	Color.BROWN, Color.CORAL, Color.VIOLET, Color.SALMON,
 	Color.KHAKI, Color.CRIMSON, Color.TURQUOISE, Color.SIENNA,
+	Color.SKY_BLUE, Color.OLIVE, Color.SLATE_BLUE, Color.AQUAMARINE,
+	Color.LAVENDER, Color.SEA_GREEN,
 ]
 var npc_names := [
 	"Aria", "Bram", "Cass", "Dorn", "Eska", "Finn",
 	"Gale", "Hesk", "Iris", "Jace", "Kael", "Lyra",
 	"Mira", "Nox", "Orla", "Pell", "Quen", "Rook", "Sable", "Tam",
+	"Ulla", "Vex", "Wren", "Xan", "Yara", "Zed",
 ]
 
 var npcs: Array = []

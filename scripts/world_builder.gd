@@ -10,13 +10,14 @@ extends RefCounted
 
 const ENEMY_DENSITY := 0.06
 const EXTRA_CHEST_DENSITY := 0.012
-const SHOP_COLUMNS := 2
-const SHOP_ROWS := 2
+## Shops go one to a region of a SHOP_GRID x SHOP_GRID grid over the maze,
+## bar the middle region, which is the boss's (see _place_shops).
+const SHOP_GRID := 3
 const EXTRA_CONNECTION_CHANCE := 0.15
 const LEVEL_CURVE_EXPONENT := 1.5
 const BOSS_LEVEL := 12
 const BOSS_SCALE := 1.5
-const MINI_BOSS_COUNT := 3
+const MINI_BOSS_COUNT := 6
 const MINI_BOSS_LEVEL := 8
 const MINI_BOSS_SCALE := 1.3
 ## Some encounters spawn as a pack of 2-3 individually weaker enemies
@@ -127,15 +128,18 @@ func _zone_is_free(center: Vector2i) -> bool:
 				return false
 	return true
 
-## Puts one shop in each region of a game.grid laid over the maze, so they're
-## spread out rather than clumped. Each shop sits at the middle of its own
+## Puts one shop in each region of a grid laid over the maze -- all but the
+## middle one, where the boss is -- so they're spread out in a ring round it
+## rather than clumped. Each shop sits at the middle of its own
 ## 3x3 safe zone, opened up inside and off-limits to enemies.
 func _place_shops(generator: MazeGenerator) -> void:
 	var margin := 4
-	var region_w: int = (GameManager.MAZE_WIDTH - 2 * margin) / SHOP_COLUMNS
-	var region_h: int = (GameManager.MAZE_HEIGHT - 2 * margin) / SHOP_ROWS
-	for row in range(SHOP_ROWS):
-		for col in range(SHOP_COLUMNS):
+	var region_w: int = (GameManager.MAZE_WIDTH - 2 * margin) / SHOP_GRID
+	var region_h: int = (GameManager.MAZE_HEIGHT - 2 * margin) / SHOP_GRID
+	for row in range(SHOP_GRID):
+		for col in range(SHOP_GRID):
+			if row == SHOP_GRID / 2 and col == SHOP_GRID / 2:
+				continue
 			for attempt in range(40):
 				var center := Vector2i(
 					margin + col * region_w + randi() % region_w,

@@ -1,6 +1,6 @@
 # DungeonSim
 
-A Godot 4.7 (GDScript) spectator simulation: 20 autonomous, AI-controlled
+A Godot 4.7 (GDScript) spectator simulation: 26 autonomous, AI-controlled
 characters explore a procedurally generated maze, gain RPG levels through
 encounters, form parties, fight monsters and each other, and race for a
 boss room at the center of a circular maze. Each `NpcAgent` drives

@@ -111,6 +111,34 @@ func test_the_start_zones_ring_the_edge():
 		var gap: float = fposmod(angles[(i + 1) % angles.size()] - angles[i], TAU)
 		assert_almost_eq(gap, even_gap, even_gap * 0.5, "spread evenly round")
 
+func test_twenty_six_players_eight_shops_and_six_mini_bosses():
+	assert_eq(main.npcs.size(), 26)
+	assert_eq(main.shop_cells.size(), 8)
+	assert_eq(main.mini_boss_cells.size(), 6)
+	var minis := 0
+	for enemy in main.enemy_container.get_children():
+		if enemy.is_mini_boss:
+			minis += 1
+	assert_eq(minis, 6)
+
+func test_every_player_has_their_own_name_and_color():
+	var names := {}
+	var colors := {}
+	for npc in main.npcs:
+		names[npc.npc_name] = true
+		colors[npc.visual.color] = true
+	assert_eq(names.size(), 26)
+	assert_eq(colors.size(), 26)
+
+func test_the_shops_ring_the_boss_room():
+	var shape: MazeShape = main.maze_shape
+	var quarters := {}
+	for shop in main.shop_cells:
+		var offset: Vector2 = Vector2(shop) + Vector2(0.5, 0.5) - shape.center
+		assert_gt(offset.length(), 6.0, "clear of the boss room")
+		quarters[int(fposmod(offset.angle(), TAU) / (TAU / 4.0))] = true
+	assert_eq(quarters.size(), 4, "some in every quarter of the maze")
+
 func test_shops_and_mini_boss_rooms_are_inside():
 	for shop in main.shop_cells:
 		_assert_zone_inside(shop, "a shop")
