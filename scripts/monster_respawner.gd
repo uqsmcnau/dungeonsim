@@ -100,7 +100,9 @@ func hidden_spawn_cell(area: Vector2i) -> Vector2i:
 	for y in range(area.y * AREA_SIZE, mini((area.y + 1) * AREA_SIZE, GameManager.MAZE_HEIGHT)):
 		for x in range(area.x * AREA_SIZE, mini((area.x + 1) * AREA_SIZE, GameManager.MAZE_WIDTH)):
 			var c := Vector2i(x, y)
-			if game.restricted_cells.has(c) or game.enemy_map.has(c) or game.chest_map.has(c) or game.player_map.has(c):
+			if MazeGenerator.is_outside(game.grid, c) or game.restricted_cells.has(c):
+				continue
+			if game.enemy_map.has(c) or game.chest_map.has(c) or game.player_map.has(c):
 				continue
 			if _seen_or_near_a_player(c):
 				continue

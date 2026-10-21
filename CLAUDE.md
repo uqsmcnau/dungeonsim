@@ -3,10 +3,11 @@
 A Godot 4.7 (GDScript) spectator simulation: 20 autonomous, AI-controlled
 characters explore a procedurally generated maze, gain RPG levels through
 encounters, form parties, fight monsters and each other, and race for a
-boss room at the center. Each `NpcAgent` drives itself from `_process`; the
-spectator can only watch, pause, inspect (click a character or gravestone),
-toggle the fog of war / Party Vision, and give the selected party Guidance
-(right-click a cell, on a cooldown) — they never control anyone directly.
+boss room at the center of a circular maze. Each `NpcAgent` drives
+itself from `_process`; the spectator can only watch, pause, inspect (click
+a character or gravestone), toggle the fog of war / Party Vision, and give
+the selected party Guidance (right-click a cell, on a cooldown) — they never
+control anyone directly.
 
 ## Running it
 
@@ -43,7 +44,7 @@ godot --headless --path . -s addons/gut/gut_cmdln.gd
 `.gutconfig.json` in the project root already points the runner at
 `tests/unit`, so no extra flags are needed. Exits 0 on success, 1 if any
 test fails — safe to gate CI on (see `.github/workflows/tests.yml`). The
-whole suite takes about 35 seconds.
+whole suite takes about 50 seconds.
 
 Test scripts extend **`DungeonTest`** (`tests/dungeon_test.gd`, outside
 `tests/unit` so GUT doesn't collect it) rather than `GutTest`. It provides
@@ -89,7 +90,7 @@ that touches movement, combat or parties:
 tools/soak.sh [games=8] [first_seed=1] [seconds=600]
 ```
 
-Eight 600-second games take about two minutes. It exits 1 on any problem,
+Eight 600-second games take five minutes or so. It exits 1 on any problem,
 printing the seed and the recent history of whoever's involved. A game
 replays exactly from its seed (`GameManager.game_seed`; 0, the default, is
 a fresh random game), so a failure can be played again one game at a time:
@@ -107,6 +108,13 @@ also runs by hand on GitHub (Actions → Soak).
   maze and its zones and stocks it (monsters, bosses, chests), plus chests
   placed later (mini boss drops, death chests). Writes into GameManager's
   state rather than keeping its own.
+- **`maze_shape.gd` (`MazeShape`, as `main.maze_shape`)** — the maze's
+  outline, a circle in the 68x68 grid. Cells outside it are solid
+  rock: every wall up plus `MazeGenerator.OUTSIDE`, and no wall into them is
+  ever knocked down. Test with **`MazeGenerator.is_outside(grid, cell)`**
+  (true off the grid too) rather than bounds checks — anything that
+  enumerates or picks cells (spawning, respawning, sight, route planning,
+  Guidance) has to skip rock. `MazeView` draws a stone border round it.
 - **`monster_respawner.gd` (`MonsterRespawner`, as `main.respawner`)** —
   splits the maze into 8x8 areas, remembers each area's starting monster
   count, and slowly respawns lost monsters out of every player's sight, never
@@ -282,7 +290,8 @@ also runs by hand on GitHub (Actions → Soak).
   ("a neighbour shows something new", "this cell is far from everyone") can
   pass for weeks and then fail one run in eight. Search for a cell that
   meets the need, or build a small maze by hand (`walled_grid()` and
-  friends), rather than assuming one is next door. Run the suite several
+  friends), rather than assuming one is next door. The grid's corners and
+  edges are rock, not maze (see `MazeShape`). Run the suite several
   times after adding such a test.
 - **GUT's orphan counts after HUD tests are expected.** Discarded panels
   are removed from their column straight away and freed at the end of the

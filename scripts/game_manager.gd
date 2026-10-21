@@ -1,8 +1,8 @@
 class_name GameManager
 extends Node2D
 
-const MAZE_WIDTH := 48
-const MAZE_HEIGHT := 48
+const MAZE_WIDTH := 68
+const MAZE_HEIGHT := 68
 const CELL_SIZE := 20.0
 const NPC_COUNT := 20
 ## How far (in pixels) from a character's icon center a click still selects
@@ -50,6 +50,8 @@ var npc_names := [
 var npcs: Array = []
 var winner: NpcAgent = null
 var grid: Array = []
+## The maze's outline (see MazeShape); cells outside it are rock.
+var maze_shape: MazeShape
 var start_cells: Array = []
 var exit_cell: Vector2i
 var enemy_map: Dictionary = {}
@@ -151,7 +153,7 @@ func _on_world_right_clicked(world_pos: Vector2) -> void:
 	if leader == null:
 		return
 	var cell := world_to_cell(world_pos)
-	if cell.x < 0 or cell.x >= MAZE_WIDTH or cell.y < 0 or cell.y >= MAZE_HEIGHT:
+	if MazeGenerator.is_outside(grid, cell):  # off the map, or the rock around the maze
 		return
 	if guidance_cooldown_left > 0.0:
 		hud.guidance_denied()

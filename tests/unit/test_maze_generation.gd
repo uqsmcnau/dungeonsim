@@ -123,3 +123,21 @@ func test_open_room_clears_internal_walls_without_erroring_at_grid_edges():
 	generator.open_room(grid, Vector2i(0, 0), width, height)
 	assert_has(MazeQuery.open_neighbors(grid, Vector2i(0, 0)), Vector2i(1, 0))
 	assert_has(MazeQuery.open_neighbors(grid, Vector2i(0, 0)), Vector2i(0, 1))
+
+func test_reconnecting_lets_a_stranded_patch_back_in():
+	# (0,0)-(1,0) | (2,0)-(3,0): the right-hand pair is cut off.
+	var g := DungeonTest.walled_grid(4, 1)
+	DungeonTest.open_between(g, Vector2i(0, 0), Vector2i(1, 0))
+	DungeonTest.open_between(g, Vector2i(2, 0), Vector2i(3, 0))
+	generator.reconnect(g, Vector2i(0, 0))
+	assert_eq(_reachable_count(g), 4)
+
+func test_reconnecting_goes_round_a_room_when_it_can():
+	# The stranded cell (1,1) borders a room cell (1,0) and an ordinary one
+	# (0,1); the way in should be through the ordinary one.
+	var g := DungeonTest.walled_grid(2, 2)
+	DungeonTest.open_between(g, Vector2i(0, 0), Vector2i(1, 0))
+	DungeonTest.open_between(g, Vector2i(0, 0), Vector2i(0, 1))
+	generator.reconnect(g, Vector2i(0, 0), {Vector2i(1, 0): true})
+	assert_true(MazeQuery.open_neighbors(g, Vector2i(0, 1)).has(Vector2i(1, 1)))
+	assert_false(MazeQuery.open_neighbors(g, Vector2i(1, 0)).has(Vector2i(1, 1)), "the room stays sealed")

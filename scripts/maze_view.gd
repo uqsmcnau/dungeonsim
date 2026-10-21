@@ -8,6 +8,20 @@ var shop_cells: Array = []
 var mini_boss_cells: Array = []
 var exit_cell: Vector2i = Vector2i.ZERO
 
+## The stone border around the maze (see _draw): how far past the maze's
+## edge it reaches, in cells, and how smoothly its outline is drawn.
+const BORDER_WIDTH := 1.2
+const BORDER_POINTS := 160
+const BORDER_COLOR := Color(0.36, 0.32, 0.29)
+const BORDER_RIM_COLOR := Color(0.16, 0.13, 0.11)
+const BORDER_RIM_WIDTH := 4.0
+## The maze's floor: the colour the window clears to, so the maze looks as
+## it always has -- it just stops where the rock starts.
+const FLOOR_COLOR := Color(0.3, 0.3, 0.3)
+## The border's outline, in pixels, and the floor as rects (see set_maze).
+var _border := PackedVector2Array()
+var _floor: Array = []
+
 ## Fog of war: cells any character has ever seen stay in `discovered`
 ## forever. `currently_visible` is recomputed every tick from where
 ## characters are right now, plus any `sticky_cells` that have already
@@ -54,14 +68,34 @@ func set_selection_highlight(center: Vector2, radius: float) -> void:
 	queue_redraw()
 
 func set_maze(new_grid: Array, new_cell_size: float, new_starts: Array, new_exit: Vector2i,
-		new_shops: Array, new_mini_bosses: Array) -> void:
+		new_shops: Array, new_mini_bosses: Array, shape: MazeShape = null) -> void:
 	grid = new_grid
 	cell_size = new_cell_size
 	start_cells = new_starts
 	exit_cell = new_exit
 	shop_cells = new_shops
 	mini_boss_cells = new_mini_bosses
+	_border = PackedVector2Array()
+	if shape != null:
+		for point in shape.outline(BORDER_POINTS, BORDER_WIDTH):
+			_border.append(point * cell_size)
+	_floor = _floor_runs()
 	queue_redraw()
+
+## The maze's floor as a few long rects -- each run of maze cells along a
+## row -- rather than a rect per cell, since it's drawn every frame.
+func _floor_runs() -> Array:
+	var runs: Array = []
+	for y in range(grid.size()):
+		var run_start := -1
+		for x in range(grid[0].size() + 1):
+			var inside: bool = x < grid[0].size() and not MazeGenerator.is_outside(grid, Vector2i(x, y))
+			if inside and run_start < 0:
+				run_start = x
+			elif not inside and run_start >= 0:
+				runs.append(Rect2(run_start * cell_size, y * cell_size, (x - run_start) * cell_size, cell_size))
+				run_start = -1
+	return runs
 
 func set_fog_enabled(enabled: bool) -> void:
 	fog_enabled = enabled
@@ -135,6 +169,18 @@ func _draw() -> void:
 	var thickness := 3.0
 	var dim := Color(0.4, 0.4, 0.4, 1.0)
 
+	# The border: a band of stone around the maze's circle, its outer
+	# edge rimmed, then the maze's floor laid over the middle of it -- so the
+	# band shows between the floor's stepped edge and the smooth rim. Drawn
+	# whatever the fog, so the dungeon's outline is always framed.
+	if not _border.is_empty():
+		draw_colored_polygon(_border, BORDER_COLOR)
+		var rim := _border.duplicate()
+		rim.append(rim[0])
+		draw_polyline(rim, BORDER_RIM_COLOR, BORDER_RIM_WIDTH, true)
+	for run in _floor:
+		draw_rect(run, FLOOR_COLOR)
+
 	for s in start_cells:
 		_draw_marker_if_visible(s, Color(0.2, 0.9, 0.3, 0.6))
 	_draw_marker_if_visible(exit_cell, Color(0.95, 0.8, 0.15, 0.6))
@@ -164,7 +210,7 @@ func _draw() -> void:
 	for y in range(height):
 		for x in range(width):
 			var cell := Vector2i(x, y)
-			if not is_discovered(cell):
+			if MazeGenerator.is_outside(grid, cell) or not is_discovered(cell):
 				continue
 			var wall_color := Color.WHITE if is_currently_visible(cell) else dim
 			var walls: int = grid[y][x]

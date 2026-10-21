@@ -47,15 +47,13 @@ static func has_line_of_sight(grid: Array, from: Vector2i, to: Vector2i) -> bool
 	return true
 
 ## Every cell someone standing on `center` can see: within `sight_range`
-## (Chebyshev distance), clipped to the maze, and in line of sight.
+## (Chebyshev distance), inside the maze, and in line of sight.
 static func visible_cells(grid: Array, center: Vector2i, sight_range: int) -> Dictionary:
 	var cells: Dictionary = {}
-	var height: int = grid.size()
-	var width: int = grid[0].size()
 	for dy in range(-sight_range, sight_range + 1):
 		for dx in range(-sight_range, sight_range + 1):
 			var c := Vector2i(center.x + dx, center.y + dy)
-			if c.x < 0 or c.x >= width or c.y < 0 or c.y >= height:
+			if MazeGenerator.is_outside(grid, c):
 				continue
 			if has_line_of_sight(grid, center, c):
 				cells[c] = true
@@ -113,8 +111,6 @@ static func step_toward(grid: Array, from: Vector2i, to: Vector2i, max_depth: in
 static func explore_step(grid: Array, from: Vector2i, to: Vector2i, known: Dictionary, avoid: Dictionary = {}) -> Vector2i:
 	if from == to:
 		return from
-	var width: int = grid[0].size()
-	var height: int = grid.size()
 	var came_from: Dictionary = {from: from}
 	var cost: Dictionary = {from: 0}
 	var heap := _Heap.new()
@@ -128,7 +124,7 @@ static func explore_step(grid: Array, from: Vector2i, to: Vector2i, known: Dicti
 			return step
 		for dir in [Vector2i(0, -1), Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 0)]:
 			var n: Vector2i = cur + dir
-			if n.x < 0 or n.x >= width or n.y < 0 or n.y >= height:
+			if MazeGenerator.is_outside(grid, n):  # off the grid, or rock: never a way through
 				continue
 			if avoid.has(n) and n != to:
 				continue
