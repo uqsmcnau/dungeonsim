@@ -15,7 +15,7 @@ const FIGURE_SCALE := 1.5
 const SWORDS := {"Mithril Sword": "mithril_sword", "Steel Sword": "steel_sword", "Iron Sword": "iron_sword"}
 const OFF_HANDS := {
 	"Aegis Shield": "aegis", "Silver Shield": "silver_shield", "Shield": "shield",
-	"Archmage's Staff": "staff", "Arcane Tome": "tome",
+	"Archmage's Staff": "staff", "Enchanted Tome": "tome", "Arcane Tome": "tome",
 }
 
 var id: int = 0
@@ -156,7 +156,7 @@ static func look_of(stats: NpcStats) -> Dictionary:
 		"gold_helm": stats.equipped_in("helmet").has("Golden Helm"),
 		"boots": not stats.equipped_in("feet").is_empty(),
 		"winged": stats.equipped_in("feet").has("Winged Boots"),
-		"amulet": accessories.has("Sage's Amulet"),
-		"ring": accessories.has("Silver Ring"),
+		"amulet": accessories.has("Sage's Amulet") or accessories.has("Moonstone Amulet"),
+		"ring": accessories.has("Silver Ring") or accessories.has("Ring of Vigor"),
 		"might": accessories.has("Ring of Might"),
 	}

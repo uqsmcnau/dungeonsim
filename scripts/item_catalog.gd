@@ -48,10 +48,19 @@ const ITEMS := [
 	{"name": "Sage's Amulet", "kind": "equipment", "slot": "accessory", "rarity": "bronze", "effects": {"wisdom": 2}},
 	{"name": "Silver Ring", "kind": "equipment", "slot": "accessory", "rarity": "bronze", "effects": {"charisma": 2}},
 
-	# Silver-tier upgrades of the sword, armor and shield above.
+	# Silver tier: an upgrade of each bronze piece above.
 	{"name": "Steel Sword", "kind": "equipment", "slot": "hand", "rarity": "silver", "effects": {"attack": 4}},
 	{"name": "Chainmail", "kind": "equipment", "slot": "armor", "rarity": "silver", "effects": {"defense": 4}},
 	{"name": "Silver Shield", "kind": "equipment", "slot": "hand", "rarity": "silver", "effects": {"defense": 2, "evasion": 0.06}},
+	{"name": "Enchanted Tome", "kind": "equipment", "slot": "hand", "rarity": "silver",
+		"effects": {"intelligence": 3, "wisdom": 1}},
+	{"name": "Steel Helm", "kind": "equipment", "slot": "helmet", "rarity": "silver", "effects": {"defense": 2}},
+	{"name": "Swift Boots", "kind": "equipment", "slot": "feet", "rarity": "silver",
+		"effects": {"defense": 1, "evasion": 0.07, "dexterity": 1}},
+	{"name": "Moonstone Amulet", "kind": "equipment", "slot": "accessory", "rarity": "silver",
+		"effects": {"wisdom": 3, "intelligence": 1}},
+	{"name": "Ring of Vigor", "kind": "equipment", "slot": "accessory", "rarity": "silver",
+		"effects": {"constitution": 2, "charisma": 1}},
 
 	# Gold tier: upgrades of the silver gear, and the best of every other slot.
 	{"name": "Mithril Sword", "kind": "equipment", "slot": "hand", "rarity": "gold", "effects": {"attack": 6}},

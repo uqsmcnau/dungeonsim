@@ -2,7 +2,8 @@ extends DungeonTest
 
 ## Covers the gold tier: the best items in the dungeon, found only in the
 ## gold chest a mini boss's party leaves once all three of it are beaten --
-## never in a shop or an ordinary chest.
+## never in a shop or an ordinary chest. Also that the silver tier sits
+## between bronze and gold, slot by slot.
 
 const GOLD_ITEMS := [
 	"Mithril Sword", "Aegis Shield", "Archmage's Staff", "Plate Armor", "Golden Helm", "Winged Boots", "Ring of Might",
@@ -34,6 +35,23 @@ func test_each_beats_what_came_before_it():
 	assert_gt(ItemCatalog.value_of("Aegis Shield"), ItemCatalog.value_of("Silver Shield"))
 	assert_gt(ItemCatalog.value_of("Golden Helm"), ItemCatalog.value_of("Helmet"))
 	assert_gt(ItemCatalog.value_of("Winged Boots"), ItemCatalog.value_of("Leather Boots"))
+
+func test_silver_fills_the_gap_between_bronze_and_gold():
+	for tiers in [["Helmet", "Steel Helm", "Golden Helm"], ["Leather Boots", "Swift Boots", "Winged Boots"],
+			["Arcane Tome", "Enchanted Tome", "Archmage's Staff"], ["Sage's Amulet", "Moonstone Amulet"],
+			["Silver Ring", "Ring of Vigor", "Ring of Might"]]:
+		for i in range(tiers.size() - 1):
+			assert_gt(ItemCatalog.value_of(tiers[i + 1]), ItemCatalog.value_of(tiers[i]), "%s over %s" % [tiers[i + 1], tiers[i]])
+		assert_eq(ItemCatalog.find(tiers[1])["rarity"], ItemCatalog.RARITY_SILVER, tiers[1])
+
+func test_the_new_silver_pieces_show_in_battle():
+	var stats := NpcStats.new()
+	for item in ["Enchanted Tome", "Steel Helm", "Swift Boots", "Moonstone Amulet", "Ring of Vigor"]:
+		stats.acquire_item(item)
+	var look := BattleFighter.look_of(stats)
+	assert_eq(look["off_hand"], "tome")
+	for part in ["helmet", "boots", "amulet", "ring"]:
+		assert_true(look[part], part)
 
 func test_a_gold_chest_holds_a_gold_item():
 	for i in range(20):
