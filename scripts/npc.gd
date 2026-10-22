@@ -433,8 +433,11 @@ func _guidance_step() -> Vector2i:
 ## one stuck in a fight can't move, so the other comes to it.
 func _party_up_step() -> Vector2i:
 	var candidates: Dictionary = {}
+	var stormy := NpcRoutes.storm_cells(self)
 	for c in players:
-		if _wants_to_party_with(players[c]):
+		# Not someone in the storm: they'll be getting out of it anyway, and
+		# going to them would mean leaving safe ground.
+		if _wants_to_party_with(players[c]) and not stormy.has(c):
 			candidates[c] = true
 	if candidates.is_empty():
 		return cell_pos
@@ -533,27 +536,29 @@ func _finish_shopping() -> void:
 
 ## Next step toward a chest, or our own cell if there's none to go for. Once
 ## a chest has been spotted it stays the goal (even if the route around a
-## corner briefly loses sight of it) until it's taken by someone or turns out
-## to be unreachable.
+## corner briefly loses sight of it) until it's taken by someone, the storm
+## gets to it, or it turns out to be unreachable.
 ##
-## Routes around monsters, since a chest isn't worth picking a fight over.
-## If there's no way there that avoids them, the chest is set aside for
-## CHEST_SKIP_STEPS steps. Simply dropping the goal isn't enough: the chest
-## would be re-spotted on the very next step, so the character would bounce
-## forever between stepping toward it and backing off from the monster in
-## the way.
+## Routes around monsters and the storm, since a chest isn't worth picking
+## a fight over or leaving safe ground for. If there's no way there that
+## avoids them, the chest is set aside for CHEST_SKIP_STEPS steps. Simply
+## dropping the goal isn't enough: the chest would be re-spotted on the very
+## next step, so the character would bounce forever between stepping toward
+## it and backing off from the monster (or the storm) in the way.
 func _chest_step() -> Vector2i:
 	_tick_skipped_chests()
-	if chest_goal != MazeQuery.NONE and not chests.has(chest_goal):
-		chest_goal = MazeQuery.NONE
+	var worth := _chests_worth_trying()
+	if chest_goal != MazeQuery.NONE and not worth.has(chest_goal):
+		chest_goal = MazeQuery.NONE  # taken, set aside, or the storm's got it
 	if chest_goal == MazeQuery.NONE:
-		chest_goal = MazeQuery.nearest_visible(grid, cell_pos, SIGHT_RANGE, _chests_worth_trying())
+		chest_goal = MazeQuery.nearest_visible(grid, cell_pos, SIGHT_RANGE, worth)
 	if chest_goal == MazeQuery.NONE:
 		return cell_pos
 	var step := NpcRoutes.step_toward(self, chest_goal, CHEST_PATH_DEPTH, NpcRoutes.live_enemy_cells(self))
-	if step == cell_pos:
+	if step == cell_pos or NpcRoutes.leaves_safe_ground(self, step):
 		skipped_chests[chest_goal] = CHEST_SKIP_STEPS
 		chest_goal = MazeQuery.NONE
+		return cell_pos
 	return step
 
 func _tick_skipped_chests() -> void:

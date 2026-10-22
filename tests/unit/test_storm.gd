@@ -239,6 +239,32 @@ func test_chests_in_the_storm_arent_worth_it():
 	a.chests = {Vector2i(0, 0): true, Vector2i(1, 0): true}
 	assert_eq(a._chests_worth_trying().keys(), [Vector2i(1, 0)])
 
+func test_a_chest_the_storm_reaches_is_given_up():
+	# Spotted while it was still dry -- then the storm got to it. Holding on
+	# to it walked them up to the storm's edge, off exploring, and back again.
+	_stand_in_storm(a, corridor(5), Vector2i(1, 0), [Vector2i(3, 0), Vector2i(4, 0)])
+	a.chests = {Vector2i(4, 0): true}
+	a.chest_goal = Vector2i(4, 0)
+	assert_eq(a._chest_step(), a.cell_pos)
+	assert_eq(a.chest_goal, MazeQuery.NONE)
+
+func test_a_chest_only_reached_through_the_storm_is_set_aside():
+	_stand_in_storm(a, corridor(5), Vector2i(2, 0), [Vector2i(3, 0)])
+	a.chests = {Vector2i(4, 0): true}
+	assert_eq(a._chest_step(), a.cell_pos, "not into the storm for it")
+	assert_true(a.skipped_chests.has(Vector2i(4, 0)), "nor straight back the next step")
+
+func test_nobody_heads_over_to_a_party_in_the_storm():
+	var g := corridor(4)
+	_stand_in_storm(a, g, Vector2i(0, 0), [])
+	isolate(b, g, Vector2i(3, 0), players)
+	for npc in [a, b]:
+		npc.stats.alignment = NpcStats.ALIGNMENT_GOOD
+		set_stats(npc, 3, 40, 5, 5)
+	assert_ne(a._party_up_step(), a.cell_pos, "sanity: they'd team up")
+	a.storm = _Region.new([Vector2i(3, 0)])
+	assert_eq(a._party_up_step(), a.cell_pos, "but not out there")
+
 func test_backing_off_backs_out_of_the_storm():
 	_stand_in_storm(a, corridor(3), Vector2i(1, 0), [Vector2i(0, 0)], [Vector2i(0, 0), Vector2i(2, 0)])
 	for i in range(20):
