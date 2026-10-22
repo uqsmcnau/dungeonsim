@@ -183,10 +183,14 @@ func _weather_the_storm(delta: float) -> void:
 	if stats.hp <= 0:
 		die("the storm", "Caught out in the storm")
 
-## Caught in the storm: heads for the nearest ground it doesn't cover (see
-## NpcRoutes.out_of_storm). Comes straight after dealing with whoever's on
-## our own cell -- before healing, which the storm won't allow anyway.
+## Caught in the storm, or in a pocket it's cut off: heads for safe ground
+## (see NpcRoutes.out_of_storm). Comes straight after dealing with whoever's
+## on our own cell -- before healing, which the storm won't allow anyway --
+## but after the spectator's Guidance, which may well mean crossing the
+## storm on purpose.
 func _escape_the_storm() -> bool:
+	if guidance_target != MazeQuery.NONE:
+		return false
 	var step := NpcRoutes.out_of_storm(self)
 	if step == cell_pos:
 		return false  # not caught in it, or nowhere left to run
@@ -328,22 +332,23 @@ func _take_step() -> void:
 
 	# Priorities: teaming up with another party in sight that's up for it,
 	# then a shop worth visiting, then a chest in sight, then exploring --
-	# and none of these is worth picking a fight over, so an enemy in the
-	# way means carrying on with the next option instead.
+	# and none of these is worth picking a fight over, or leaving safe
+	# ground for (see NpcRoutes.leaves_safe_ground), so an enemy or the
+	# storm in the way means carrying on with the next option instead.
 	var party_step := _party_up_step()
-	if party_step != cell_pos:
+	if party_step != cell_pos and not NpcRoutes.leaves_safe_ground(self, party_step):
 		# Not move_to: the step may well be onto the other party's cell,
 		# and _attempt_move is what merges the two on arrival.
 		_attempt_move(party_step)
 		return
 
 	var shop_step := _shop_step()
-	if shop_step != cell_pos and not has_live_enemy(shop_step):
+	if shop_step != cell_pos and not has_live_enemy(shop_step) and not NpcRoutes.leaves_safe_ground(self, shop_step):
 		move_to(shop_step)
 		return
 
 	var chest_step := _chest_step()
-	if chest_step != cell_pos and not has_live_enemy(chest_step):
+	if chest_step != cell_pos and not has_live_enemy(chest_step) and not NpcRoutes.leaves_safe_ground(self, chest_step):
 		move_to(chest_step)
 		return
 
@@ -556,8 +561,6 @@ func _chests_worth_trying() -> Dictionary:
 	for c in chests:
 		if not skipped_chests.has(c) and not storm_cells.has(c):
 			result[c] = chests[c]
-	return result
-
 	return result
 
 func has_live_enemy(cell: Vector2i) -> bool:

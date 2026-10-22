@@ -8,10 +8,11 @@ extends RefCounted
 ## NpcAgent as a parameter, like PartyOps and GroupCombat: NpcAgent decides
 ## what to do, these work out which way.
 
-## The cells the storm covers right now (none if there's no storm), for
-## routes to steer round.
+## The cells to steer round: those the storm covers, and any dry pocket
+## it's cut off from the middle (see Storm.unsafe) -- none if there's no
+## storm.
 static func storm_cells(npc: NpcAgent) -> Dictionary:
-	return npc.storm.covered if npc.storm != null else {}
+	return npc.storm.unsafe if npc.storm != null else {}
 
 ## Cells with a live monster on them, as far as `npc` knows.
 static func live_enemy_cells(npc: NpcAgent) -> Dictionary:
@@ -33,26 +34,38 @@ static func step_toward(npc: NpcAgent, to: Vector2i, max_depth: int, blocked: Di
 			return step
 	return MazeQuery.step_toward(npc.grid, npc.cell_pos, to, max_depth, blocked)
 
-## First step towards the nearest ground the storm doesn't cover, round any
-## monsters if there's a way -- or `npc`'s own cell if it isn't caught in
-## the storm, or there's nowhere left to run.
+## First step towards the nearest safe ground (see Storm.unsafe), round any
+## monsters if there's a way -- through the storm if that's the only way,
+## out of a pocket it's cut off as much as out of the storm itself. Or
+## `npc`'s own cell if it's already safe, or there's nowhere left to run.
 static func out_of_storm(npc: NpcAgent) -> Vector2i:
 	var storm := npc.storm
-	if storm == null or storm.is_closed() or not storm.covers(npc.cell_pos):
+	if storm == null or storm.is_closed() or storm.is_safe(npc.cell_pos):
 		return npc.cell_pos
-	var step := MazeQuery.step_out_of(npc.grid, npc.cell_pos, storm.covered, live_enemy_cells(npc))
+	var step := MazeQuery.step_out_of(npc.grid, npc.cell_pos, storm.unsafe, live_enemy_cells(npc))
 	if step == npc.cell_pos:
-		step = MazeQuery.step_out_of(npc.grid, npc.cell_pos, storm.covered)
+		step = MazeQuery.step_out_of(npc.grid, npc.cell_pos, storm.unsafe)
 	return step
+
+## Whether stepping to `next` would take `npc` off safe ground into the
+## storm (or a pocket it's cut off). Only worth it to get somewhere that
+## matters: anything else -- a chest, a shop, someone to team up with, more
+## to explore -- and it'd only turn round and get out again the next step,
+## back and forth until the storm took its ground anyway.
+static func leaves_safe_ground(npc: NpcAgent, next: Vector2i) -> bool:
+	var stormy := storm_cells(npc)
+	return stormy.has(next) and not stormy.has(npc.cell_pos)
 
 ## Which of `open_dirs` (open neighbours of `npc`'s cell) to explore next.
 ## Prefers an unvisited, enemy-free cell; falls back to any unvisited cell
 ## (even an enemy's) once safe options run out, then to the BFS frontier
 ## search, then to a random already-visited neighbor if fully boxed in.
 ##
-## Ground the storm covers comes last: an unvisited cell out of it first,
-## then the frontier by a route that stays out of it, and only then
-## unvisited cells or a route in it.
+## Ground the storm covers (or has cut off, see storm_cells) comes last: an
+## unvisited cell out of it first, then the frontier by a route that stays
+## out of it. On safe ground with none of that left, it wanders about on
+## safe ground rather than step into the storm; only caught in it already
+## (with no way out, or it'd be escaping) does it explore there.
 static func explore(npc: NpcAgent, open_dirs: Array) -> Vector2i:
 	var stormy := storm_cells(npc)
 	var unvisited: Array = open_dirs.filter(func(c): return not npc.visited.has(c))
@@ -65,6 +78,12 @@ static func explore(npc: NpcAgent, open_dirs: Array) -> Vector2i:
 	var frontier_step := toward_frontier(npc, stormy)
 	if frontier_step != npc.cell_pos:
 		return frontier_step
+	if not stormy.has(npc.cell_pos):
+		# On safe ground with nothing left to explore on it: wander about on
+		# it rather than into the storm (see leaves_safe_ground).
+		var dry_dirs: Array = open_dirs.filter(func(c): return not stormy.has(c))
+		if not dry_dirs.is_empty():
+			return dry_dirs[randi() % dry_dirs.size()]
 	if not unvisited.is_empty():
 		var calm: Array = unvisited.filter(func(c): return not npc.has_live_enemy(c))
 		return calm[randi() % calm.size()] if not calm.is_empty() else unvisited[randi() % unvisited.size()]

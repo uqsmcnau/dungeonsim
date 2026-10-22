@@ -132,11 +132,16 @@ On GitHub it plays 3 games at x10 on every push, from a new seed each run
   the battle-royale storm: gathering for 30s, then a ring shrinking from
   the maze's edge to its centre, closing completely at 600s (game time, so
   it pauses with the game). Anyone outside the ring loses HP and can't heal
-  (`NpcAgent._weather_the_storm`); a leader caught in it heads out first
-  (`_escape_the_storm`), and every route the AI picks steers round
-  `storm.covered` where there's another way (see `NpcRoutes`), going
-  through only if it must.
-  `MazeView` draws it; the HUD counts it down.
+  (`NpcAgent._weather_the_storm`). The AI works from **`storm.unsafe`**,
+  not `storm.covered`: the storm plus any dry pocket it's cut off from the
+  middle of the maze, looking a little ahead of the ring. Safe ground is
+  only what's still joined to the middle — so a leader caught in the storm
+  or a pocket heads for that (`_escape_the_storm`), through the storm if
+  need be, never back to the nearest dry cell. Every route steers round
+  `unsafe` where there's another way (see `NpcRoutes`), and nothing short of
+  safety or Guidance takes a party off safe ground into it
+  (`NpcRoutes.leaves_safe_ground`) — either would have it bounce in and
+  out of the storm. `MazeView` draws it; the HUD counts it down.
 - **`map_camera.gd` (`MapCamera`, as `main.camera`)** — zooming (wheel,
   +/-) and moving the view (left- or middle-drag, WASD/arrows, Home to
   reset), and Follow Mode (`following`): gliding to keep the point

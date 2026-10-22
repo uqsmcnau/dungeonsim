@@ -5,13 +5,17 @@ extends DungeonTest
 ## in it (HP drains away, none comes back); and how everyone's AI keeps out
 ## of it where it can, and gets out of it when caught.
 
-## A storm covering just the cells it's given -- for steering tests on a
-## hand-built maze, where the real storm's ring means nothing.
+## A storm covering just the cells it's given, and having cut off the
+## `pockets` it's given -- for steering tests on a hand-built maze, where
+## the real storm's ring means nothing.
 class _Region extends Storm:
-	func _init(cells: Array) -> void:
+	func _init(cells: Array, pockets: Array = []) -> void:
 		elapsed = START_SECONDS + 1.0
 		for c in cells:
 			covered[c] = true
+			unsafe[c] = true
+		for c in pockets:
+			unsafe[c] = true
 
 	func covers(cell: Vector2i) -> bool:
 		return covered.has(cell)
@@ -205,8 +209,15 @@ func test_exploring_prefers_ground_out_of_the_storm():
 	for i in range(20):
 		assert_eq(NpcRoutes.explore(a, MazeQuery.open_neighbors(a.grid, a.cell_pos)), Vector2i(2, 0))
 
-func test_but_it_will_explore_the_storm_if_thats_all_there_is():
+func test_with_nothing_left_to_explore_on_safe_ground_they_stay_on_it():
+	# The only unexplored cell is in the storm: going there would only mean
+	# turning straight round and getting out again.
 	_stand_in_storm(a, corridor(3), Vector2i(1, 0), [Vector2i(0, 0)], [Vector2i(2, 0)])
+	for i in range(20):
+		assert_eq(NpcRoutes.explore(a, MazeQuery.open_neighbors(a.grid, a.cell_pos)), Vector2i(2, 0))
+
+func test_but_already_in_it_they_explore_it():
+	_stand_in_storm(a, corridor(3), Vector2i(1, 0), [Vector2i(0, 0), Vector2i(1, 0)], [Vector2i(2, 0)])
 	assert_eq(NpcRoutes.explore(a, MazeQuery.open_neighbors(a.grid, a.cell_pos)), Vector2i(0, 0))
 
 func test_routes_steer_round_the_storm():
@@ -236,3 +247,133 @@ func test_backing_off_backs_out_of_the_storm():
 func test_but_into_it_if_theres_nowhere_else():
 	_stand_in_storm(a, corridor(2), Vector2i(1, 0), [Vector2i(0, 0)], [Vector2i(0, 0)])
 	assert_eq(NpcRoutes.retreat_cell(a), Vector2i(0, 0))
+
+# ========================= Cut off from the middle ========================
+
+## A maze with a pocket: along the top from the middle, (0,0), out to (4,0),
+## then back along the bottom from (4,1) to (1,1) -- a dead end lying close
+## to the middle that only joins it the long way round.
+func _hairpin() -> Array:
+	var g := walled_grid(5, 2)
+	for x in range(4):
+		open_between(g, Vector2i(x, 0), Vector2i(x + 1, 0))
+	for x in range(1, 4):
+		open_between(g, Vector2i(x, 1), Vector2i(x + 1, 1))
+	open_between(g, Vector2i(4, 0), Vector2i(4, 1))
+	return g
+
+## The storm on _hairpin, closed in to 3.5 cells round the middle: it covers
+## the far end, (4,0) and (4,1) -- and so cuts the bottom row off.
+func _hairpin_storm(g: Array) -> Storm:
+	var storm := Storm.new(null, g)
+	storm.center = Vector2(0.5, 0.5)
+	storm.start_radius = 7.0
+	storm.advance((Storm.START_SECONDS + Storm.CLOSED_SECONDS) / 2.0)
+	return storm
+
+func _row(y: int, from_x: int, to_x: int) -> Array:
+	var cells: Array = []
+	for x in range(from_x, to_x + 1):
+		cells.append(Vector2i(x, y))
+	return cells
+
+func test_dry_ground_the_storm_cuts_off_from_the_middle_isnt_safe():
+	var storm := _hairpin_storm(_hairpin())
+	for c in [Vector2i(4, 0), Vector2i(4, 1)]:
+		assert_true(storm.covers(c), "sanity: %s is in the storm" % c)
+	for c in _row(1, 1, 3):
+		assert_false(storm.covers(c), "sanity: %s is dry" % c)
+		assert_false(storm.is_safe(c), "but cut off: %s" % c)
+	for c in _row(0, 0, 3):
+		assert_true(storm.is_safe(c), str(c))
+
+func test_on_the_real_map_safe_ground_is_all_joined_to_the_middle():
+	var storm: Storm = main.storm
+	storm.advance(300.0)
+	var joined := {main.exit_cell: true}
+	var frontier: Array = [main.exit_cell]
+	while not frontier.is_empty():
+		for n in MazeQuery.open_neighbors(main.grid, frontier.pop_back()):
+			if not joined.has(n) and storm.is_safe(n):
+				joined[n] = true
+				frontier.append(n)
+	var safe := 0
+	for y in range(main.MAZE_HEIGHT):
+		for x in range(main.MAZE_WIDTH):
+			var c := Vector2i(x, y)
+			if MazeGenerator.is_outside(main.grid, c):
+				continue
+			if storm.covers(c):
+				assert_false(storm.is_safe(c), "%s is in the storm" % c)
+			if storm.is_safe(c):
+				safe += 1
+				assert_true(joined.has(c), "%s is joined to the middle by safe ground" % c)
+	assert_gt(safe, 0, "sanity: there's still some")
+
+func test_it_steers_clear_of_where_the_ring_is_about_to_be():
+	# Worked out only every RECOUNT_STEP the ring shrinks, so it looks that
+	# far ahead -- or the ring could creep onto a cell still counted safe.
+	var g := _hairpin()
+	var storm := Storm.new(null, g)
+	storm.center = Vector2(0.5, 0.5)
+	storm.start_radius = 7.0
+	var r := 3.1  # (3,0)'s middle is 3.0 from the maze's
+	storm.advance(Storm.CLOSED_SECONDS - r / storm.start_radius * (Storm.CLOSED_SECONDS - Storm.START_SECONDS))
+	assert_false(storm.covers(Vector2i(3, 0)), "sanity: not in the storm yet")
+	assert_false(storm.is_safe(Vector2i(3, 0)), "but about to be")
+	assert_true(storm.is_safe(Vector2i(2, 0)))
+
+func test_caught_in_it_they_make_for_the_middle_not_the_nearest_dry_cell():
+	var g := _hairpin()
+	isolate(a, g, Vector2i(4, 1), players)
+	a.storm = _hairpin_storm(g)
+	assert_eq(NpcRoutes.out_of_storm(a), Vector2i(4, 0), "not back into the pocket at (3,1)")
+
+func test_out_of_a_pocket_they_never_turn_back():
+	# The reported loop: out of the pocket into the storm, straight back to
+	# the pocket (the nearest dry cell), out again... until the storm had it.
+	var g := _hairpin()
+	isolate(a, g, Vector2i(1, 1), players)
+	a.storm = _hairpin_storm(g)
+	var path: Array = []
+	while not a.storm.is_safe(a.cell_pos) and path.size() < 10:
+		var step := NpcRoutes.out_of_storm(a)
+		assert_false(path.has(step) or step == a.cell_pos, "no going back (at %s, to %s)" % [a.cell_pos, step])
+		path.append(step)
+		a.cell_pos = step
+	assert_eq(path, [Vector2i(2, 1), Vector2i(3, 1), Vector2i(4, 1), Vector2i(4, 0), Vector2i(3, 0)])
+
+func test_and_they_actually_walk_out_through_the_storm():
+	fast_forward()
+	var g := _hairpin()
+	isolate(a, g, Vector2i(1, 1), players)
+	a.storm = _hairpin_storm(g)
+	set_stats(a, 5, 500, 5, 5)
+	var seen: Array = [a.cell_pos]
+	for i in range(80):  # polled in real time: steps are timed in seconds
+		await wait_seconds(0.1)
+		if seen.back() != a.cell_pos:
+			seen.append(a.cell_pos)
+		if a.storm.is_safe(a.cell_pos):
+			break
+	assert_true(a.storm.is_safe(a.cell_pos), "made it to the middle's side (went %s)" % [seen])
+	assert_eq(seen.count(Vector2i(1, 1)) + seen.count(Vector2i(2, 1)) + seen.count(Vector2i(3, 1)), 3,
+		"through the pocket once, never back (went %s)" % [seen])
+
+func test_safe_ground_isnt_left_for_anything_but_safety():
+	_stand_in_storm(a, corridor(4), Vector2i(2, 0), [Vector2i(1, 0)])
+	assert_true(NpcRoutes.leaves_safe_ground(a, Vector2i(1, 0)), "a chest, a shop, a party there: not worth it")
+	assert_false(NpcRoutes.leaves_safe_ground(a, Vector2i(3, 0)))
+	a.cell_pos = Vector2i(1, 0)
+	assert_false(NpcRoutes.leaves_safe_ground(a, Vector2i(0, 0)), "already in it, it's no worse")
+
+func test_chests_in_a_cut_off_pocket_arent_worth_it():
+	isolate(a, corridor(4), Vector2i(2, 0), players)
+	a.storm = _Region.new([Vector2i(0, 0)], [Vector2i(1, 0)])
+	a.chests = {Vector2i(1, 0): true, Vector2i(3, 0): true}
+	assert_eq(a._chests_worth_trying().keys(), [Vector2i(3, 0)])
+
+func test_guidance_can_still_send_them_through_the_storm():
+	_stand_in_storm(a, corridor(4), Vector2i(1, 0), [Vector2i(1, 0)])
+	a.guidance_target = Vector2i(0, 0)
+	assert_false(a._escape_the_storm(), "the spectator's order comes first")
