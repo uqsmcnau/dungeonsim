@@ -52,7 +52,16 @@ func test_maze_monsters_run_from_level_1_at_the_edge_to_10_by_the_boss_room():
 
 func test_every_monster_is_the_kind_for_its_level():
 	for monster in main.enemy_container.get_children():
-		assert_eq(monster.kind, MonsterCatalog.for_level(monster.stats.level))
+		if monster.kind != MonsterCatalog.ORC_CHIEFTAIN:
+			assert_eq(monster.kind, MonsterCatalog.for_level(monster.stats.level))
+
+func test_bar_the_orc_chieftains():
+	var chieftains: Array = main.enemy_container.get_children().filter(func(e): return e.kind == MonsterCatalog.ORC_CHIEFTAIN)
+	assert_eq(chieftains.size(), WorldBuilder.CHIEFTAIN_COUNT)
+	for chieftain in chieftains:
+		assert_true(chieftain.is_mini_boss, "each leads a mid boss's party")
+		assert_eq(chieftain.stats.level, 6, "an Orc's level, but its own kind")
+		assert_eq(chieftain.visual.color, MonsterCatalog.ORC_CHIEFTAIN["color"])
 
 func test_its_kind_shows_on_the_map():
 	var monster: EnemyAgent = _roaming_monsters()[0]
@@ -70,19 +79,43 @@ func test_its_level_reads_on_its_icon_however_dark():
 
 # ============================== Boss parties ==============================
 
-func test_each_mini_boss_leads_a_party_of_three():
-	assert_eq(main.mini_boss_cells.size(), WorldBuilder.MINI_BOSS_COUNT)
-	for cell in main.mini_boss_cells:
-		var mini_boss := _party_on(cell)
-		assert_true(mini_boss.is_mini_boss)
-		assert_eq(mini_boss.kind["name"], "Ogre Warlord")
-		assert_eq(mini_boss.stats.level, 11)
-		assert_eq(mini_boss.pack.size(), 3)
-		for guard in mini_boss.pack.slice(1):
+## The mid bosses (both tiers) whose leader is `kind_name`.
+func _mid_bosses(kind_name: String) -> Array:
+	return main.mini_boss_cells.map(func(c): return _party_on(c)).filter(func(b): return b.kind["name"] == kind_name)
+
+func _from_middle(cell: Vector2i) -> float:
+	return Vector2(cell - main.exit_cell).length()
+
+func test_each_ogre_warlord_leads_a_party_of_three_near_the_middle():
+	var warlords := _mid_bosses("Ogre Warlord")
+	assert_eq(warlords.size(), WorldBuilder.MINI_BOSS_COUNT)
+	for warlord in warlords:
+		assert_true(warlord.is_mini_boss)
+		assert_eq(warlord.stats.level, 11)
+		assert_eq(warlord.pack.size(), 3)
+		for guard in warlord.pack.slice(1):
 			assert_eq(guard.stats.level, 8)
 			assert_eq(guard.kind["name"], "Troll")
-		for member in mini_boss.pack:
+		for member in warlord.pack:
 			assert_false(member.wanders, "the party stays in its room")
+		assert_between(_from_middle(warlord.cell_pos), WorldBuilder.MINI_BOSS_REACH.x - 1.0, WorldBuilder.MINI_BOSS_REACH.y + 1.0)
+
+func test_each_orc_chieftain_leads_a_weaker_party_of_three_near_the_edge():
+	var chieftains := _mid_bosses("Orc Chieftain")
+	assert_eq(chieftains.size(), WorldBuilder.CHIEFTAIN_COUNT)
+	var nearest := INF
+	for chieftain in chieftains:
+		assert_eq(chieftain.pack.size(), 3)
+		for guard in chieftain.pack.slice(1):
+			assert_eq(guard.stats.level, 3)
+			assert_eq(guard.kind["name"], "Bat")
+			assert_eq(guard.killer_description(), "a Bat (Lv.3), guarding an Orc Chieftain")
+		for member in chieftain.pack:
+			assert_false(member.wanders)
+		assert_between(_from_middle(chieftain.cell_pos), WorldBuilder.CHIEFTAIN_REACH.x - 1.0, WorldBuilder.CHIEFTAIN_REACH.y + 1.0)
+		nearest = minf(nearest, _from_middle(chieftain.cell_pos))
+	for warlord in _mid_bosses("Ogre Warlord"):
+		assert_lt(_from_middle(warlord.cell_pos), nearest, "every Ogre Warlord nearer the middle than any Orc Chieftain")
 
 func test_the_boss_leads_a_party_of_four():
 	var boss := _party_on(main.exit_cell)
@@ -115,11 +148,6 @@ func test_a_pack_follower_left_leading_roams_as_usual():
 	assert_false(follower.wanders, "sanity: tagging along")
 	leader.defeat()
 	assert_true(follower.wanders)
-
-func test_the_mini_boss_still_drops_a_silver_chest():
-	var cell: Vector2i = main.mini_boss_cells[0]
-	_party_on(cell).defeat()
-	assert_true(main.chest_map.has(cell))
 
 # ============================ In the battle window ========================
 

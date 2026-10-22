@@ -111,15 +111,15 @@ func test_the_start_zones_ring_the_edge():
 		var gap: float = fposmod(angles[(i + 1) % angles.size()] - angles[i], TAU)
 		assert_almost_eq(gap, even_gap, even_gap * 0.5, "spread evenly round")
 
-func test_twenty_six_players_ten_shops_and_six_mini_bosses():
+func test_twenty_six_players_ten_shops_and_fourteen_mid_bosses():
 	assert_eq(main.npcs.size(), 26)
 	assert_eq(main.shop_cells.size(), 10, "8 bronze, 2 silver")
-	assert_eq(main.mini_boss_cells.size(), 6)
+	assert_eq(main.mini_boss_cells.size(), 14, "6 Ogre Warlords, 8 Orc Chieftains")
 	var minis := 0
 	for enemy in main.enemy_container.get_children():
 		if enemy.is_mini_boss:
 			minis += 1
-	assert_eq(minis, 6)
+	assert_eq(minis, 14)
 
 func test_every_player_has_their_own_name_and_color():
 	var names := {}

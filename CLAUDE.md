@@ -119,26 +119,31 @@ On GitHub it plays 3 games at x10 on every push, from a new seed each run
   `restricted_cells`, `npcs` — which everything else reads.
 - **`world_builder.gd` (`WorldBuilder`, as `main.world`)** — generates the
   maze and its zones and stocks it (monsters, bosses, chests), plus chests
-  placed later (mini boss drops, death chests). Writes into GameManager's
+  placed later (mid boss drops, death chests). Writes into GameManager's
   state rather than keeping its own.
 - **`monster_catalog.gd` (`MonsterCatalog`)** — the kinds of monster, one
   per level: 1–10 roam the maze (`WorldBuilder.enemy_level_for`: level 1 at
   the edge up to 10 outside the boss room), 11 (Ogre Warlord) leads each
-  mini boss's party of three with two level-8 guards, 12 (the Dragon) leads
-  the boss's party of four with three level-10 guards. A monster's level
-  decides its kind (`EnemyAgent.kind`) — name, colour, outline for its map
-  icon and battle body, and the features `BattlePainter.draw_monster` adds.
+  of the 6 stronger mid bosses' parties of three, with two level-8 guards,
+  in a ring near the middle; 12 (the Dragon) leads the boss's party of four
+  with three level-10 guards. A monster's level decides its kind
+  (`EnemyAgent.kind`, set by `set_kind`) — name, colour, outline for its map
+  icon and battle body, and the features `BattlePainter.draw_monster` adds —
+  bar the 8 weaker mid bosses out towards the edge: the Orc Chieftain
+  (`ORC_CHIEFTAIN`, level 6, its own kind) with two level-3 guards. Both
+  tiers are `is_mini_boss` (`WorldBuilder._place_mid_bosses`).
   A boss's guards (`EnemyAgent.guarding`) never wander, even left leading
   their party (`EnemyAgent.roams`).
 - **`item_catalog.gd` (`ItemCatalog`)** — every item, in three rarities:
   bronze (ordinary chests and the eight bronze shops), silver (the chest
-  an Ogre Warlord drops, and the two silver shops near the middle, at
-  `SILVER_BUY_PRICE`) and gold (the chest a mini boss's whole party leaves
-  once all three fall — `EnemyAgent.pack_defeated`; never sold). A shop's
-  rarity is its value in `shop_map` (`NpcAgent.shop_rarity`), and the
-  `NpcStats` shopping calls take it. A new item that changes how a
-  character looks in the battle window also needs a look in
-  `BattleFighter.look_of` and drawing in `BattlePainter.draw_figure`.
+  an Orc Chieftain's whole party leaves once all three fall, and the two
+  silver shops near the middle, at `SILVER_BUY_PRICE`) and gold (the chest
+  an Ogre Warlord's whole party leaves — `EnemyAgent.pack_defeated`; never
+  sold). A shop's rarity is its value in `shop_map`
+  (`NpcAgent.shop_rarity`), and the `NpcStats` shopping calls take it. A
+  new item that changes how a character looks in the battle window also
+  needs a look in `BattleFighter.look_of` and drawing in
+  `BattlePainter.draw_figure`.
 - **`maze_shape.gd` (`MazeShape`, as `main.maze_shape`)** — the maze's
   outline, a circle in the 68x68 grid. Cells outside it are solid
   rock: every wall up plus `MazeGenerator.OUTSIDE`, and no wall into them is

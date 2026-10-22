@@ -2,9 +2,10 @@ class_name WorldBuilder
 extends RefCounted
 
 ## Generates the dungeon and stocks it: the maze itself, the safe zones
-## (start zones, shops, mini boss rooms, the boss room), and the monsters,
+## (start zones, shops, mid boss rooms, the boss room), and the monsters,
 ## bosses and chests placed through it -- plus the chests that turn up later
-## (a mini boss's silver chest, a fallen character's belongings). The world's
+## (a mid boss party's silver or gold chest, a fallen character's
+## belongings). The world's
 ## state (grid, the shared maps of who's where, ...) stays on GameManager,
 ## where everything else reads it; this only fills it in.
 
@@ -28,12 +29,22 @@ const BOSS_LEVEL := 12
 const BOSS_GUARD_LEVEL := 10
 const BOSS_GUARDS := 3
 const BOSS_SCALE := 1.5
-## Likewise each mini boss (an Ogre Warlord) and its party of three.
+## The mid bosses (see _place_mid_bosses; both tiers count as mini bosses,
+## EnemyAgent.is_mini_boss), each with this many guards. The stronger tier,
+## the Ogre Warlords (MINI_BOSS_*), stand between MINI_BOSS_REACH cells from
+## the middle (x to y); the weaker Orc Chieftains between CHIEFTAIN_REACH,
+## out towards the edge.
+const MID_BOSS_GUARDS := 2
 const MINI_BOSS_COUNT := 6
 const MINI_BOSS_LEVEL := 11
 const MINI_BOSS_GUARD_LEVEL := 8
-const MINI_BOSS_GUARDS := 2
 const MINI_BOSS_SCALE := 1.3
+const MINI_BOSS_REACH := Vector2(11.0, 17.0)
+const CHIEFTAIN_COUNT := 8
+const CHIEFTAIN_LEVEL := 6
+const CHIEFTAIN_GUARD_LEVEL := 3
+const CHIEFTAIN_SCALE := 1.15
+const CHIEFTAIN_REACH := Vector2(20.0, 27.0)
 ## How far a boss's guards stand from it on the map (pixels each way) --
 ## further than a pack's, to stand clear of the bigger boss.
 const BOSS_GUARD_SPREAD := 12.0
@@ -66,7 +77,7 @@ func build_maze() -> void:
 	_build_restricted_cells()
 	_place_shops(generator)
 	_place_silver_shops(generator)
-	_place_mini_bosses(generator)
+	_place_mid_bosses(generator)
 	# Sealing the boss rooms' sides can strand a dead end; let it back in,
 	# keeping the rooms to their four entrances.
 	var rooms: Dictionary = zone_cells(game.exit_cell)
@@ -170,15 +181,8 @@ func _place_shops(generator: MazeGenerator) -> void:
 ## SILVER_SHOP_REACH cells from the middle: deeper in, where the monsters are
 ## stronger, than the bronze shops.
 func _place_silver_shops(generator: MazeGenerator) -> void:
-	var turn := randf() * TAU
-	for i in range(SILVER_SHOP_COUNT):
-		for attempt in range(60):
-			var angle := turn + TAU * i / SILVER_SHOP_COUNT + randf_range(-0.4, 0.4)
-			var reach := randf_range(SILVER_SHOP_REACH.x, SILVER_SHOP_REACH.y)
-			var center := game.exit_cell + Vector2i((Vector2.from_angle(angle) * reach).round())
-			if _zone_is_free(center):
-				_open_shop(generator, center, ItemCatalog.RARITY_SILVER)
-				break
+	_place_in_ring(SILVER_SHOP_COUNT, SILVER_SHOP_REACH, func(center: Vector2i):
+		_open_shop(generator, center, ItemCatalog.RARITY_SILVER))
 
 ## A shop of `rarity` at the middle of its own 3x3 safe zone, opened up
 ## inside and off-limits to enemies.
@@ -189,40 +193,52 @@ func _open_shop(generator: MazeGenerator, center: Vector2i, rarity: String) -> v
 	game.shop_map[center] = rarity
 	game.maze_view.register_sticky_zone(zone_cells(center))
 
-## Guards a handful of 3x3 mini boss rooms (structured the same way as the
-## main boss room) with a stationary party of three each: a mini boss and
-## two guards (see _spawn_boss_party). Defeating the mini boss drops a
-## silver chest — holding an upgraded, silver-only item — right on the cell
-## it fell on; beating the whole party leaves a gold chest (a gold-only
-## item, the best there is) beside it, elsewhere in the room.
-func _place_mini_bosses(generator: MazeGenerator) -> void:
-	for i in range(MINI_BOSS_COUNT):
+## Guards 3x3 mid boss rooms (structured the same way as the main boss
+## room), each with a stationary party of three -- a mid boss and two
+## guards (see _spawn_boss_party) -- in two tiers: Ogre Warlords in a ring
+## round the middle, and weaker Orc Chieftains out towards the edge.
+## Beating a whole party leaves a chest where it stood: gold from an Ogre
+## Warlord's (a gold-only item, the best there is), silver from an Orc
+## Chieftain's.
+func _place_mid_bosses(generator: MazeGenerator) -> void:
+	_place_in_ring(MINI_BOSS_COUNT, MINI_BOSS_REACH, func(center: Vector2i):
+		var boss := _open_mid_boss_room(generator, center, MINI_BOSS_LEVEL, MINI_BOSS_GUARD_LEVEL, ItemCatalog.RARITY_GOLD)
+		boss.scale = Vector2(MINI_BOSS_SCALE, MINI_BOSS_SCALE))
+	_place_in_ring(CHIEFTAIN_COUNT, CHIEFTAIN_REACH, func(center: Vector2i):
+		var boss := _open_mid_boss_room(generator, center, CHIEFTAIN_LEVEL, CHIEFTAIN_GUARD_LEVEL, ItemCatalog.RARITY_SILVER)
+		boss.set_kind(MonsterCatalog.ORC_CHIEFTAIN)
+		for guard in boss.pack.slice(1):
+			guard.guarding = MonsterCatalog.called(boss.kind)
+		boss.scale = Vector2(CHIEFTAIN_SCALE, CHIEFTAIN_SCALE))
+
+## A mid boss room on `center`, held by a level `level` mid boss and its two
+## level `guard_level` guards, who leave a chest of `chest_rarity` once
+## they're all beaten. Returns the mid boss.
+func _open_mid_boss_room(generator: MazeGenerator, center: Vector2i, level: int, guard_level: int,
+		chest_rarity: String) -> EnemyAgent:
+	generator.carve_boss_room(game.grid, center, GameManager.MAZE_WIDTH, GameManager.MAZE_HEIGHT)
+	_restrict_zone(center)
+	game.mini_boss_cells.append(center)
+	game.maze_view.register_sticky_zone(zone_cells(center))
+	var boss := _spawn_boss_party(center, level, guard_level, MID_BOSS_GUARDS)
+	boss.is_mini_boss = true
+	for member in boss.pack:
+		member.pack_defeated.connect(place_chest.bind(chest_rarity))
+	return boss
+
+## `count` 3x3 zones (made by `place`, given each one's middle) spaced
+## evenly round the middle of the maze, each between `reach.x` and `reach.y`
+## cells out -- give or take, where there's room.
+func _place_in_ring(count: int, reach: Vector2, place: Callable) -> void:
+	var turn := randf() * TAU
+	for i in range(count):
 		for attempt in range(60):
-			var center := Vector2i(randi_range(4, GameManager.MAZE_WIDTH - 5), randi_range(4, GameManager.MAZE_HEIGHT - 5))
-			if not _zone_is_free(center):
-				continue
-			generator.carve_boss_room(game.grid, center, GameManager.MAZE_WIDTH, GameManager.MAZE_HEIGHT)
-			_restrict_zone(center)
-			game.mini_boss_cells.append(center)
-			game.maze_view.register_sticky_zone(zone_cells(center))
-
-			var mini_boss := _spawn_boss_party(center, MINI_BOSS_LEVEL, MINI_BOSS_GUARD_LEVEL, MINI_BOSS_GUARDS)
-			mini_boss.is_mini_boss = true
-			mini_boss.scale = Vector2(MINI_BOSS_SCALE, MINI_BOSS_SCALE)
-			mini_boss.mini_boss_defeated.connect(_on_mini_boss_defeated)
-			for member in mini_boss.pack:
-				member.pack_defeated.connect(_on_mini_boss_party_beaten)
-			break
-
-func _on_mini_boss_defeated(cell: Vector2i) -> void:
-	place_chest(cell, ItemCatalog.RARITY_SILVER)
-
-## The gold chest goes on a cell of the room with no chest on it yet (the
-## silver one's on the party's own cell).
-func _on_mini_boss_party_beaten(cell: Vector2i) -> void:
-	var free: Array = zone_cells(cell).keys().filter(func(c): return c != cell and not game.chest_map.has(c))
-	if not free.is_empty():
-		place_chest(free[randi() % free.size()], ItemCatalog.RARITY_GOLD)
+			var angle := turn + TAU * i / count + randf_range(-0.4, 0.4) * 6.0 / count
+			var distance := randf_range(reach.x, reach.y)
+			var center := game.exit_cell + Vector2i((Vector2.from_angle(angle) * distance).round())
+			if _zone_is_free(center):
+				place.call(center)
+				break
 
 ## Scatters enemies across the maze (never in a restricted zone), making them
 ## stronger the closer their cell is to the center.

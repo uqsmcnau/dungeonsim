@@ -1,9 +1,10 @@
 extends DungeonTest
 
 ## Covers the gold tier: the best items in the dungeon, found only in the
-## gold chest a mini boss's party leaves once all three of it are beaten --
-## never in a shop or an ordinary chest. Also that the silver tier sits
-## between bronze and gold, slot by slot.
+## gold chest an Ogre Warlord's party leaves once all three of it are
+## beaten -- never in a shop or an ordinary chest -- and the silver chest an
+## Orc Chieftain's party leaves. Also that the silver tier sits between
+## bronze and gold, slot by slot.
 
 const GOLD_ITEMS := [
 	"Mithril Sword", "Aegis Shield", "Archmage's Staff", "Plate Armor", "Golden Helm", "Winged Boots", "Ring of Might",
@@ -72,45 +73,58 @@ func test_they_can_be_worn():
 	stats.acquire_item("Mithril Sword")
 	assert_eq(stats.attack_power(), attack_before + 6)
 
-# ============================== Gold chests ===============================
+# ============================== Mid boss chests ===========================
 
-func test_beating_a_mini_boss_party_leaves_a_gold_chest_in_its_room():
-	var cell: Vector2i = main.mini_boss_cells[0]
-	for member in _party_on(cell):
-		member.defeat()
-	assert_true(main.chest_map.has(cell), "the Ogre Warlord's silver chest, where it fell")
-	assert_eq(main.chest_map[cell].rarity, ItemCatalog.RARITY_SILVER)
-	var gold := _gold_chests()
-	assert_eq(gold.size(), 1)
-	assert_true(main.world.zone_cells(cell).has(gold[0]), "beside it, in the room")
-	assert_eq(ItemCatalog.find(main.chest_map[gold[0]].loot.keys()[0])["rarity"], ItemCatalog.RARITY_GOLD)
+## The middle of the first mid boss room led by `kind_name`.
+func _room_of(kind_name: String) -> Vector2i:
+	for cell in main.mini_boss_cells:
+		if main.enemy_map[cell].kind["name"] == kind_name:
+			return cell
+	return MazeQuery.NONE
 
-func test_whichever_falls_last():
-	var cell: Vector2i = main.mini_boss_cells[0]
+func _beat(cell: Vector2i, last_first: bool = false) -> void:
 	var party := _party_on(cell)
-	party.reverse()  # the guards first, the Ogre Warlord last
+	if last_first:
+		party.reverse()
 	for member in party:
 		member.defeat()
-	assert_eq(_gold_chests().size(), 1)
-	assert_eq(main.chest_map[cell].rarity, ItemCatalog.RARITY_SILVER)
 
-func test_not_until_the_whole_party_is_beaten():
-	var cell: Vector2i = main.mini_boss_cells[0]
-	var party := _party_on(cell)
-	party[0].defeat()
-	party[1].defeat()
+func test_beating_an_ogre_warlords_party_leaves_a_gold_chest():
+	var cell := _room_of("Ogre Warlord")
+	_beat(cell)
+	assert_eq(_gold_chests(), [cell], "where the party stood")
+	assert_eq(ItemCatalog.find(main.chest_map[cell].loot.keys()[0])["rarity"], ItemCatalog.RARITY_GOLD)
+
+func test_beating_an_orc_chieftains_party_leaves_a_silver_chest():
+	var cell := _room_of("Orc Chieftain")
+	_beat(cell)
+	assert_eq(main.chest_map[cell].rarity, ItemCatalog.RARITY_SILVER)
 	assert_true(_gold_chests().is_empty())
 
-func test_only_mini_boss_parties_leave_gold():
+func test_whichever_falls_last():
+	var cell := _room_of("Ogre Warlord")
+	_beat(cell, true)  # the guards first, the Ogre Warlord last
+	assert_eq(_gold_chests(), [cell])
+
+func test_not_until_the_whole_party_is_beaten():
+	for kind_name in ["Ogre Warlord", "Orc Chieftain"]:
+		var cell := _room_of(kind_name)
+		var party := _party_on(cell)
+		party[0].defeat()
+		party[1].defeat()
+		assert_false(main.chest_map.has(cell), "%s's party still has a guard standing" % kind_name)
+
+func test_only_mid_boss_parties_leave_chests():
 	var pack: Array = []
 	for enemy in main.enemy_container.get_children():
 		if enemy.pack.size() > 1 and enemy.guarding == "" and not enemy.is_mini_boss and not enemy.is_boss:
 			pack = enemy.pack.duplicate()
 			break
 	assert_false(pack.is_empty(), "sanity: there's an ordinary pack")
+	var cell: Vector2i = pack[0].cell_pos
 	for member in pack:
 		member.defeat()
-	assert_true(_gold_chests().is_empty())
+	assert_false(main.chest_map.has(cell))
 
 func test_a_gold_chest_looks_it():
 	main.world.place_chest(clear_cell(), ItemCatalog.RARITY_GOLD)

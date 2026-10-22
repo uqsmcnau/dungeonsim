@@ -3,9 +3,10 @@ extends RefCounted
 
 ## Every kind of monster in the dungeon, one per level: levels 1-10 roam
 ## the maze (weakest at its edge, strongest round the boss room), level 11
-## leads each mini boss's party and level 12 is the boss. A monster's level
-## is what makes it the kind it is (see EnemyAgent.setup) -- a pack's
-## weaker members are the kind for their own, lower level.
+## leads each of the stronger mid bosses' parties and level 12 is the boss.
+## A monster's level is what makes it the kind it is (see EnemyAgent.setup)
+## -- a pack's weaker members are the kind for their own, lower level --
+## bar the lesser mid bosses, the Orc Chieftains (ORC_CHIEFTAIN).
 ##
 ## Each kind has a `name`; a `color`; an outline (see outline) for its map
 ## icon and its body in the battle window -- `sides` points round, every
@@ -39,6 +40,11 @@ const KINDS := [
 	{"name": "Dragon", "color": Color(0.55, 0.02, 0.05), "sides": 8, "inner": 0.55, "turn": -90.0,
 		"stretch": Vector2(1.0, 1.0), "size": 1.0, "features": ["wings", "horns", "tail"]},
 ]
+
+## The lesser mid boss, out towards the maze's edge: a level 6 like the
+## Orc, but its own kind (see WorldBuilder._place_mid_bosses).
+const ORC_CHIEFTAIN := {"name": "Orc Chieftain", "color": Color(0.92, 0.62, 0.15), "sides": 7, "inner": 0.65,
+	"turn": -90.0, "stretch": Vector2(1.0, 1.0), "size": 1.0, "features": ["crown", "ears", "teeth"]}
 
 ## The highest level a monster roaming the maze reaches (see
 ## WorldBuilder.enemy_level_for).

@@ -21,11 +21,8 @@ const REGEN_TIME_SCALE := 0.03
 ## MonsterCatalog.outline).
 const ICON_RADIUS := 9.0
 
-## Emitted right before a mini boss frees itself, so whoever's listening
-## (game_manager) can drop a silver chest on the cell it died on.
-signal mini_boss_defeated(cell: Vector2i)
 ## Emitted by the last of a pack to fall, as it does -- the whole pack's
-## beaten, on `cell` (see WorldBuilder: a mini boss's party leaves gold).
+## beaten, on `cell` (see WorldBuilder: a mid boss's party leaves a chest).
 signal pack_defeated(cell: Vector2i)
 
 var cell_pos: Vector2i = Vector2i.ZERO
@@ -81,7 +78,6 @@ func setup(cell: Vector2i, cs: float, enemy_level: int, maze_grid: Array, enemy_
 	cell_pos = cell
 	home_cell = cell
 	stats = NpcStats.for_enemy(enemy_level)
-	kind = MonsterCatalog.for_level(stats.level)
 	grid = maze_grid
 	cell_size = cs
 	enemies = enemy_map
@@ -90,6 +86,17 @@ func setup(cell: Vector2i, cs: float, enemy_level: int, maze_grid: Array, enemy_
 	wanders = can_wander
 	roams = can_wander
 	position = Vector2((cell.x + 0.5) * cell_size, (cell.y + 0.5) * cell_size)
+	set_kind(MonsterCatalog.for_level(stats.level))
+	enemies[cell_pos] = self
+	pack = [self]
+	if wanders:
+		_wander_cooldown = randf_range(WANDER_MIN_WAIT, WANDER_MAX_WAIT)
+	_schedule_next_think(randf_range(0.0, THINK_SECONDS))
+
+## Makes it a `new_kind` of monster (see MonsterCatalog) -- the kind for
+## its level, unless it's an Orc Chieftain -- and shows it on its icon.
+func set_kind(new_kind: Dictionary) -> void:
+	kind = new_kind
 	var icon := MonsterCatalog.outline(kind)
 	for i in range(icon.size()):
 		icon[i] *= ICON_RADIUS
@@ -97,11 +104,6 @@ func setup(cell: Vector2i, cs: float, enemy_level: int, maze_grid: Array, enemy_
 	visual.color = kind["color"]
 	label.text = "%d" % stats.level
 	label.add_theme_color_override("font_color", Color.BLACK if visual.color.get_luminance() > 0.45 else Color.WHITE)
-	enemies[cell_pos] = self
-	pack = [self]
-	if wanders:
-		_wander_cooldown = randf_range(WANDER_MIN_WAIT, WANDER_MAX_WAIT)
-	_schedule_next_think(randf_range(0.0, THINK_SECONDS))
 
 ## Links several already-set-up enemies into one pack sharing a single
 ## encounter: only the first keeps wandering/chasing and blocking the cell
@@ -156,8 +158,6 @@ func end_combat() -> void:
 
 func defeat() -> void:
 	alive = false
-	if is_mini_boss:
-		mini_boss_defeated.emit(cell_pos)
 	pack.erase(self)
 	if pack.is_empty():
 		pack_defeated.emit(cell_pos)

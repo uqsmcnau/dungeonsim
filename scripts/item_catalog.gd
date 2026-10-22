@@ -17,10 +17,10 @@ const SLOT_CAPACITY := {"hand": 2, "armor": 1, "helmet": 1, "feet": 1, "accessor
 const SLOT_LABELS := {"hand": "Hands", "armor": "Armor", "helmet": "Helmet", "feet": "Feet", "accessory": "Accessories"}
 
 ## Bronze items turn up in shops and ordinary chests. Silver items are
-## upgraded variants found in silver chests (dropped by mini bosses) and
-## sold only at the two silver shops; gold items, the best of all, only in
-## gold chests (left when a mini boss's whole party is beaten) -- neither
-## ever turns up in a normal chest.
+## upgraded variants found in silver chests (left by an Orc Chieftain's
+## party, once it's beaten) and sold only at the two silver shops; gold
+## items, the best of all, only in gold chests (left by an Ogre Warlord's
+## party) -- neither ever turns up in a normal chest.
 const RARITY_BRONZE := "bronze"
 const RARITY_SILVER := "silver"
 const RARITY_GOLD := "gold"
