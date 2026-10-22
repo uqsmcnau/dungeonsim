@@ -4,9 +4,14 @@ extends Node2D
 var grid: Array = []
 var cell_size: float = 48.0
 var start_cells: Array = []
-var shop_cells: Array = []
+## Every shop, by cell, with its rarity (bronze or silver).
+var shops: Dictionary = {}
 var mini_boss_cells: Array = []
 var exit_cell: Vector2i = Vector2i.ZERO
+
+## A shop's room on the map: blue for a bronze shop, silver for a silver one.
+const SHOP_COLOR := Color(0.3, 0.55, 1.0)
+const SILVER_SHOP_COLOR := Color(0.82, 0.85, 0.95)
 
 ## The stone border around the maze (see _draw): how far past the maze's
 ## edge it reaches, in cells, and how smoothly its outline is drawn.
@@ -75,12 +80,12 @@ func set_selection_highlight(center: Vector2, radius: float) -> void:
 	queue_redraw()
 
 func set_maze(new_grid: Array, new_cell_size: float, new_starts: Array, new_exit: Vector2i,
-		new_shops: Array, new_mini_bosses: Array, shape: MazeShape = null) -> void:
+		new_shops: Dictionary, new_mini_bosses: Array, shape: MazeShape = null) -> void:
 	grid = new_grid
 	cell_size = new_cell_size
 	start_cells = new_starts
 	exit_cell = new_exit
-	shop_cells = new_shops
+	shops = new_shops
 	mini_boss_cells = new_mini_bosses
 	_border = PackedVector2Array()
 	if shape != null:
@@ -192,13 +197,14 @@ func _draw() -> void:
 		_draw_marker_if_visible(s, Color(0.2, 0.9, 0.3, 0.6))
 	_draw_marker_if_visible(exit_cell, Color(0.95, 0.8, 0.15, 0.6))
 
-	for shop in shop_cells:
+	for shop in shops:
 		if not is_discovered(shop):
 			continue
+		var tint := SILVER_SHOP_COLOR if shops[shop] == ItemCatalog.RARITY_SILVER else SHOP_COLOR
 		for dy in range(-1, 2):
 			for dx in range(-1, 2):
-				_draw_marker(shop + Vector2i(dx, dy), Color(0.3, 0.55, 1.0, 0.18))
-		_draw_marker(shop, Color(0.3, 0.55, 1.0, 0.6))
+				_draw_marker(shop + Vector2i(dx, dy), Color(tint, 0.18))
+		_draw_marker(shop, Color(tint, 0.6))
 		var font := ThemeDB.fallback_font
 		var baseline := Vector2(shop.x * cell_size, shop.y * cell_size + cell_size * 0.78)
 		draw_string(font, baseline, "$", HORIZONTAL_ALIGNMENT_CENTER, cell_size, int(cell_size * 0.8), Color.WHITE)

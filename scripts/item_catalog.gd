@@ -2,8 +2,10 @@ class_name ItemCatalog
 extends RefCounted
 
 ## Base prices; what a character actually pays or gets depends on their
-## charisma (see NpcStats.buy_price / sell_price).
+## charisma (see NpcStats.buy_price / sell_price). A silver shop's gear (see
+## NpcStats.missing_items) costs more than a bronze shop's.
 const BUY_PRICE := 40
+const SILVER_BUY_PRICE := 90
 const SELL_PRICE := 15
 ## Potions are cheaper and, unlike equipment, a shop will sell any number of
 ## them (see NpcStats.potion_buy_price / buy_potions).
@@ -15,10 +17,10 @@ const SLOT_CAPACITY := {"hand": 2, "armor": 1, "helmet": 1, "feet": 1, "accessor
 const SLOT_LABELS := {"hand": "Hands", "armor": "Armor", "helmet": "Helmet", "feet": "Feet", "accessory": "Accessories"}
 
 ## Bronze items turn up in shops and ordinary chests. Silver items are
-## upgraded variants that only drop from silver chests (dropped by mini
-## bosses), and gold items, the best of all, only from gold chests (left
-## when a mini boss's whole party is beaten) -- neither ever appears in a
-## shop's stock or a normal chest.
+## upgraded variants found in silver chests (dropped by mini bosses) and
+## sold only at the two silver shops; gold items, the best of all, only in
+## gold chests (left when a mini boss's whole party is beaten) -- neither
+## ever turns up in a normal chest.
 const RARITY_BRONZE := "bronze"
 const RARITY_SILVER := "silver"
 const RARITY_GOLD := "gold"

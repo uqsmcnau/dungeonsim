@@ -143,9 +143,11 @@ const CHARISMA_PRICE_STEP := 0.03
 const MAX_BUY_DISCOUNT := 0.5
 const MAX_SELL_BONUS := 1.0
 
-func buy_price() -> int:
+## What a piece of equipment costs at a shop of `rarity` (bronze or silver).
+func buy_price(rarity: String = ItemCatalog.RARITY_BRONZE) -> int:
 	var discount: float = minf(charisma * CHARISMA_PRICE_STEP, MAX_BUY_DISCOUNT)
-	return max(1, roundi(ItemCatalog.BUY_PRICE * (1.0 - discount)))
+	var base := ItemCatalog.SILVER_BUY_PRICE if rarity == ItemCatalog.RARITY_SILVER else ItemCatalog.BUY_PRICE
+	return max(1, roundi(base * (1.0 - discount)))
 
 func sell_price() -> int:
 	var bonus: float = minf(charisma * CHARISMA_PRICE_STEP, MAX_SELL_BONUS)
@@ -210,12 +212,13 @@ func total_spares() -> int:
 		total += spare_count(item_name)
 	return total
 
-## Bronze-tier equipment not yet owned — the shop's whole stock. Consumables
-## are never sold there, and silver items never appear here; they only ever
-## come from a silver chest.
-func missing_items() -> Array:
+## Equipment of `rarity` not yet owned — a shop of that rarity's whole
+## stock: bronze shops sell the bronze gear, the silver shops near the
+## middle the silver gear (which otherwise only comes from a silver chest).
+## Consumables are never sold there, and gold items never are anywhere.
+func missing_items(rarity: String = ItemCatalog.RARITY_BRONZE) -> Array:
 	var result: Array = []
-	for item_name in ItemCatalog.names(ItemCatalog.RARITY_BRONZE, ItemCatalog.KIND_EQUIPMENT):
+	for item_name in ItemCatalog.names(rarity, ItemCatalog.KIND_EQUIPMENT):
 		if not has_item(item_name):
 			result.append(item_name)
 	return result
@@ -283,17 +286,17 @@ func sell_spares() -> int:
 	gold += sold * sell_price()
 	return sold
 
-## Buys items it doesn't have, for as long as the gold lasts — but only ones
-## that would actually be worn, so it doesn't pay for something useless.
-## Returns the names bought.
-func buy_missing() -> Array:
+## Buys items it doesn't have from a shop of `rarity`, for as long as the
+## gold lasts — but only ones that would actually be worn, so it doesn't pay
+## for something useless. Returns the names bought.
+func buy_missing(rarity: String = ItemCatalog.RARITY_BRONZE) -> Array:
 	var bought: Array = []
-	var missing := missing_items()
+	var missing := missing_items(rarity)
 	missing.shuffle()
 	for item_name in missing:
 		if not would_equip(item_name):
 			continue
-		var price := buy_price()
+		var price := buy_price(rarity)
 		if gold < price:
 			break
 		gold -= price
@@ -301,15 +304,16 @@ func buy_missing() -> Array:
 		bought.append(item_name)
 	return bought
 
-## Whether a shop visit would accomplish anything right now.
-func has_shop_business() -> bool:
+## Whether a visit to a shop of `rarity` would accomplish anything right
+## now. Every shop buys spares and sells potions.
+func has_shop_business(rarity: String = ItemCatalog.RARITY_BRONZE) -> bool:
 	if total_spares() > 0:
 		return true
 	if gold >= potion_buy_price() and not understocked_potions().is_empty():
 		return true
-	if gold < buy_price():
+	if gold < buy_price(rarity):
 		return false
-	for item_name in missing_items():
+	for item_name in missing_items(rarity):
 		if would_equip(item_name):
 			return true
 	return false

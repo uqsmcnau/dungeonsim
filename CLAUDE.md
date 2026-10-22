@@ -131,9 +131,12 @@ On GitHub it plays 3 games at x10 on every push, from a new seed each run
   A boss's guards (`EnemyAgent.guarding`) never wander, even left leading
   their party (`EnemyAgent.roams`).
 - **`item_catalog.gd` (`ItemCatalog`)** — every item, in three rarities:
-  bronze (ordinary chests and shops), silver (the chest an Ogre Warlord
-  drops) and gold (the chest a mini boss's whole party leaves once all
-  three fall — `EnemyAgent.pack_defeated`). A new item that changes how a
+  bronze (ordinary chests and the eight bronze shops), silver (the chest
+  an Ogre Warlord drops, and the two silver shops near the middle, at
+  `SILVER_BUY_PRICE`) and gold (the chest a mini boss's whole party leaves
+  once all three fall — `EnemyAgent.pack_defeated`; never sold). A shop's
+  rarity is its value in `shop_map` (`NpcAgent.shop_rarity`), and the
+  `NpcStats` shopping calls take it. A new item that changes how a
   character looks in the battle window also needs a look in
   `BattleFighter.look_of` and drawing in `BattlePainter.draw_figure`.
 - **`maze_shape.gd` (`MazeShape`, as `main.maze_shape`)** — the maze's

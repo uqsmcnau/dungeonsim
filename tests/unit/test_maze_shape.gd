@@ -111,9 +111,9 @@ func test_the_start_zones_ring_the_edge():
 		var gap: float = fposmod(angles[(i + 1) % angles.size()] - angles[i], TAU)
 		assert_almost_eq(gap, even_gap, even_gap * 0.5, "spread evenly round")
 
-func test_twenty_six_players_eight_shops_and_six_mini_bosses():
+func test_twenty_six_players_ten_shops_and_six_mini_bosses():
 	assert_eq(main.npcs.size(), 26)
-	assert_eq(main.shop_cells.size(), 8)
+	assert_eq(main.shop_cells.size(), 10, "8 bronze, 2 silver")
 	assert_eq(main.mini_boss_cells.size(), 6)
 	var minis := 0
 	for enemy in main.enemy_container.get_children():
@@ -133,7 +133,7 @@ func test_every_player_has_their_own_name_and_color():
 func test_the_shops_ring_the_boss_room():
 	var shape: MazeShape = main.maze_shape
 	var quarters := {}
-	for shop in main.shop_cells:
+	for shop in main.shop_cells.filter(func(c): return main.shop_map[c] == ItemCatalog.RARITY_BRONZE):
 		var offset: Vector2 = Vector2(shop) + Vector2(0.5, 0.5) - shape.center
 		assert_gt(offset.length(), 6.0, "clear of the boss room")
 		quarters[int(fposmod(offset.angle(), TAU) / (TAU / 4.0))] = true

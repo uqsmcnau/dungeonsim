@@ -13,6 +13,10 @@ const EXTRA_CHEST_DENSITY := 0.012
 ## Shops go one to a region of a SHOP_GRID x SHOP_GRID grid over the maze,
 ## bar the middle region, which is the boss's (see _place_shops).
 const SHOP_GRID := 3
+## The silver shops, and how far from the middle they go (in cells, between
+## x and y) -- see _place_silver_shops.
+const SILVER_SHOP_COUNT := 2
+const SILVER_SHOP_REACH := Vector2(9.0, 13.0)
 const EXTRA_CONNECTION_CHANCE := 0.15
 const LEVEL_CURVE_EXPONENT := 1.5
 ## How far from the middle the nearest cells outside the boss room are --
@@ -61,6 +65,7 @@ func build_maze() -> void:
 		generator.open_room(game.grid, s, GameManager.MAZE_WIDTH, GameManager.MAZE_HEIGHT)
 	_build_restricted_cells()
 	_place_shops(generator)
+	_place_silver_shops(generator)
 	_place_mini_bosses(generator)
 	# Sealing the boss rooms' sides can strand a dead end; let it back in,
 	# keeping the rooms to their four entrances.
@@ -68,7 +73,7 @@ func build_maze() -> void:
 	for center in game.mini_boss_cells:
 		rooms.merge(zone_cells(center))
 	generator.reconnect(game.grid, game.exit_cell, rooms)
-	game.maze_view.set_maze(game.grid, GameManager.CELL_SIZE, game.start_cells, game.exit_cell, game.shop_cells,
+	game.maze_view.set_maze(game.grid, GameManager.CELL_SIZE, game.start_cells, game.exit_cell, game.shop_map,
 		game.mini_boss_cells, game.maze_shape)
 	game.maze_view.reveal_permanently(zone_cells(game.exit_cell))
 
@@ -141,10 +146,9 @@ func _zone_is_free(center: Vector2i) -> bool:
 				return false
 	return true
 
-## Puts one shop in each region of a grid laid over the maze -- all but the
-## middle one, where the boss is -- so they're spread out in a ring round it
-## rather than clumped. Each shop sits at the middle of its own
-## 3x3 safe zone, opened up inside and off-limits to enemies.
+## Puts one bronze shop in each region of a grid laid over the maze -- all
+## but the middle one, where the boss is -- so they're spread out in a ring
+## round it rather than clumped (see _open_shop).
 func _place_shops(generator: MazeGenerator) -> void:
 	var margin := 4
 	var region_w: int = (GameManager.MAZE_WIDTH - 2 * margin) / SHOP_GRID
@@ -157,14 +161,33 @@ func _place_shops(generator: MazeGenerator) -> void:
 				var center := Vector2i(
 					margin + col * region_w + randi() % region_w,
 					margin + row * region_h + randi() % region_h)
-				if not _zone_is_free(center):
-					continue
-				generator.open_room(game.grid, center, GameManager.MAZE_WIDTH, GameManager.MAZE_HEIGHT)
-				_restrict_zone(center)
-				game.shop_cells.append(center)
-				game.shop_map[center] = true
-				game.maze_view.register_sticky_zone(zone_cells(center))
+				if _zone_is_free(center):
+					_open_shop(generator, center, ItemCatalog.RARITY_BRONZE)
+					break
+
+## SILVER_SHOP_COUNT silver shops (selling the silver gear -- see
+## NpcStats.missing_items), spaced evenly round the boss room, between
+## SILVER_SHOP_REACH cells from the middle: deeper in, where the monsters are
+## stronger, than the bronze shops.
+func _place_silver_shops(generator: MazeGenerator) -> void:
+	var turn := randf() * TAU
+	for i in range(SILVER_SHOP_COUNT):
+		for attempt in range(60):
+			var angle := turn + TAU * i / SILVER_SHOP_COUNT + randf_range(-0.4, 0.4)
+			var reach := randf_range(SILVER_SHOP_REACH.x, SILVER_SHOP_REACH.y)
+			var center := game.exit_cell + Vector2i((Vector2.from_angle(angle) * reach).round())
+			if _zone_is_free(center):
+				_open_shop(generator, center, ItemCatalog.RARITY_SILVER)
 				break
+
+## A shop of `rarity` at the middle of its own 3x3 safe zone, opened up
+## inside and off-limits to enemies.
+func _open_shop(generator: MazeGenerator, center: Vector2i, rarity: String) -> void:
+	generator.open_room(game.grid, center, GameManager.MAZE_WIDTH, GameManager.MAZE_HEIGHT)
+	_restrict_zone(center)
+	game.shop_cells.append(center)
+	game.shop_map[center] = rarity
+	game.maze_view.register_sticky_zone(zone_cells(center))
 
 ## Guards a handful of 3x3 mini boss rooms (structured the same way as the
 ## main boss room) with a stationary party of three each: a mini boss and

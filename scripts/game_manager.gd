@@ -65,7 +65,8 @@ var enemy_map: Dictionary = {}
 var chest_map: Dictionary = {}
 ## Every living player, by current cell — lets NPCs see and fight each other.
 var player_map: Dictionary = {}
-## Centers of the shops, in list form (for drawing) and lookup form.
+## Centers of the shops, as a list and as a lookup giving each one's rarity
+## (bronze, or silver for the two near the middle).
 var shop_cells: Array = []
 var shop_map: Dictionary = {}
 ## Centers of the mini boss rooms, for drawing.
