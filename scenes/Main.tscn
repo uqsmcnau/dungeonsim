@@ -84,60 +84,69 @@ script = ExtResource("8_toolbar")
 process_mode = 3
 offset_left = 490.0
 offset_top = 6.0
-offset_right = 620.0
+offset_right = 602.0
 offset_bottom = 40.0
 button_pressed = true
 text = "Fog of War"
 
 [node name="PauseButton" type="Button" parent="HUD/Control/Toolbar"]
 process_mode = 3
-offset_left = 628.0
+offset_left = 610.0
 offset_top = 6.0
-offset_right = 708.0
+offset_right = 682.0
 offset_bottom = 40.0
 toggle_mode = true
 text = "Pause"
 
 [node name="SpeedButton" type="Button" parent="HUD/Control/Toolbar"]
 process_mode = 3
-offset_left = 716.0
+offset_left = 690.0
 offset_top = 6.0
-offset_right = 816.0
+offset_right = 780.0
 offset_bottom = 40.0
 tooltip_text = "Game speed: click to speed up, right-click to slow down."
 text = "Speed x1"
 
 [node name="GuidanceIndicator" type="Control" parent="HUD/Control/Toolbar"]
 process_mode = 3
-offset_left = 824.0
+offset_left = 788.0
 offset_top = 6.0
-offset_right = 974.0
+offset_right = 912.0
 offset_bottom = 40.0
 tooltip_text = "Guidance: select a player, then right-click the maze to send their party there."
 
 [node name="PartyVisionToggle" type="CheckBox" parent="HUD/Control/Toolbar"]
 process_mode = 3
-offset_left = 982.0
+offset_left = 920.0
 offset_top = 6.0
-offset_right = 1112.0
+offset_right = 1042.0
 offset_bottom = 40.0
 tooltip_text = "Party Vision: while a player is selected, the fog of war shows only what their party can see and has explored."
 button_pressed = true
 text = "Party Vision"
 
-[node name="VolumeLabel" type="Label" parent="HUD/Control/Toolbar"]
-offset_left = 1120.0
+[node name="FollowToggle" type="CheckBox" parent="HUD/Control/Toolbar"]
+process_mode = 3
+offset_left = 1050.0
 offset_top = 6.0
-offset_right = 1138.0
+offset_right = 1178.0
+offset_bottom = 40.0
+tooltip_text = "Follow Mode: the view follows the selected player's party. Moving the view yourself turns it off."
+text = "Follow Mode"
+
+[node name="VolumeLabel" type="Label" parent="HUD/Control/Toolbar"]
+offset_left = 1186.0
+offset_top = 6.0
+offset_right = 1200.0
 offset_bottom = 40.0
 vertical_alignment = 1
 text = "♪"
 
 [node name="VolumeSlider" type="HSlider" parent="HUD/Control/Toolbar"]
 process_mode = 3
-offset_left = 1140.0
+offset_left = 1202.0
 offset_top = 6.0
-offset_right = 1230.0
+offset_right = 1272.0
 offset_bottom = 40.0
 tooltip_text = "Music volume"
 max_value = 1.0
@@ -145,7 +154,7 @@ step = 0.01
 value = 0.1
 
 [node name="PlayersLeftLabel" type="Label" parent="HUD/Control/Toolbar"]
-offset_left = 1240.0
+offset_left = 1280.0
 offset_top = 6.0
 offset_right = 1440.0
 offset_bottom = 40.0

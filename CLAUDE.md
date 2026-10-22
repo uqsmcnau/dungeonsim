@@ -5,10 +5,11 @@ characters explore a procedurally generated maze, gain RPG levels through
 encounters, form parties, fight monsters and each other, and race for a
 boss room at the center of a circular maze. Each `NpcAgent` drives
 itself from `_process`; the spectator can only watch, pause, speed the
-game up (x2/x5/x10, via `Engine.time_scale`), zoom and move the view about,
-inspect (click a character or gravestone), toggle the fog of war / Party
-Vision, and give the selected party Guidance (right-click a cell, on a
-cooldown) — they never control anyone directly.
+game up (x2/x5/x10, via `Engine.time_scale`), zoom and move the view about
+(or have it follow the selected party), inspect (click a character or
+gravestone), toggle the fog of war / Party Vision, and give the selected
+party Guidance (right-click a cell, on a cooldown) — they never control
+anyone directly.
 
 ## Running it
 
@@ -138,7 +139,11 @@ On GitHub it plays 3 games at x10 on every push, from a new seed each run
   `MazeView` draws it; the HUD counts it down.
 - **`map_camera.gd` (`MapCamera`, as `main.camera`)** — zooming (wheel,
   +/-) and moving the view (left- or middle-drag, WASD/arrows, Home to
-  reset). Its default is exactly the uncamera'd layout. The HUD has solid
+  reset), and Follow Mode (`following`): gliding to keep the point
+  GameManager gives it (`follow()` — the selected party's ring) in the
+  middle, by real time so it keeps pace at any game speed. Moving the view
+  by hand (`pan_by`, Home) turns Follow Mode off via `follow_broken`,
+  rather than fighting the spectator. The HUD has solid
   frames down each side and along the top, so the maze only shows in
   `hud.map_area()` between them. A left click only counts if the mouse
   didn't move between press and release (`ClickPicker`), so dragging never
@@ -185,11 +190,11 @@ On GitHub it plays 3 games at x10 on every push, from a new seed each run
   character's full panel, then compact ones for the rest of their party, on
   the left), the storm countdown and the winner banner.
 - **`toolbar.gd` (`Toolbar`, as `hud.toolbar`)** — the strip across the
-  top: fog / Party Vision, pause (`set_paused`), Guidance's readiness,
-  volume, players left, and game speed, which `GameManager.set_game_speed`
-  turns into `Engine.time_scale` — so anything that must keep real-time
-  pace, like keyboard panning, divides it back out. Its controls run with
-  `PROCESS_MODE_ALWAYS`, usable while paused.
+  top: fog / Party Vision, Follow Mode, pause (`set_paused`), Guidance's
+  readiness, volume, players left, and game speed, which
+  `GameManager.set_game_speed` turns into `Engine.time_scale` — so anything
+  that must keep real-time pace, like keyboard panning, divides it back
+  out. Its controls run with `PROCESS_MODE_ALWAYS`, usable while paused.
 - **`battle_window.gd` (`BattleWindow`, as `hud.battle_window`)** — the
   Final Fantasy-style battle screen below the selection column. GameManager
   says who's in the scene every frame (`show_fight`: the selected party and

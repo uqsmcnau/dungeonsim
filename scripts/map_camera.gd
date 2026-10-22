@@ -10,6 +10,14 @@ extends Camera2D
 ## A left-button press that turns into a drag moves the view rather than
 ## selecting anything: ClickPicker only counts a left press and release
 ## that stayed within DRAG_THRESHOLD of each other as a click.
+##
+## In Follow Mode (`following`) the view glides to keep a point -- the
+## selected party, see GameManager -- in the middle of the view area, and
+## zooming keeps it there. Moving the view by hand turns Follow Mode off
+## (`follow_broken`), rather than the camera fighting the spectator.
+
+## The spectator moved the view by hand while it was following.
+signal follow_broken
 
 const MIN_ZOOM := 0.4
 const MAX_ZOOM := 4.0
@@ -23,6 +31,9 @@ const DRAG_THRESHOLD := 6.0
 ## However the view's moved, at least this much of the maze (screen pixels)
 ## stays on screen.
 const KEEP_IN_VIEW := 120.0
+## How quickly Follow Mode catches up with what it's following: the share of
+## the way left that it closes is 1 - e^(-rate x seconds), in real seconds.
+const FOLLOW_RATE := 8.0
 
 ## The world-space rect that has to stay partly in view (see set_bounds).
 var maze_rect := Rect2()
@@ -35,6 +46,11 @@ var _home_zoom := Vector2.ONE
 var _drag_button := MOUSE_BUTTON_NONE
 var _drag_from := Vector2.ZERO
 var _dragging := false
+## Follow Mode, and the world point it keeps in the middle of the view (if
+## there's anything to follow -- see follow).
+var following := false
+var _follow_point := Vector2.ZERO
+var _has_follow_point := false
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -66,9 +82,17 @@ func reset_view() -> void:
 	position = _home_position
 	zoom = _home_zoom
 
+## What Follow Mode follows: world point `point` -- or nothing, if
+## `has_point` is false (nobody selected), when the view stays put.
+func follow(point: Vector2, has_point: bool = true) -> void:
+	_follow_point = point
+	_has_follow_point = has_point
+
 ## Zooms by `factor` (within MIN_ZOOM..MAX_ZOOM), keeping whatever's under
 ## `screen_point` where it is.
 func zoom_at(screen_point: Vector2, factor: float) -> void:
+	if _is_following():
+		screen_point = _screen_middle()  # where what it's following is
 	var under := screen_to_world(screen_point)
 	var z := clampf(zoom.x * factor, MIN_ZOOM, MAX_ZOOM)
 	zoom = Vector2(z, z)
@@ -76,8 +100,9 @@ func zoom_at(screen_point: Vector2, factor: float) -> void:
 	_keep_maze_in_view()
 
 ## Moves the maze `screen_delta` pixels across the screen -- as when it's
-## dragged by that much.
+## dragged by that much. Being moved by hand, it stops following.
 func pan_by(screen_delta: Vector2) -> void:
+	_stop_following()
 	position -= screen_delta / zoom.x
 	_keep_maze_in_view()
 
@@ -100,6 +125,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_MINUS, KEY_KP_SUBTRACT:
 				zoom_at(_screen_middle(), 1.0 / ZOOM_STEP)
 			KEY_HOME:
+				_stop_following()
 				reset_view()
 
 func _on_mouse_button(event: InputEventMouseButton) -> void:
@@ -137,6 +163,19 @@ func _process(delta: float) -> void:
 		# Moving the view right moves the maze left across the screen -- at
 		# the same pace whatever the game speed (which scales `delta`).
 		pan_by(-direction.normalized() * KEY_PAN_SPEED * delta / Engine.time_scale)
+	elif _is_following():
+		var goal := _follow_point - _screen_middle() / zoom.x
+		# By real time, so it keeps up the same at any game speed.
+		position = position.lerp(goal, 1.0 - exp(-FOLLOW_RATE * delta / Engine.time_scale))
+		_keep_maze_in_view()
+
+func _is_following() -> bool:
+	return following and _has_follow_point
+
+func _stop_following() -> void:
+	if following:
+		following = false
+		follow_broken.emit()
 
 func _view_area() -> Rect2:
 	return view_area if view_area.size != Vector2.ZERO else get_viewport_rect()

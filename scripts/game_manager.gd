@@ -25,6 +25,10 @@ const GRAVE_SCENE: PackedScene = preload("res://scenes/Gravestone.tscn")
 ## than what everyone has. Starts the toolbar's "Party Vision" toggle in
 ## this state. Has no effect with the fog of war turned off.
 @export var party_vision: bool = true
+## Follow Mode: the view follows the selected party about the maze (see
+## MapCamera.following). Starts the toolbar's "Follow Mode" toggle in this
+## state; moving the view by hand switches it off.
+@export var follow_mode: bool = false
 ## 0 (the default) plays a fresh random game each time; anything else
 ## replays the same maze, roster and dice rolls -- so a game that went wrong
 ## (see tools/soak.gd) can be played again to see what happened.
@@ -110,6 +114,10 @@ func _ready() -> void:
 	hud.toolbar.fog_toggled.connect(_on_fog_toggled)
 	hud.toolbar.party_vision_toggle.set_pressed_no_signal(party_vision)
 	hud.toolbar.party_vision_toggled.connect(_on_party_vision_toggled)
+	hud.toolbar.follow_toggle.set_pressed_no_signal(follow_mode)
+	hud.toolbar.follow_toggled.connect(set_follow_mode)
+	camera.following = follow_mode
+	camera.follow_broken.connect(func(): set_follow_mode(false))
 	hud.toolbar.volume_slider.set_value_no_signal(music.volume)
 	hud.toolbar.volume_changed.connect(music.set_volume)
 	hud.toolbar.speed_changed.connect(set_game_speed)
@@ -204,22 +212,30 @@ func world_to_cell(world_pos: Vector2) -> Vector2i:
 	var local: Vector2 = npc_container.get_global_transform().affine_inverse() * world_pos
 	return Vector2i(floori(local.x / CELL_SIZE), floori(local.y / CELL_SIZE))
 
+## Turns Follow Mode on or off, ticking or unticking its toggle to match
+## (it goes off by itself when the view's moved by hand).
+func set_follow_mode(enabled: bool) -> void:
+	follow_mode = enabled
+	camera.following = enabled
+	hud.toolbar.follow_toggle.set_pressed_no_signal(enabled)
+
 ## Rings the selected character's whole party on the map, following them as
 ## they move -- centred on the leader, wide enough to take in every member's
 ## icon (party members stand slightly offset from the leader, see
 ## PartyOps.PARTY_OFFSETS). A dead character's gravestone is ringed
-## instead; nothing is when nobody's selected.
+## instead; nothing is when nobody's selected. Follow Mode follows whatever
+## is ringed.
 func _sync_selection_highlight() -> void:
 	var npc: NpcAgent = hud.inspected
 	if npc == null:
-		maze_view.set_selection_highlight(Vector2.ZERO, 0.0)
+		_ring(Vector2.ZERO, 0.0)
 		return
 	if npc.dead:
 		var grave: Node2D = graves.get(npc)
 		if grave == null:
-			maze_view.set_selection_highlight(Vector2.ZERO, 0.0)
+			_ring(Vector2.ZERO, 0.0)
 		else:
-			maze_view.set_selection_highlight(grave.position, GRAVE_RING_RADIUS)
+			_ring(grave.position, GRAVE_RING_RADIUS)
 		return
 	var leader: NpcAgent = PartyOps.leader_of(npc.party)
 	if leader == null:
@@ -227,7 +243,13 @@ func _sync_selection_highlight() -> void:
 	var radius := 0.0
 	for member in leader.living_party():
 		radius = maxf(radius, member.position.distance_to(leader.position))
-	maze_view.set_selection_highlight(leader.position, radius + SELECTION_ICON_MARGIN)
+	_ring(leader.position, radius + SELECTION_ICON_MARGIN)
+
+## Rings `center` (map coordinates) on the map and points Follow Mode at it;
+## a radius of 0 rings nothing, leaving Follow Mode nothing to follow.
+func _ring(center: Vector2, radius: float) -> void:
+	maze_view.set_selection_highlight(center, radius)
+	camera.follow(maze_view.to_global(center), radius > 0.0)
 
 ## The party whose view Party Vision shows: the selected character's,
 ## followers included. Nobody (so everyone's view shows) when it's switched

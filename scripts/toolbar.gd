@@ -1,8 +1,9 @@
 class_name Toolbar
 extends Control
 
-## The strip across the top of the map: fog of war and Party Vision, pause,
-## game speed, Guidance's readiness, music volume and the players-left count.
+## The strip across the top of the map: fog of war and Party Vision, Follow
+## Mode, pause, game speed, Guidance's readiness, music volume and the
+## players-left count.
 ## Hands the spectator's choices on as signals (GameManager wires them up),
 ## except pausing, which it does itself. Every control runs with
 ## PROCESS_MODE_ALWAYS, so the bar stays usable while the game is paused.
@@ -11,6 +12,8 @@ extends Control
 signal fog_toggled(enabled: bool)
 ## From the Party Vision checkbox (see GameManager.party_vision).
 signal party_vision_toggled(enabled: bool)
+## From the Follow Mode checkbox (see GameManager.follow_mode).
+signal follow_toggled(enabled: bool)
 ## From the music volume slider (0 to 1).
 signal volume_changed(volume: float)
 ## From the speed button: the game should now run `speed` times as fast
@@ -24,6 +27,7 @@ const GUIDANCE_COOLING_COLOR := Color(0.4, 0.45, 0.55)
 
 @onready var fog_toggle: CheckBox = $FogToggle
 @onready var party_vision_toggle: CheckBox = $PartyVisionToggle
+@onready var follow_toggle: CheckBox = $FollowToggle
 ## Music volume, 0 to 1 (see MusicPlayer).
 @onready var volume_slider: HSlider = $VolumeSlider
 ## Pauses the whole SceneTree (Space does too).
@@ -43,6 +47,7 @@ var game_speed := 1.0
 func _ready() -> void:
 	fog_toggle.toggled.connect(func(pressed: bool): fog_toggled.emit(pressed))
 	party_vision_toggle.toggled.connect(func(pressed: bool): party_vision_toggled.emit(pressed))
+	follow_toggle.toggled.connect(func(pressed: bool): follow_toggled.emit(pressed))
 	volume_slider.value_changed.connect(func(value: float): volume_changed.emit(value))
 	pause_button.toggled.connect(set_paused)
 	speed_button.pressed.connect(func(): step_speed(1))
@@ -54,7 +59,7 @@ func _ready() -> void:
 	# Space also "presses" whichever button has keyboard focus, so once the
 	# fog checkbox had been clicked it would swallow Space as a fog toggle.
 	# Keep the toolbar's controls out of focus so Space always means pause.
-	for control in [pause_button, fog_toggle, party_vision_toggle, volume_slider, speed_button]:
+	for control in [pause_button, fog_toggle, party_vision_toggle, follow_toggle, volume_slider, speed_button]:
 		control.focus_mode = Control.FOCUS_NONE
 
 	guidance_widget = Hud.make_stat_bar(GUIDANCE_READY_COLOR)
