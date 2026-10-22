@@ -29,6 +29,8 @@ var max_mp: int = 0
 var ko := false
 ## How a player looks in their gear (see look_of).
 var look: Dictionary = {}
+## A monster's kind (see MonsterCatalog): how it's drawn, and its name.
+var monster: Dictionary = {}
 
 ## Animations, in seconds left, counting down to 0: stepping forward to
 ## strike, blinking from a hit, a heal's sparkle, walking in, running away
@@ -60,7 +62,8 @@ static func of(node: Node, fighter_side: int, enter_seconds: float) -> BattleFig
 		f.name = node.npc_name
 	else:
 		f.kind = "boss" if node.is_boss else ("mini_boss" if node.is_mini_boss else "monster")
-		f.name = {"boss": "Boss", "mini_boss": "Mini Boss", "monster": "Monster"}[f.kind]
+		f.monster = node.kind
+		f.name = node.kind["name"]
 	f.take_stats(node)
 	return f
 
@@ -90,7 +93,7 @@ func height() -> float:
 			return 64.0
 		"mini_boss":
 			return 44.0
-	return 30.0
+	return 30.0 * monster.get("size", 1.0)
 
 ## Moves its animations on by `delta` seconds. False once it's gone from
 ## the scene: dissolved, walked off, or done lying there.

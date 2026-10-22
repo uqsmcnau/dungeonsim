@@ -17,6 +17,10 @@ const CHASE_LEASH_RADIUS := 6
 ## which would make wearing it down across several attempts pointless.
 const REGEN_TIME_SCALE := 0.03
 
+## How far a monster's map icon reaches from its middle (see
+## MonsterCatalog.outline).
+const ICON_RADIUS := 9.0
+
 ## Emitted right before a mini boss frees itself, so whoever's listening
 ## (game_manager) can drop a silver chest on the cell it died on.
 signal mini_boss_defeated(cell: Vector2i)
@@ -25,6 +29,9 @@ var cell_pos: Vector2i = Vector2i.ZERO
 var home_cell: Vector2i = Vector2i.ZERO
 ## The same stat block characters use (see NpcStats.for_enemy).
 var stats: NpcStats
+## What kind of monster it is -- a Rat, a Troll, the Dragon -- which goes
+## with its level (see MonsterCatalog).
+var kind: Dictionary = {}
 var alive: bool = true
 var in_combat: bool = false
 ## The shared party array of whoever this pack is fighting (set alongside
@@ -47,6 +54,13 @@ var wanders: bool = true
 var pack: Array = []
 var is_pack_leader: bool = true
 var pack_offset: Vector2 = Vector2.ZERO
+## Whether it's the roaming kind (see setup's `can_wander`): a pack's
+## follower doesn't wander, but takes it up again if it ends up leading the
+## pack. A boss's guards never do.
+var roams: bool = true
+## Who this monster guards, if it's one of a boss's party -- "the Dragon",
+## "an Ogre Warlord" (see WorldBuilder) -- for how it reads as a killer.
+var guarding: String = ""
 
 var grid: Array = []
 var cell_size: float = 40.0
@@ -64,15 +78,22 @@ func setup(cell: Vector2i, cs: float, enemy_level: int, maze_grid: Array, enemy_
 	cell_pos = cell
 	home_cell = cell
 	stats = NpcStats.for_enemy(enemy_level)
+	kind = MonsterCatalog.for_level(stats.level)
 	grid = maze_grid
 	cell_size = cs
 	enemies = enemy_map
 	forbidden = forbidden_cells
 	players = player_list
 	wanders = can_wander
+	roams = can_wander
 	position = Vector2((cell.x + 0.5) * cell_size, (cell.y + 0.5) * cell_size)
-	visual.color = Color(1.0, clampf(0.6 - stats.level * 0.08, 0.05, 0.6), 0.05, 1.0)
+	var icon := MonsterCatalog.outline(kind)
+	for i in range(icon.size()):
+		icon[i] *= ICON_RADIUS
+	visual.polygon = icon
+	visual.color = kind["color"]
 	label.text = "%d" % stats.level
+	label.add_theme_color_override("font_color", Color.BLACK if visual.color.get_luminance() > 0.45 else Color.WHITE)
 	enemies[cell_pos] = self
 	pack = [self]
 	if wanders:
@@ -83,14 +104,15 @@ func setup(cell: Vector2i, cs: float, enemy_level: int, maze_grid: Array, enemy_
 ## encounter: only the first keeps wandering/chasing and blocking the cell
 ## for movement purposes; the rest become stationary followers (just like a
 ## stationary boss — still regenerating HP, just never acting on their own)
-## that visually tag along and join any fight the pack gets into.
-static func form_pack(members: Array) -> void:
+## that visually tag along and join any fight the pack gets into. The
+## followers stand `spread` pixels each way from the leader's middle.
+static func form_pack(members: Array, spread: float = 7.0) -> void:
 	if members.size() < 2:
 		return
 	for m in members:
 		m.pack = members
 	var leader: EnemyAgent = members[0]
-	var offsets := [Vector2(-7, -7), Vector2(7, -7), Vector2(-7, 7)]
+	var offsets := [Vector2(-spread, -spread), Vector2(spread, -spread), Vector2(-spread, spread)]
 	for i in range(1, members.size()):
 		var follower: EnemyAgent = members[i]
 		follower.is_pack_leader = false
@@ -102,16 +124,15 @@ static func form_pack(members: Array) -> void:
 
 ## Every living member of this enemy's pack, including itself.
 ## How this monster reads as a player's killer, for their HUD panel (see
-## NpcAgent.killed_by): "the Boss (Lv.12)", "a Mini Boss (Lv.8)", or "a level
-## 3 monster" -- noting the pack it was part of, if any.
+## NpcAgent.killed_by): "the Dragon (Lv.12)", "a Troll (Lv.8)" -- noting the
+## boss it was guarding or the pack it was part of, if either:
+## "a Wyvern (Lv.10), guarding the Dragon", "a Rat (Lv.2), one of a pack of 3".
 func killer_description() -> String:
-	if is_boss:
-		return "the Boss (Lv.%d)" % stats.level
-	if is_mini_boss:
-		return "a Mini Boss (Lv.%d)" % stats.level
-	var desc := "a level %d monster" % stats.level
-	if pack.size() > 1:
-		desc += " (one of a pack of %d)" % pack.size()
+	var desc := "%s (Lv.%d)" % [MonsterCatalog.called(kind, is_boss), stats.level]
+	if guarding != "":
+		desc += ", guarding " + guarding
+	elif pack.size() > 1 and not is_mini_boss and not is_boss:
+		desc += ", one of a pack of %d" % pack.size()
 	return desc
 
 func living_pack() -> Array:
@@ -149,7 +170,7 @@ func _promote_next_pack_leader() -> void:
 	for m in pack:
 		if is_instance_valid(m) and m.alive:
 			m.is_pack_leader = true
-			m.wanders = true
+			m.wanders = m.roams
 			m.pack_offset = Vector2.ZERO
 			m.position = position
 			m.cell_pos = cell_pos

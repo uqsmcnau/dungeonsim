@@ -53,6 +53,11 @@ const FALLEN_LINGER_SECONDS := 2.0
 ## above and below, a step further back each time.
 const PARTY_SPOTS := [Vector2(104, 124), Vector2(88, 98), Vector2(88, 150), Vector2(72, 72), Vector2(72, 176)]
 const FOE_SPOTS := [Vector2(100, 112), Vector2(150, 72), Vector2(150, 152), Vector2(50, 72), Vector2(50, 152), Vector2(200, 112)]
+## Facing a boss, it stands at the back, and the rest stand at these spots
+## (by their slot, the boss having the first) in front of it -- from the
+## right, like FOE_SPOTS.
+const BOSS_SPOT := Vector2(80, 112)
+const BOSS_GUARD_SPOTS := [Vector2(175, 70), Vector2(175, 70), Vector2(175, 154), Vector2(215, 112)]
 ## On the move between fights: the party marches on the spot while the
 ## floor and the pillars along the back wall scroll past. Steps come a
 ## frame or two apart, so walking carries on this long after the last one.
@@ -359,10 +364,18 @@ func _check_fight_over() -> void:
 func _home_of(f: BattleFighter) -> Vector2:
 	if f.side == Side.PARTY:
 		return PARTY_SPOTS[f.slot % PARTY_SPOTS.size()]
-	if f.kind == "boss":
-		return Vector2(size.x - 120.0, 112.0)
 	var spot: Vector2 = FOE_SPOTS[f.slot % FOE_SPOTS.size()]
+	if f.kind == "boss":
+		spot = BOSS_SPOT
+	elif _facing_a_boss():
+		spot = BOSS_GUARD_SPOTS[f.slot % BOSS_GUARD_SPOTS.size()]
 	return Vector2(size.x - spot.x, spot.y)
+
+func _facing_a_boss() -> bool:
+	for f in fighters.values():
+		if f.kind == "boss":
+			return true
+	return false
 
 ## Which way `f` faces: the party right, towards the foes; the foes left.
 func _facing_of(f: BattleFighter) -> float:

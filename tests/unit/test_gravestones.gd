@@ -131,7 +131,7 @@ func test_killed_by_a_monster_is_recorded():
 		player.stats.hp = 1  # in case it drank a potion or recovered
 		GroupCombat.resolve_pack_turn([player], cell, player.enemies)
 	assert_true(player.dead, "sanity: a 1 HP player should fall to a level 4 monster eventually")
-	assert_eq(player.killed_by, "a level 4 monster")
+	assert_eq(player.killed_by, "a Goblin (Lv.4)")
 	assert_true(player.death_method.ends_with(" damage"), player.death_method)
 	assert_true(player.death_method.begins_with("A hit for ") or player.death_method.begins_with("A critical hit for "), player.death_method)
 
@@ -174,11 +174,18 @@ func test_killing_blows_name_the_spell_or_weapon():
 func test_monster_killer_descriptions():
 	var monster := new_enemy()
 	monster.setup(clear_cell(), main.CELL_SIZE, 3, main.grid, {}, {}, [])
-	assert_eq(monster.killer_description(), "a level 3 monster")
-	monster.is_mini_boss = true
-	assert_eq(monster.killer_description(), "a Mini Boss (Lv.3)")
-	monster.is_boss = true
-	assert_eq(monster.killer_description(), "the Boss (Lv.3)")
+	assert_eq(monster.killer_description(), "a Bat (Lv.3)")
+	var orc := new_enemy()
+	orc.setup(clear_cell(), main.CELL_SIZE, 6, main.grid, {}, {}, [])
+	assert_eq(orc.killer_description(), "an Orc (Lv.6)")
+
+func test_boss_party_killer_descriptions():
+	var boss: EnemyAgent = main.enemy_map[main.exit_cell]
+	assert_eq(boss.killer_description(), "the Dragon (Lv.12)")
+	assert_eq(boss.pack[1].killer_description(), "a Wyvern (Lv.10), guarding the Dragon")
+	var mini_boss: EnemyAgent = main.enemy_map[main.mini_boss_cells[0]]
+	assert_eq(mini_boss.killer_description(), "an Ogre Warlord (Lv.11)")
+	assert_eq(mini_boss.pack[1].killer_description(), "a Troll (Lv.8), guarding an Ogre Warlord")
 
 func test_pack_monster_killer_description():
 	var cell := clear_cell()
@@ -187,7 +194,7 @@ func test_pack_monster_killer_description():
 	a.setup(cell, main.CELL_SIZE, 2, main.grid, {}, {}, [])
 	b.setup(cell, main.CELL_SIZE, 2, main.grid, {}, {}, [])
 	EnemyAgent.form_pack([a, b])
-	assert_eq(b.killer_description(), "a level 2 monster (one of a pack of 2)")
+	assert_eq(b.killer_description(), "a Slime (Lv.2), one of a pack of 2")
 
 func test_the_real_boss_is_marked_as_the_boss():
 	var boss: EnemyAgent = main.enemy_map[main.exit_cell]

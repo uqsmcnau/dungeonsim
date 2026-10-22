@@ -15,11 +15,24 @@ const EXTRA_CHEST_DENSITY := 0.012
 const SHOP_GRID := 3
 const EXTRA_CONNECTION_CHANCE := 0.15
 const LEVEL_CURVE_EXPONENT := 1.5
+## How far from the middle the nearest cells outside the boss room are --
+## where the maze's strongest monsters are.
+const BOSS_ROOM_REACH := 2
+## The boss (the Dragon -- see MonsterCatalog) and the guards in its party
+## of four.
 const BOSS_LEVEL := 12
+const BOSS_GUARD_LEVEL := 10
+const BOSS_GUARDS := 3
 const BOSS_SCALE := 1.5
+## Likewise each mini boss (an Ogre Warlord) and its party of three.
 const MINI_BOSS_COUNT := 6
-const MINI_BOSS_LEVEL := 8
+const MINI_BOSS_LEVEL := 11
+const MINI_BOSS_GUARD_LEVEL := 8
+const MINI_BOSS_GUARDS := 2
 const MINI_BOSS_SCALE := 1.3
+## How far a boss's guards stand from it on the map (pixels each way) --
+## further than a pack's, to stand clear of the bigger boss.
+const BOSS_GUARD_SPREAD := 12.0
 ## Some encounters spawn as a pack of 2-3 individually weaker enemies
 ## instead of one at full strength, so a party has multiple bodies to work
 ## through rather than always a single, tougher target.
@@ -154,9 +167,10 @@ func _place_shops(generator: MazeGenerator) -> void:
 				break
 
 ## Guards a handful of 3x3 mini boss rooms (structured the same way as the
-## main boss room) with a single tough, stationary enemy each. Defeating one
-## drops a silver chest — holding an upgraded, silver-only item — right on
-## the cell it fell on.
+## main boss room) with a stationary party of three each: a mini boss and
+## two guards (see _spawn_boss_party). Defeating the mini boss drops a
+## silver chest — holding an upgraded, silver-only item — right on the cell
+## it fell on.
 func _place_mini_bosses(generator: MazeGenerator) -> void:
 	for i in range(MINI_BOSS_COUNT):
 		for attempt in range(60):
@@ -168,11 +182,8 @@ func _place_mini_bosses(generator: MazeGenerator) -> void:
 			game.mini_boss_cells.append(center)
 			game.maze_view.register_sticky_zone(zone_cells(center))
 
-			var mini_boss: EnemyAgent = ENEMY_SCENE.instantiate()
-			game.enemy_container.add_child(mini_boss)
-			mini_boss.setup(center, GameManager.CELL_SIZE, MINI_BOSS_LEVEL, game.grid, game.enemy_map, {}, game.npcs, false)
+			var mini_boss := _spawn_boss_party(center, MINI_BOSS_LEVEL, MINI_BOSS_GUARD_LEVEL, MINI_BOSS_GUARDS)
 			mini_boss.is_mini_boss = true
-			mini_boss.visual.color = Color(0.55, 0.15, 0.75, 1.0)
 			mini_boss.scale = Vector2(MINI_BOSS_SCALE, MINI_BOSS_SCALE)
 			mini_boss.mini_boss_defeated.connect(_on_mini_boss_defeated)
 			break
@@ -194,18 +205,19 @@ func _spawn_enemies() -> void:
 		else:
 			spawn_enemy(cell, level)
 
-## How strong a monster spawning on `cell` is: stronger the closer it is to
-## the center (in steps, measured against the furthest the maze's edge gets).
+## How strong a monster spawning on `cell` is: level 1 out at the maze's
+## edge, up to MonsterCatalog.MAZE_MAX_LEVEL right outside the boss room --
+## by how far it is from the room's edge, against how far the maze's edge
+## is (the maze being round, as the crow flies).
 func enemy_level_for(cell: Vector2i) -> int:
-	var center := game.exit_cell
-	var max_distance := game.maze_shape.radius * sqrt(2.0)
-	var distance: int = abs(cell.x - center.x) + abs(cell.y - center.y)
-	var closeness: float = 1.0 - float(distance) / maxf(max_distance, 1.0)
+	var max_distance := game.maze_shape.radius - BOSS_ROOM_REACH
+	var distance := Vector2(cell - game.exit_cell).length() - BOSS_ROOM_REACH
+	var closeness: float = 1.0 - distance / maxf(max_distance, 1.0)
 	# Raising to a power > 1 keeps closeness (and thus level) low across
 	# most of the outer maze near the start points, only ramping up
 	# sharply in the last stretch approaching the boss room.
 	closeness = pow(clampf(closeness, 0.0, 1.0), LEVEL_CURVE_EXPONENT)
-	return 1 + int(round(closeness * 5.0))
+	return 1 + int(round(closeness * (MonsterCatalog.MAZE_MAX_LEVEL - 1)))
 
 func spawn_enemy(cell: Vector2i, level: int) -> void:
 	var enemy: EnemyAgent = ENEMY_SCENE.instantiate()
@@ -227,18 +239,35 @@ func spawn_enemy_pack(cell: Vector2i, base_level: int, max_size: int = 3) -> voi
 		members.append(enemy)
 	EnemyAgent.form_pack(members)
 
-## A single stationary, much stronger enemy guards the exit cell. Since a
-## live enemy always blocks its cell until defeated, nobody can set foot on
-## the goal until the boss falls — and the NPC that lands the winning blow
-## is the same one whose move immediately after that carries it onto the
-## goal, so the boss-slayer is guaranteed to be first through.
+## The boss's stationary party of four -- the boss and three guards (see
+## _spawn_boss_party) -- holds the exit cell. Since a live enemy always
+## blocks its cell until defeated, nobody can set foot on the goal until
+## the whole party falls — and the NPC that lands the winning blow is the
+## same one whose move immediately after that carries it onto the goal, so
+## the boss-slayer is guaranteed to be first through.
 func _spawn_boss() -> void:
-	var boss: EnemyAgent = ENEMY_SCENE.instantiate()
-	game.enemy_container.add_child(boss)
-	boss.setup(game.exit_cell, GameManager.CELL_SIZE, BOSS_LEVEL, game.grid, game.enemy_map, {}, game.npcs, false)
+	var boss := _spawn_boss_party(game.exit_cell, BOSS_LEVEL, BOSS_GUARD_LEVEL, BOSS_GUARDS)
 	boss.is_boss = true
-	boss.visual.color = Color(0.55, 0.02, 0.05, 1.0)
 	boss.scale = Vector2(BOSS_SCALE, BOSS_SCALE)
+	for guard in boss.pack:
+		if guard != boss:
+			guard.guarding = MonsterCatalog.called(boss.kind, true)
+
+## A boss of level `level` on `cell` leading `guards` guards of level
+## `guard_level`: one pack, none of whom ever leave the room. Returns the
+## boss.
+func _spawn_boss_party(cell: Vector2i, level: int, guard_level: int, guards: int) -> EnemyAgent:
+	var members: Array = []
+	for i in range(guards + 1):
+		var member: EnemyAgent = ENEMY_SCENE.instantiate()
+		game.enemy_container.add_child(member)
+		member.setup(cell, GameManager.CELL_SIZE, level if i == 0 else guard_level, game.grid, game.enemy_map, {}, game.npcs, false)
+		members.append(member)
+	EnemyAgent.form_pack(members, BOSS_GUARD_SPREAD)
+	var boss: EnemyAgent = members[0]
+	for guard in members.slice(1):
+		guard.guarding = MonsterCatalog.called(boss.kind)
+	return boss
 
 ## Every cell of the maze outside the safe zones, shuffled.
 func unrestricted_cells() -> Array:

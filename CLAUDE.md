@@ -121,6 +121,15 @@ On GitHub it plays 3 games at x10 on every push, from a new seed each run
   maze and its zones and stocks it (monsters, bosses, chests), plus chests
   placed later (mini boss drops, death chests). Writes into GameManager's
   state rather than keeping its own.
+- **`monster_catalog.gd` (`MonsterCatalog`)** — the kinds of monster, one
+  per level: 1–10 roam the maze (`WorldBuilder.enemy_level_for`: level 1 at
+  the edge up to 10 outside the boss room), 11 (Ogre Warlord) leads each
+  mini boss's party of three with two level-8 guards, 12 (the Dragon) leads
+  the boss's party of four with three level-10 guards. A monster's level
+  decides its kind (`EnemyAgent.kind`) — name, colour, outline for its map
+  icon and battle body, and the features `BattlePainter.draw_monster` adds.
+  A boss's guards (`EnemyAgent.guarding`) never wander, even left leading
+  their party (`EnemyAgent.roams`).
 - **`maze_shape.gd` (`MazeShape`, as `main.maze_shape`)** — the maze's
   outline, a circle in the 68x68 grid. Cells outside it are solid
   rock: every wall up plus `MazeGenerator.OUTSIDE`, and no wall into them is

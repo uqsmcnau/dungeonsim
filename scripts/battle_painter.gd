@@ -221,29 +221,85 @@ static func _draw_tome(canvas: CanvasItem, at: Vector2, alpha: float) -> void:
 	canvas.draw_rect(Rect2(at.x - 2.0, at.y - 2.5, 4.0, 5.0), Color(0.45, 0.2, 0.65, alpha))
 	canvas.draw_line(at + Vector2(2.0, -2.0), at + Vector2(2.0, 2.0), Color(0.95, 0.92, 0.8, alpha), 0.8)
 
-## A monster like the ones on the map, only bigger and with a face: a
-## many-sided blob, glaring left towards the party. Bosses' eyes glow red,
-## mini bosses' purple. Shrinks a little as it dissolves.
+## A monster like the ones on the map -- its kind's outline and colour (see
+## MonsterCatalog) -- only bigger and with a face, glaring left towards the
+## party, and whatever marks its kind out: wings, a tail, horns, a crown...
+## Bosses' eyes glow red, mini bosses' purple. Shrinks a little as it
+## dissolves.
 static func draw_monster(canvas: CanvasItem, p: Vector2, color: Color, f: BattleFighter, alpha: float, depth: float) -> void:
 	var r := f.height() * 0.6 * depth
 	if f.dissolve >= 0.0:
 		r *= 0.8 + 0.2 * alpha
+	var kind: Dictionary = f.monster if not f.monster.is_empty() else MonsterCatalog.for_level(f.level)
+	var features: Array = kind["features"]
+	if features.has("ghostly"):
+		color.a *= 0.7
+	var edge := Color(color.darkened(0.5), alpha)
+	# Behind the body.
+	if features.has("wings"):
+		for side in [-1.0, 1.0]:
+			var root := p + Vector2(side * r * 0.3, -r * 0.2)
+			canvas.draw_colored_polygon(PackedVector2Array([root, root + Vector2(side * r * 1.3, -r * 0.9),
+				root + Vector2(side * r * 1.0, -r * 0.1), root + Vector2(side * r * 0.9, r * 0.3)]), Color(color.darkened(0.25), color.a))
+	if features.has("tail"):
+		canvas.draw_polyline(PackedVector2Array([p + Vector2(r * 0.8, r * 0.3), p + Vector2(r * 1.3, r * 0.1),
+			p + Vector2(r * 1.55, -r * 0.35)]), edge, maxf(1.5, r * 0.12))
+	# The body.
 	var points := PackedVector2Array()
-	for i in range(10):
-		var a := TAU * i / 10.0
-		var wobble := 1.0 + 0.08 * sin(a * 3.0)
-		points.append(p + Vector2(cos(a), sin(a)) * r * wobble)
+	for point in MonsterCatalog.outline(kind):
+		points.append(p + point * r)
 	canvas.draw_colored_polygon(points, color)
 	points.append(points[0])
-	canvas.draw_polyline(points, Color(color.darkened(0.5), alpha), 1.5)
+	canvas.draw_polyline(points, edge, 1.5)
+	# On top.
+	if features.has("ears"):
+		for x in [-0.55, -0.15]:
+			var base := p + Vector2(r * x, -r * 0.55)
+			canvas.draw_colored_polygon(PackedVector2Array([base, base + Vector2(r * 0.3, 0), base + Vector2(r * 0.1, -r * 0.45)]), color)
+	if features.has("horns"):
+		for x in [-0.5, 0.1]:
+			var base := p + Vector2(r * x, -r * 0.6)
+			canvas.draw_colored_polygon(PackedVector2Array([base, base + Vector2(r * 0.25, 0), base + Vector2(-r * 0.05, -r * 0.55)]),
+				Color(0.95, 0.9, 0.75, alpha))
+	if features.has("crown"):
+		var top := p + Vector2(-r * 0.45, -r * 0.75)
+		canvas.draw_colored_polygon(PackedVector2Array([top, top + Vector2(r * 0.9, 0), top + Vector2(r * 0.9, -r * 0.35),
+			top + Vector2(r * 0.68, -r * 0.15), top + Vector2(r * 0.45, -r * 0.4), top + Vector2(r * 0.22, -r * 0.15),
+			top + Vector2(0, -r * 0.35)]), Color(GOLD, alpha))
+	if features.has("shine"):
+		canvas.draw_circle(p + Vector2(-r * 0.25, -r * 0.35), r * 0.12, Color(1, 1, 1, 0.6 * alpha))
+	if features.has("cracks"):
+		canvas.draw_polyline(PackedVector2Array([p + Vector2(r * 0.1, -r * 0.7), p + Vector2(r * 0.3, -r * 0.2),
+			p + Vector2(r * 0.05, r * 0.15), p + Vector2(r * 0.35, r * 0.6)]), edge, 1.2)
+	_draw_face(canvas, p, r, f, features, alpha)
+
+## Eyes and a mouth on the left of a monster's body (see draw_monster).
+static func _draw_face(canvas: CanvasItem, p: Vector2, r: float, f: BattleFighter, features: Array, alpha: float) -> void:
 	var eye := Color(1.0, 0.95, 0.3, alpha)
 	if f.kind == "boss":
 		eye = Color(1.0, 0.2, 0.2, alpha)
 	elif f.kind == "mini_boss":
 		eye = Color(0.75, 0.4, 1.0, alpha)
-	canvas.draw_circle(p + Vector2(-r * 0.35, -r * 0.25), r * 0.14, eye)
-	canvas.draw_circle(p + Vector2(-r * 0.65, -r * 0.2), r * 0.12, eye)
-	canvas.draw_line(p + Vector2(-r * 0.25, r * 0.25), p + Vector2(-r * 0.7, r * 0.2), Color(0.1, 0.0, 0.0, alpha), 1.5)
+	var eyes := [p + Vector2(-r * 0.35, -r * 0.25), p + Vector2(-r * 0.65, -r * 0.2)]
+	if features.has("sockets"):
+		for e in eyes:
+			canvas.draw_circle(e, r * 0.17, Color(0.1, 0.05, 0.05, alpha))
+			canvas.draw_circle(e, r * 0.06, Color(1.0, 0.3, 0.2, alpha))
+	else:
+		canvas.draw_circle(eyes[0], r * 0.14, eye)
+		canvas.draw_circle(eyes[1], r * 0.12, eye)
+	var mouth_left := p + Vector2(-r * 0.7, r * 0.2)
+	var mouth_right := p + Vector2(-r * 0.25, r * 0.25)
+	canvas.draw_line(mouth_left, mouth_right, Color(0.1, 0.0, 0.0, alpha), 1.5)
+	var tooth := Color(1.0, 1.0, 0.95, alpha)
+	if features.has("teeth"):
+		for k in [0.2, 0.5, 0.8]:
+			var at := mouth_left.lerp(mouth_right, k)
+			canvas.draw_colored_polygon(PackedVector2Array([at + Vector2(-r * 0.05, 0), at + Vector2(r * 0.05, 0), at + Vector2(0, r * 0.1)]), tooth)
+	if features.has("tusks"):
+		for at in [mouth_left + Vector2(r * 0.05, 0), mouth_right - Vector2(r * 0.05, 0)]:
+			canvas.draw_colored_polygon(PackedVector2Array([at + Vector2(-r * 0.06, 0), at + Vector2(r * 0.06, 0),
+				at + Vector2(0, -r * 0.22)]), tooth)
 
 # ============================ Spells and text =============================
 
