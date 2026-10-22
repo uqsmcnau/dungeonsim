@@ -112,7 +112,7 @@ static func draw_figure(canvas: CanvasItem, p: Vector2, color: Color, faces_left
 		var head := Vector2(p.x - 11.0 if faces_left else p.x + 13.0, p.y + 9.0)
 		canvas.draw_circle(head, 4.5, Color(skin.lerp(Color(0.5, 0.5, 0.5), 0.5), alpha))
 		if look.get("helmet", false):
-			canvas.draw_circle(head + Vector2(-2.0 if faces_left else 2.0, 0), 3.0, metal)
+			canvas.draw_circle(head + Vector2(-2.0 if faces_left else 2.0, 0), 3.0, gold if look.get("gold_helm", false) else metal)
 		return
 	var dir := -1.0 if faces_left else 1.0
 	var front_hand := p + Vector2(dir * 5.0, 2.0)
@@ -120,9 +120,15 @@ static func draw_figure(canvas: CanvasItem, p: Vector2, color: Color, faces_left
 	var weapon: String = look.get("weapon", "")
 	var off_hand: String = look.get("off_hand", "")
 
-	# Behind the body: a second sword, its tip over the shoulder.
+	# Behind the body: a second sword, its tip over the shoulder, or a staff
+	# with a glowing orb.
 	if off_hand == "iron_sword":
 		canvas.draw_line(back_hand, p + Vector2(-dir * 9.0, -13.0), metal, 1.8)
+	elif off_hand == "staff":
+		var orb := back_hand + Vector2(-dir * 1.0, -17.0)
+		canvas.draw_line(back_hand + Vector2(0, 5.0), orb, Color(0.45, 0.28, 0.12, alpha), 1.6)
+		canvas.draw_circle(orb, 2.6 + 0.4 * sin(time * 4.0), Color(0.65, 0.45, 1.0, alpha))
+		canvas.draw_circle(orb, 1.2, Color(1, 1, 1, 0.8 * alpha))
 
 	# Legs: one forward, one back, the raised one lifted off the ground --
 	# in boots, if they have them.
@@ -134,6 +140,10 @@ static func draw_figure(canvas: CanvasItem, p: Vector2, color: Color, faces_left
 		canvas.draw_rect(Rect2(p.x + leg[0], leg_top, 4.0, 4.0), leg_color)
 		if boots:
 			canvas.draw_rect(Rect2(p.x + leg[0] - 0.5, leg_top, 5.0, 1.0), leather.lightened(0.3))
+		if look.get("winged", false):
+			var heel := Vector2(p.x + leg[0] + (4.0 if faces_left else 0.0), leg_top + 1.0)
+			canvas.draw_colored_polygon(PackedVector2Array([heel, heel + Vector2(-dir * 4.0, -3.0), heel + Vector2(-dir * 3.0, 0.5)]),
+				Color(1, 1, 1, alpha))
 
 	# Body: their tunic, under any armor.
 	canvas.draw_rect(Rect2(p.x - 6.0, p.y - 3.0, 12.0, 13.0), color)
@@ -142,6 +152,12 @@ static func draw_figure(canvas: CanvasItem, p: Vector2, color: Color, faces_left
 			canvas.draw_rect(Rect2(p.x - 5.0, p.y - 2.0, 10.0, 9.0), Color(0.55, 0.36, 0.18, alpha))
 			canvas.draw_rect(Rect2(p.x - 6.0, p.y + 6.0, 12.0, 1.6), leather)
 			canvas.draw_rect(Rect2(p.x - 1.0, p.y + 5.8, 2.0, 2.0), gold)
+		"plate":
+			canvas.draw_rect(Rect2(p.x - 6.0, p.y - 3.0, 12.0, 11.0), Color(0.86, 0.88, 0.94, alpha))
+			canvas.draw_rect(Rect2(p.x - 6.0, p.y + 2.0, 12.0, 1.0), gold)
+			canvas.draw_rect(Rect2(p.x - 0.5, p.y - 3.0, 1.0, 11.0), gold)
+			for side in [-1.0, 1.0]:
+				canvas.draw_circle(p + Vector2(side * 6.0, -2.0), 2.6, Color(0.78, 0.8, 0.88, alpha))
 		"chainmail":
 			canvas.draw_rect(Rect2(p.x - 6.0, p.y - 3.0, 12.0, 11.0), metal)
 			for row in range(4):
@@ -161,9 +177,14 @@ static func draw_figure(canvas: CanvasItem, p: Vector2, color: Color, faces_left
 		for i in range(9):
 			var a := PI + PI * i / 8.0
 			cap.append(p + Vector2(0, -9.5) + Vector2(cos(a), sin(a)) * 6.2)
-		canvas.draw_colored_polygon(cap, metal)
-		canvas.draw_line(p + Vector2(-6.4, -9.5), p + Vector2(6.4, -9.5), metal.darkened(0.3), 1.2)
-		canvas.draw_rect(Rect2(p.x + dir * 2.0 - 0.6, p.y - 9.5, 1.2, 3.0), metal.darkened(0.2))
+		var helm := gold if look.get("gold_helm", false) else metal
+		if look.get("gold_helm", false):
+			# A red plume, streaming back.
+			canvas.draw_colored_polygon(PackedVector2Array([p + Vector2(0, -15.5), p + Vector2(-dir * 7.0, -17.0),
+				p + Vector2(-dir * 5.0, -13.5)]), Color(0.85, 0.15, 0.15, alpha))
+		canvas.draw_colored_polygon(cap, helm)
+		canvas.draw_line(p + Vector2(-6.4, -9.5), p + Vector2(6.4, -9.5), helm.darkened(0.3), 1.2)
+		canvas.draw_rect(Rect2(p.x + dir * 2.0 - 0.6, p.y - 9.5, 1.2, 3.0), helm.darkened(0.2))
 		eye_y = -8.5
 	canvas.draw_circle(p + Vector2(dir * 2.5, eye_y), 1.2, Color(0.1, 0.1, 0.15, alpha))
 
@@ -178,7 +199,15 @@ static func draw_figure(canvas: CanvasItem, p: Vector2, color: Color, faces_left
 
 	# The front hand: a sword (steel longer and brighter, with a gilt
 	# crossguard), else a tome held out, else a bare fist.
+	if look.get("might", false):
+		canvas.draw_circle(front_hand + Vector2(0, 1.0), 1.1, Color(0.95, 0.15, 0.2, alpha))
 	match weapon:
+		"mithril_sword":
+			var tip := front_hand + Vector2(dir * 12.0, -15.0)
+			_draw_sword(canvas, front_hand, tip, Color(0.72, 0.95, 1.0, alpha), gold, 2.6)
+			var k := 1.2 + 0.6 * sin(time * 5.0)
+			canvas.draw_line(tip - Vector2(k, 0), tip + Vector2(k, 0), Color(1, 1, 1, alpha), 0.7)
+			canvas.draw_line(tip - Vector2(0, k), tip + Vector2(0, k), Color(1, 1, 1, alpha), 0.7)
 		"steel_sword":
 			_draw_sword(canvas, front_hand, front_hand + Vector2(dir * 11.0, -13.0),
 				Color(0.88, 0.95, 1.0, alpha), Color(0.95, 0.78, 0.25, alpha), 2.4)
@@ -208,6 +237,15 @@ static func draw_figure(canvas: CanvasItem, p: Vector2, color: Color, faces_left
 			canvas.draw_polyline(kite, Color(0.55, 0.58, 0.66, alpha), 0.8)
 			canvas.draw_line(boss + Vector2(0, -3.5), boss + Vector2(0, 3.5), Color(0.25, 0.45, 0.9, alpha), 1.0)
 			canvas.draw_line(boss + Vector2(-2.5, -1.0), boss + Vector2(2.5, -1.0), Color(0.25, 0.45, 0.9, alpha), 1.0)
+		"aegis":
+			var aegis := PackedVector2Array([
+				boss + Vector2(-4.2, -5.2), boss + Vector2(4.2, -5.2),
+				boss + Vector2(4.2, 0.6), boss + Vector2(0, 6.4), boss + Vector2(-4.2, 0.6),
+			])
+			canvas.draw_colored_polygon(aegis, gold)
+			aegis.append(aegis[0])
+			canvas.draw_polyline(aegis, Color(0.6, 0.42, 0.1, alpha), 0.9)
+			canvas.draw_circle(boss + Vector2(0, -0.5), 1.8, Color(0.85, 0.15, 0.15, alpha))
 
 static func _draw_sword(canvas: CanvasItem, hilt: Vector2, tip: Vector2, blade: Color, guard: Color, width: float) -> void:
 	canvas.draw_line(hilt, tip, blade, width)

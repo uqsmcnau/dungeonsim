@@ -16,9 +16,12 @@ const SLOT_LABELS := {"hand": "Hands", "armor": "Armor", "helmet": "Helmet", "fe
 
 ## Bronze items turn up in shops and ordinary chests. Silver items are
 ## upgraded variants that only drop from silver chests (dropped by mini
-## bosses), and never appear in a shop's stock or a normal chest.
+## bosses), and gold items, the best of all, only from gold chests (left
+## when a mini boss's whole party is beaten) -- neither ever appears in a
+## shop's stock or a normal chest.
 const RARITY_BRONZE := "bronze"
 const RARITY_SILVER := "silver"
+const RARITY_GOLD := "gold"
 
 ## Equipment sits in a slot and grants its effects for as long as it's worn.
 ## A consumable is used up on the spot for a one-off effect (see "effect"
@@ -49,6 +52,18 @@ const ITEMS := [
 	{"name": "Steel Sword", "kind": "equipment", "slot": "hand", "rarity": "silver", "effects": {"attack": 4}},
 	{"name": "Chainmail", "kind": "equipment", "slot": "armor", "rarity": "silver", "effects": {"defense": 4}},
 	{"name": "Silver Shield", "kind": "equipment", "slot": "hand", "rarity": "silver", "effects": {"defense": 2, "evasion": 0.06}},
+
+	# Gold tier: upgrades of the silver gear, and the best of every other slot.
+	{"name": "Mithril Sword", "kind": "equipment", "slot": "hand", "rarity": "gold", "effects": {"attack": 6}},
+	{"name": "Aegis Shield", "kind": "equipment", "slot": "hand", "rarity": "gold", "effects": {"defense": 3, "evasion": 0.1}},
+	{"name": "Archmage's Staff", "kind": "equipment", "slot": "hand", "rarity": "gold",
+		"effects": {"intelligence": 4, "wisdom": 2}},
+	{"name": "Plate Armor", "kind": "equipment", "slot": "armor", "rarity": "gold", "effects": {"defense": 6}},
+	{"name": "Golden Helm", "kind": "equipment", "slot": "helmet", "rarity": "gold", "effects": {"defense": 2, "constitution": 2}},
+	{"name": "Winged Boots", "kind": "equipment", "slot": "feet", "rarity": "gold",
+		"effects": {"defense": 2, "evasion": 0.1, "dexterity": 2}},
+	{"name": "Ring of Might", "kind": "equipment", "slot": "accessory", "rarity": "gold",
+		"effects": {"strength": 3, "constitution": 2}},
 
 	# Consumables. Potions don't drop from chests (see random_item) — a shop
 	# is their only source, and unlike equipment it'll sell any number of them

@@ -24,6 +24,9 @@ const ICON_RADIUS := 9.0
 ## Emitted right before a mini boss frees itself, so whoever's listening
 ## (game_manager) can drop a silver chest on the cell it died on.
 signal mini_boss_defeated(cell: Vector2i)
+## Emitted by the last of a pack to fall, as it does -- the whole pack's
+## beaten, on `cell` (see WorldBuilder: a mini boss's party leaves gold).
+signal pack_defeated(cell: Vector2i)
 
 var cell_pos: Vector2i = Vector2i.ZERO
 var home_cell: Vector2i = Vector2i.ZERO
@@ -156,6 +159,8 @@ func defeat() -> void:
 	if is_mini_boss:
 		mini_boss_defeated.emit(cell_pos)
 	pack.erase(self)
+	if pack.is_empty():
+		pack_defeated.emit(cell_pos)
 	if is_pack_leader:
 		if pack.is_empty():
 			enemies.erase(cell_pos)

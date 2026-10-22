@@ -18,6 +18,9 @@ func setup(cell: Vector2i, cell_size: float, item_rarity: String = ItemCatalog.R
 	if rarity == ItemCatalog.RARITY_SILVER:
 		box.color = Color(0.55, 0.58, 0.65, 1.0)
 		band.color = Color(0.85, 0.88, 0.95, 1.0)
+	elif rarity == ItemCatalog.RARITY_GOLD:
+		box.color = Color(0.8, 0.58, 0.12, 1.0)
+		band.color = Color(1.0, 0.9, 0.45, 1.0)
 
 ## Everything a fallen character was carrying, dropped on the cell they died in.
 func setup_from_death(cell: Vector2i, cell_size: float, dropped_loot: Dictionary, dropped_gold: int) -> void:

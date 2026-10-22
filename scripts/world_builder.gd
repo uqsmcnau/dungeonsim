@@ -170,7 +170,8 @@ func _place_shops(generator: MazeGenerator) -> void:
 ## main boss room) with a stationary party of three each: a mini boss and
 ## two guards (see _spawn_boss_party). Defeating the mini boss drops a
 ## silver chest — holding an upgraded, silver-only item — right on the cell
-## it fell on.
+## it fell on; beating the whole party leaves a gold chest (a gold-only
+## item, the best there is) beside it, elsewhere in the room.
 func _place_mini_bosses(generator: MazeGenerator) -> void:
 	for i in range(MINI_BOSS_COUNT):
 		for attempt in range(60):
@@ -186,10 +187,19 @@ func _place_mini_bosses(generator: MazeGenerator) -> void:
 			mini_boss.is_mini_boss = true
 			mini_boss.scale = Vector2(MINI_BOSS_SCALE, MINI_BOSS_SCALE)
 			mini_boss.mini_boss_defeated.connect(_on_mini_boss_defeated)
+			for member in mini_boss.pack:
+				member.pack_defeated.connect(_on_mini_boss_party_beaten)
 			break
 
 func _on_mini_boss_defeated(cell: Vector2i) -> void:
 	place_chest(cell, ItemCatalog.RARITY_SILVER)
+
+## The gold chest goes on a cell of the room with no chest on it yet (the
+## silver one's on the party's own cell).
+func _on_mini_boss_party_beaten(cell: Vector2i) -> void:
+	var free: Array = zone_cells(cell).keys().filter(func(c): return c != cell and not game.chest_map.has(c))
+	if not free.is_empty():
+		place_chest(free[randi() % free.size()], ItemCatalog.RARITY_GOLD)
 
 ## Scatters enemies across the maze (never in a restricted zone), making them
 ## stronger the closer their cell is to the center.

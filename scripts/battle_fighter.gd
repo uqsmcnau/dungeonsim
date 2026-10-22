@@ -10,6 +10,14 @@ extends RefCounted
 ## Players are drawn at this scale (their sprite's 22 pixels tall at 1).
 const FIGURE_SCALE := 1.5
 
+## The swords that show in a figure's hand, best first, and how each looks;
+## likewise what's held in the other hand.
+const SWORDS := {"Mithril Sword": "mithril_sword", "Steel Sword": "steel_sword", "Iron Sword": "iron_sword"}
+const OFF_HANDS := {
+	"Aegis Shield": "aegis", "Silver Shield": "silver_shield", "Shield": "shield",
+	"Archmage's Staff": "staff", "Arcane Tome": "tome",
+}
+
 var id: int = 0
 ## BattleWindow.Side.PARTY or FOES.
 var side: int = 0
@@ -114,37 +122,41 @@ func tick(delta: float) -> bool:
 
 ## How a player's figure looks in the gear they're wearing (see
 ## BattlePainter.draw_figure):
-##   weapon -- "steel_sword", "iron_sword", or "" for bare hands;
-##   off_hand -- "silver_shield", "shield", "tome", a second "iron_sword"
-##     (two swords, nothing else), or "";
-##   armor -- "chainmail", "leather" or "";
-##   helmet, boots, amulet, ring -- whether they're wearing one.
+##   weapon -- "mithril_sword", "steel_sword", "iron_sword", or "" for bare
+##     hands -- the best sword they've got;
+##   off_hand -- "aegis", "silver_shield", "shield", "staff", "tome", a
+##     second sword ("iron_sword": two swords, nothing else), or "";
+##   armor -- "plate", "chainmail", "leather" or "";
+##   helmet, boots, amulet, ring -- whether they're wearing one;
+##   gold_helm, winged, might -- whether it's the Golden Helm, the Winged
+##     Boots, a Ring of Might.
 static func look_of(stats: NpcStats) -> Dictionary:
 	var hands: Array = stats.equipped_in("hand")
-	var weapon := ""
-	if hands.has("Steel Sword"):
-		weapon = "steel_sword"
-	elif hands.has("Iron Sword"):
-		weapon = "iron_sword"
+	var swords: Array = SWORDS.keys().filter(func(s): return hands.has(s))
+	var weapon: String = SWORDS[swords[0]] if not swords.is_empty() else ""
 	var off_hand := ""
-	if hands.has("Silver Shield"):
-		off_hand = "silver_shield"
-	elif hands.has("Shield"):
-		off_hand = "shield"
-	elif hands.has("Arcane Tome"):
-		off_hand = "tome"
-	elif hands.has("Steel Sword") and hands.has("Iron Sword"):
-		off_hand = "iron_sword"
+	for item in OFF_HANDS:
+		if hands.has(item):
+			off_hand = OFF_HANDS[item]
+			break
+	if off_hand == "" and swords.size() > 1:
+		off_hand = "iron_sword"  # the second sword, over the shoulder
 	var armor := ""
-	if stats.equipped_in("armor").has("Chainmail"):
+	var worn: Array = stats.equipped_in("armor")
+	if worn.has("Plate Armor"):
+		armor = "plate"
+	elif worn.has("Chainmail"):
 		armor = "chainmail"
-	elif not stats.equipped_in("armor").is_empty():
+	elif not worn.is_empty():
 		armor = "leather"
 	var accessories: Array = stats.equipped_in("accessory")
 	return {
 		"weapon": weapon, "off_hand": off_hand, "armor": armor,
 		"helmet": not stats.equipped_in("helmet").is_empty(),
+		"gold_helm": stats.equipped_in("helmet").has("Golden Helm"),
 		"boots": not stats.equipped_in("feet").is_empty(),
+		"winged": stats.equipped_in("feet").has("Winged Boots"),
 		"amulet": accessories.has("Sage's Amulet"),
 		"ring": accessories.has("Silver Ring"),
+		"might": accessories.has("Ring of Might"),
 	}

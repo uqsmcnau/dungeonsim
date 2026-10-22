@@ -162,7 +162,8 @@ func _wearing(items: Array) -> NpcStats:
 func test_nothing_worn_is_a_bare_fisted_tunic():
 	assert_eq(BattleFighter.look_of(NpcStats.new()), {
 		"weapon": "", "off_hand": "", "armor": "",
-		"helmet": false, "boots": false, "amulet": false, "ring": false,
+		"helmet": false, "gold_helm": false, "boots": false, "winged": false,
+		"amulet": false, "ring": false, "might": false,
 	})
 
 func test_everything_worn_shows():
@@ -180,6 +181,22 @@ func test_silver_gear_looks_the_part():
 	assert_eq(look["weapon"], "steel_sword")
 	assert_eq(look["off_hand"], "silver_shield")
 	assert_eq(look["armor"], "chainmail")
+
+func test_gold_gear_looks_the_part():
+	var look := BattleFighter.look_of(_wearing([
+		"Mithril Sword", "Aegis Shield", "Plate Armor", "Golden Helm", "Winged Boots", "Ring of Might",
+	]))
+	assert_eq(look["weapon"], "mithril_sword")
+	assert_eq(look["off_hand"], "aegis")
+	assert_eq(look["armor"], "plate")
+	for part in ["helmet", "gold_helm", "boots", "winged", "might"]:
+		assert_true(look[part], part)
+	assert_eq(BattleFighter.look_of(_wearing(["Mithril Sword", "Archmage's Staff"]))["off_hand"], "staff")
+
+func test_the_best_sword_goes_in_front():
+	var look := BattleFighter.look_of(_wearing(["Steel Sword", "Mithril Sword"]))
+	assert_eq(look["weapon"], "mithril_sword")
+	assert_eq(look["off_hand"], "iron_sword", "the other over the shoulder")
 
 func test_a_tome_is_held_in_the_off_hand():
 	assert_eq(BattleFighter.look_of(_wearing(["Arcane Tome"]))["off_hand"], "tome")
