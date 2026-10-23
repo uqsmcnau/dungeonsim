@@ -255,7 +255,7 @@ func _blocked_cells() -> Dictionary:
 	return blocked
 
 func _dist_from_home(cell: Vector2i) -> int:
-	return abs(cell.x - home_cell.x) + abs(cell.y - home_cell.y)
+	return MazeQuery.manhattan(cell, home_cell)
 
 ## Steps to a random open neighbor, but only if it stays within LEASH_RADIUS
 ## of the spawn cell and isn't already occupied by another enemy.

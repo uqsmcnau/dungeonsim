@@ -8,6 +8,23 @@ const NONE := Vector2i(-1, -1)
 static func chebyshev(a: Vector2i, b: Vector2i) -> int:
 	return maxi(absi(a.x - b.x), absi(a.y - b.y))
 
+## How many cells apart `a` and `b` are along the grid, ignoring walls
+## (Manhattan distance) -- "as the crow flies", in a maze of square cells.
+static func manhattan(a: Vector2i, b: Vector2i) -> int:
+	return absi(a.x - b.x) + absi(a.y - b.y)
+
+## The one of `cells` (any collection of cells: an Array, or a Dictionary's
+## keys) nearest `from` by manhattan, or NONE if there are none.
+static func nearest(from: Vector2i, cells) -> Vector2i:
+	var best := NONE
+	var best_dist := 1 << 30
+	for c in cells:
+		var d := manhattan(from, c)
+		if d < best_dist:
+			best = c
+			best_dist = d
+	return best
+
 ## Cells reachable in one step from `cell` through an open passage.
 static func open_neighbors(grid: Array, cell: Vector2i) -> Array:
 	var walls: int = grid[cell.y][cell.x]
@@ -144,7 +161,7 @@ static func explore_step(grid: Array, from: Vector2i, to: Vector2i, known: Dicti
 	var came_from: Dictionary = {from: from}
 	var cost: Dictionary = {from: 0}
 	var heap := _Heap.new()
-	heap.push(_manhattan(from, to), from)
+	heap.push(manhattan(from, to), from)
 	while not heap.is_empty():
 		var cur: Vector2i = heap.pop()
 		if cur == to:
@@ -167,11 +184,8 @@ static func explore_step(grid: Array, from: Vector2i, to: Vector2i, known: Dicti
 			came_from[n] = cur
 			# Ties on f go to the deeper node (smaller h), so A* runs straight
 			# at the goal across open ground instead of fanning out sideways.
-			heap.push((g + _manhattan(n, to)) * 4096 - g, n)
+			heap.push((g + manhattan(n, to)) * 4096 - g, n)
 	return from
-
-static func _manhattan(a: Vector2i, b: Vector2i) -> int:
-	return abs(a.x - b.x) + abs(a.y - b.y)
 
 ## Minimal binary min-heap of cells by integer priority, for explore_step.
 class _Heap:

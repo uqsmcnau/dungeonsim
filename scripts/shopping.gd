@@ -71,16 +71,7 @@ static func _worth_going_to(npc: NpcAgent, cell: Vector2i) -> bool:
 	return npc.known_shops.has(cell) and party_has_business(npc, rarity_at(npc, cell))
 
 static func _nearest_worth_going_to(npc: NpcAgent) -> Vector2i:
-	var nearest := MazeQuery.NONE
-	var nearest_dist := 1 << 30
-	for c in npc.known_shops:
-		if not _worth_going_to(npc, c):
-			continue
-		var d: int = abs(c.x - npc.cell_pos.x) + abs(c.y - npc.cell_pos.y)
-		if d < nearest_dist:
-			nearest = c
-			nearest_dist = d
-	return nearest
+	return MazeQuery.nearest(npc.cell_pos, npc.known_shops.keys().filter(func(c): return _worth_going_to(npc, c)))
 
 ## Whether a visit to a shop of `rarity` would do anything for anyone in
 ## `npc`'s party -- the whole party shops together (see trade).

@@ -51,7 +51,7 @@ static func strongest(npc: NpcAgent, busy: Dictionary, stormy: Dictionary) -> En
 		var xp := 0
 		for m in enemy.living_pack():
 			xp += m.stats.xp
-		var dist: int = abs(c.x - npc.cell_pos.x) + abs(c.y - npc.cell_pos.y)
+		var dist := MazeQuery.manhattan(c, npc.cell_pos)
 		if best == null or xp > best_xp or (xp == best_xp and dist < best_dist):
 			best = enemy
 			best_xp = xp
