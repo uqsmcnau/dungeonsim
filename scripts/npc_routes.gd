@@ -35,6 +35,22 @@ static func step_toward(npc: NpcAgent, to: Vector2i, max_depth: int, blocked: Di
 			return step
 	return MazeQuery.step_toward(npc.grid, npc.cell_pos, to, max_depth, blocked)
 
+## First step toward `to` across the ground `npc`'s party has seen (see
+## NpcAgent.seen_cells), round monsters (other than any on `to`) where
+## there's a way, and never through the storm -- or `npc`'s own cell if
+## there's no way. Guidance may cross the storm (see
+## NpcAgent._guidance_step); nothing a party chooses for itself is worth
+## leaving safe ground for (see leaves_safe_ground), and stepping out into
+## it it'd only turn back to escape it, again and again.
+static func step_through_seen(npc: NpcAgent, to: Vector2i) -> Vector2i:
+	var stormy := storm_cells(npc)  # (`to` itself is never avoided)
+	var avoid := live_enemy_cells(npc)
+	avoid.merge(stormy)
+	var step := MazeQuery.explore_step(npc.grid, npc.cell_pos, to, npc.seen_cells, avoid)
+	if step == npc.cell_pos:
+		step = MazeQuery.explore_step(npc.grid, npc.cell_pos, to, npc.seen_cells, stormy)
+	return step
+
 ## First step towards the nearest safe ground (see Storm.unsafe), round any
 ## monsters if there's a way -- through the storm if that's the only way,
 ## out of a pocket it's cut off as much as out of the storm itself. Or
@@ -57,16 +73,27 @@ static func leaves_safe_ground(npc: NpcAgent, next: Vector2i) -> bool:
 	var stormy := storm_cells(npc)
 	return stormy.has(next) and not stormy.has(npc.cell_pos)
 
+## Whether `npc`'s party has explored `cell`: been there, or seen it. A
+## party pools what its members have seen (see NpcAgent.seen_cells), so
+## nobody walks over ground a party-mate covered before they teamed up, or
+## down a corridor they can already see is a dead end.
+static func explored(npc: NpcAgent, cell: Vector2i) -> bool:
+	return npc.seen_cells.has(cell) or npc.visited.has(cell)
+
 ## Which of `open_dirs` (open neighbours of `npc`'s cell) to explore next.
-## Prefers an unvisited, enemy-free cell; falls back to any unvisited cell
-## (even an enemy's) once safe options run out, then to the BFS frontier
-## search, then to a random already-visited neighbor if fully boxed in.
+## Prefers an unexplored (see explored), enemy-free cell; falls back to any
+## unexplored cell (even an enemy's) once safe options run out, then to the
+## BFS frontier search, then to a random explored neighbor if fully boxed
+## in. Its neighbours are nearly always in sight, so it's usually the
+## frontier search: the nearest edge of what the party has seen.
 ##
 ## Ground the storm covers (or has cut off, see storm_cells) comes last: an
-## unvisited cell out of it first, then the frontier by a route that stays
-## out of it. On safe ground with none of that left, it wanders about on
-## safe ground rather than step into the storm; only caught in it already
-## (with no way out, or it'd be escaping) does it explore there.
+## unexplored cell out of it first, then the frontier by a route that stays
+## out of it. On safe ground with none of that left, it walks over what it's
+## only seen so far (where there may yet be a monster to fight, or a chest),
+## then wanders about on safe ground rather than step into the storm; only
+## caught in it already (with no way out, or it'd be escaping) does it
+## explore there.
 ##
 ## A cell where someone else is mid-fight, or a monster it's just backed
 ## away from, is left alone while there's anywhere else to go (see
@@ -77,7 +104,7 @@ static func explore(npc: NpcAgent, open_dirs: Array) -> Vector2i:
 	if not free.is_empty():
 		open_dirs = free
 	var stormy := storm_cells(npc)
-	var unvisited: Array = open_dirs.filter(func(c): return not npc.visited.has(c))
+	var unvisited: Array = open_dirs.filter(func(c): return not explored(npc, c))
 	var dry: Array = unvisited.filter(func(c): return not stormy.has(c))
 	var safe: Array = dry.filter(func(c): return not npc.has_live_enemy(c))
 	if not safe.is_empty():
@@ -90,6 +117,9 @@ static func explore(npc: NpcAgent, open_dirs: Array) -> Vector2i:
 	if frontier_step != npc.cell_pos:
 		return frontier_step
 	if not stormy.has(npc.cell_pos):
+		frontier_step = toward_frontier(npc, avoid, false)
+		if frontier_step != npc.cell_pos:
+			return frontier_step
 		# On safe ground with nothing left to explore on it: wander about on
 		# it rather than into the storm (see leaves_safe_ground) -- or, if
 		# the only safe way on is somewhere to leave alone for now, wait.
@@ -121,21 +151,26 @@ static func leave_alone(npc: NpcAgent) -> Dictionary:
 			result[c] = true
 	return result
 
-## BFS over cells reachable through open passages, looking for the nearest
-## cell that still has an unvisited neighbor. Returns the first step along
-## the way there, or `npc`'s own cell if nothing is left to discover --
-## never going through an `avoid` cell (the storm, say) on the way.
-static func toward_frontier(npc: NpcAgent, avoid: Dictionary = {}) -> Vector2i:
+## BFS over explored cells (see explored) reachable through open passages,
+## looking for the nearest cell that still has an unexplored neighbor --
+## or, if not `seen_counts`, one that's not been walked yet.
+## Returns the first step along the way there, or `npc`'s own cell if
+## nothing is left to discover -- never going through an `avoid` cell (the
+## storm, say) on the way. Of frontiers equally near, any may be picked, so
+## players starting alike don't all head off the same way.
+static func toward_frontier(npc: NpcAgent, avoid: Dictionary = {}, seen_counts: bool = true) -> Vector2i:
 	var from := npc.cell_pos
 	var queue: Array = [from]
 	var came_from: Dictionary = {from: from}
 	while queue.size() > 0:
 		var cur: Vector2i = queue.pop_front()
-		for n in MazeQuery.open_neighbors(npc.grid, cur):
+		var neighbors := MazeQuery.open_neighbors(npc.grid, cur)
+		neighbors.shuffle()
+		for n in neighbors:
 			if came_from.has(n) or avoid.has(n):
 				continue
 			came_from[n] = cur
-			if not npc.visited.has(n):
+			if not (explored(npc, n) if seen_counts else npc.visited.has(n)):
 				var step: Vector2i = n
 				while came_from[step] != from:
 					step = came_from[step]

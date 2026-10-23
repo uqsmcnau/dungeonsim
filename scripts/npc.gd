@@ -367,10 +367,11 @@ func _take_step() -> void:
 		return
 
 	# Priorities: teaming up with another party in sight that's up for it,
-	# then a shop worth visiting, then a chest in sight, then exploring --
-	# and none of these is worth picking a fight over, or leaving safe
-	# ground for (see NpcRoutes.leaves_safe_ground), so an enemy or the
-	# storm in the way means carrying on with the next option instead.
+	# then a shop worth visiting, then a chest in sight, then the exit once
+	# it's been seen, then exploring -- and none of the first three is worth
+	# picking a fight over, or leaving safe ground for (see
+	# NpcRoutes.leaves_safe_ground), so an enemy or the storm in the way
+	# means carrying on with the next option instead.
 	var party_step := _party_up_step()
 	if party_step != cell_pos and not NpcRoutes.leaves_safe_ground(self, party_step):
 		# Not move_to: the step may well be onto the other party's cell,
@@ -386,6 +387,12 @@ func _take_step() -> void:
 	var chest_step := _chest_step()
 	if chest_step != cell_pos and not has_live_enemy(chest_step) and not NpcRoutes.leaves_safe_ground(self, chest_step):
 		move_to(chest_step)
+		return
+
+	var exit_step := _exit_step()
+	if exit_step != cell_pos:
+		# Not move_to: whoever holds the exit (the boss) has to be beaten.
+		_attempt_move(exit_step)
 		return
 
 	var open_dirs := MazeQuery.open_neighbors(grid, cell_pos)
@@ -492,6 +499,24 @@ func _party_up_step() -> Vector2i:
 		party_goal = null
 		return cell_pos
 	current_action = "Heading to join %s" % party_goal.npc_name
+	return step
+
+## Next step toward the exit once this party has seen it, or our own cell
+## if it isn't going for it. Exploring alone would never get there: ground
+## that's been seen counts as explored (see NpcRoutes.explored), so the exit
+## in plain sight would be left alone like any other cell they can see.
+##
+## Not while whoever's holding it (the boss) looks too strong to beat, or it
+## was just backed away from (see NpcRoutes.leave_alone): better to explore
+## on and level up than walk up to it and back.
+func _exit_step() -> Vector2i:
+	if not seen_cells.has(exit_cell) or NpcRoutes.leave_alone(self).has(exit_cell):
+		return cell_pos
+	if has_live_enemy(exit_cell) and CombatMath.win_chance_against(stats, enemies[exit_cell].stats) <= 0.5:
+		return cell_pos
+	var step := NpcRoutes.step_through_seen(self, exit_cell)
+	if step != cell_pos:
+		current_action = "Heading for the exit"
 	return step
 
 ## Whether `other` is a party leader worth heading over to team up with:

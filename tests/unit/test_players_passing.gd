@@ -18,8 +18,9 @@ func before_each():
 
 ## A (Evil, too weak to pick a fight) and B (Neutral, never starts one) face
 ## each other in the middle of a corridor, each having explored its own end
-## -- so each one's way on is past the other.
-func _standoff(length: int = 6) -> void:
+## -- so each one's way on is past the other. The corridor runs on out of
+## sight, so there's still more to explore once past.
+func _standoff(length: int = 20) -> void:
 	var g := corridor(length)
 	var mid := length / 2
 	isolate(a, g, Vector2i(mid - 1, 0), players, cells_along(0, mid - 1))
@@ -31,6 +32,11 @@ func _standoff(length: int = 6) -> void:
 	assert_false(a._decide_pvp_fight(b), "sanity: A won't start a fight")
 	assert_false(b._decide_pvp_fight(a), "sanity: B won't either")
 	assert_false(PartyOps.can_form_party_with(a, b), "sanity: and they can't team up")
+
+## Whether each has got past the other, beyond where the other stood (see
+## _standoff).
+func _both_past() -> bool:
+	return a.visited.has(Vector2i(11, 0)) and b.visited.has(Vector2i(8, 0))
 
 ## Lets the two play out in real time (moves are timed in seconds).
 func _run_until(done: Callable, seconds: float) -> bool:
@@ -44,10 +50,8 @@ func _run_until(done: Callable, seconds: float) -> bool:
 
 func test_players_who_wont_fight_squeeze_past_each_other():
 	_standoff()
-	var a_end := Vector2i(5, 0)
-	var b_end := Vector2i(0, 0)
-	var passed: bool = await _run_until(func(): return a.visited.has(a_end) and b.visited.has(b_end), 8.0)
-	assert_true(passed, "each should reach the far end it was heading for (A at %s, B at %s)" % [a.cell_pos, b.cell_pos])
+	var passed: bool = await _run_until(_both_past, 8.0)
+	assert_true(passed, "each should get past the other (A at %s, B at %s)" % [a.cell_pos, b.cell_pos])
 
 func test_passing_works_in_a_safe_room_too():
 	# No fights at all in a safe room -- so Good and Evil can't settle it
@@ -57,16 +61,16 @@ func test_passing_works_in_a_safe_room_too():
 	b.stats.alignment = NpcStats.ALIGNMENT_EVIL
 	set_stats(a, 5, 60, 10, 10)
 	set_stats(b, 5, 60, 10, 10)
-	for c in cells_along(0, 5):
+	for c in cells_along(0, 19):
 		a.safe_cells[c] = true
 		b.safe_cells[c] = true
-	var passed: bool = await _run_until(func(): return a.visited.has(Vector2i(5, 0)) and b.visited.has(Vector2i(0, 0)), 8.0)
+	var passed: bool = await _run_until(_both_past, 8.0)
 	assert_true(passed)
 	assert_false(a.in_pvp_combat or b.in_pvp_combat, "and no fight broke out")
 
 func test_both_are_on_the_map_again_once_past():
 	_standoff()
-	await _run_until(func(): return a.visited.has(Vector2i(5, 0)) and b.visited.has(Vector2i(0, 0)), 8.0)
+	await _run_until(_both_past, 8.0)
 	await _run_until(func(): return not a.is_moving and not b.is_moving, 2.0)
 	a._process(0.0)
 	b._process(0.0)
