@@ -272,7 +272,9 @@ there.
 - **`battle_window.gd` (`BattleWindow`, as `hud.battle_window`)** — the
   Final Fantasy-style battle screen below the selection column. GameManager
   says who's in the scene every frame (`show_fight`: the selected party and
-  `GroupCombat.opponents_of` them) and forwards every `CombatEvent`, which
+  `GroupCombat.opponents_of` them; and `shop`, the rarity of the shop
+  they're visiting, `NpcAgent.shopping_at`, which puts a shopkeeper behind
+  a counter where the foes would stand) and forwards every `CombatEvent`, which
   it queues and plays out in turn. Each figure is a **`BattleFighter`** — a
   snapshot, never the live node, so a monster the game has already freed
   can still dissolve — and **`BattlePainter`** does all the drawing; the

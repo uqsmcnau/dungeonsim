@@ -62,6 +62,9 @@ var _sight_cell: Vector2i = MazeQuery.NONE
 var enemies: Dictionary = {}
 var chests: Dictionary = {}
 var chest_goal: Vector2i = MazeQuery.NONE
+## The rarity of the shop this party's visiting right now (see
+## _start_shopping, Shopping.rarity_at), or "" if it isn't.
+var shopping_at := ""
 ## The monster (a pack's leader) this party is out to fight (see
 ## Hunting.step), or null. Meeting it, it fights rather than rolling for it
 ## (see _will_fight).
@@ -597,12 +600,14 @@ func _wants_to_party_with(other) -> bool:
 ## The whole party shops, for Shopping.SECONDS (see Shopping.trade).
 func _start_shopping() -> void:
 	is_moving = true
+	shopping_at = Shopping.rarity_at(self, cell_pos)
 	current_action = "Shopping"
 	show_label("%s $ Shopping" % map_name())
 	var timer := get_tree().create_timer(Shopping.SECONDS, false)
 	timer.timeout.connect(_finish_shopping)
 
 func _finish_shopping() -> void:
+	shopping_at = ""
 	if dead:
 		return
 	var traded := Shopping.trade(_self_first_party(), Shopping.rarity_at(self, cell_pos))

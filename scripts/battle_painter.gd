@@ -59,6 +59,55 @@ static func draw_backdrop(canvas: CanvasItem, width: float, scroll: float, time:
 		y += gap
 		gap *= 1.35
 
+# ================================= Shops ==================================
+
+## The trim on a shop's counter, by its rarity.
+const SHOP_TRIM := {ItemCatalog.RARITY_BRONZE: Color(0.72, 0.4, 0.15), ItemCatalog.RARITY_SILVER: Color(0.9, 0.93, 1.0)}
+const SHOPKEEPER_ROBE := Color(0.45, 0.25, 0.55)
+const COUNTER_WOOD := Color(0.4, 0.25, 0.13)
+
+## A shopkeeper, facing the party, behind their counter -- trimmed, and
+## with a plaque on its front, to match the shop's `rarity` -- with wares on
+## it: a red and a blue potion, a sword and a pile of coins. `at` is where the shopkeeper stands; `time`
+## has them breathe.
+static func draw_shop(canvas: CanvasItem, at: Vector2, rarity: String, time: float) -> void:
+	var scale := BattleFighter.FIGURE_SCALE
+	var keeper := at + Vector2(0, -(sin(time * 2.0) + 1.0) * 0.4)
+	# Their shadow, then them -- a robed figure in a pointed hat.
+	canvas.draw_set_transform(Vector2(at.x, at.y + 16.0 * scale), 0.0, Vector2(1.0, 0.3))
+	canvas.draw_circle(Vector2.ZERO, 22.0, Color(0, 0, 0, 0.35))
+	canvas.draw_set_transform(keeper, 0.0, Vector2.ONE * scale)
+	draw_figure(canvas, Vector2.ZERO, SHOPKEEPER_ROBE, true, false, 1.0)
+	canvas.draw_colored_polygon(PackedVector2Array([Vector2(-6, -9), Vector2(6, -9), Vector2(1, -20)]), SHOPKEEPER_ROBE.darkened(0.2))
+	canvas.draw_set_transform(Vector2.ZERO)
+	# The counter, across their waist: its top, front and trim.
+	var trim: Color = SHOP_TRIM.get(rarity, SHOP_TRIM[ItemCatalog.RARITY_BRONZE])
+	var top_y := at.y + 7.0 * scale
+	var front := Rect2(at.x - 40.0, top_y + 4.0, 80.0, 22.0)
+	canvas.draw_rect(Rect2(at.x - 44.0, top_y, 88.0, 5.0), COUNTER_WOOD.lightened(0.15))
+	canvas.draw_rect(front, COUNTER_WOOD)
+	canvas.draw_rect(Rect2(front.position.x, front.position.y, front.size.x, 3.0), trim)
+	canvas.draw_rect(Rect2(front.position.x, front.end.y - 3.0, front.size.x, 3.0), trim)
+	for x in [front.position.x + 20.0, front.end.x - 20.0]:
+		canvas.draw_line(Vector2(x, front.position.y + 5.0), Vector2(x, front.end.y - 5.0), COUNTER_WOOD.darkened(0.3), 1.5)
+	var plaque := front.get_center()
+	canvas.draw_circle(plaque, 6.0, trim)
+	canvas.draw_circle(plaque, 4.0, trim.darkened(0.25))
+	canvas.draw_circle(plaque, 2.0, trim)
+	# The wares on top.
+	_draw_potion(canvas, Vector2(at.x - 34.0, top_y), Color(0.9, 0.2, 0.2))
+	_draw_potion(canvas, Vector2(at.x - 25.0, top_y), Color(0.3, 0.45, 1.0))
+	canvas.draw_line(Vector2(at.x + 8.0, top_y - 2.0), Vector2(at.x + 26.0, top_y - 2.0), METAL, 2.0)
+	canvas.draw_line(Vector2(at.x + 8.0, top_y - 5.0), Vector2(at.x + 8.0, top_y + 1.0), LEATHER, 2.0)
+	for i in range(3):
+		canvas.draw_circle(Vector2(at.x + 33.0 + i * 3.0, top_y - 2.0 - (1.5 if i == 1 else 0.0)), 2.5, GOLD)
+
+## A little round potion bottle standing on `base`, full of `color`.
+static func _draw_potion(canvas: CanvasItem, base: Vector2, color: Color) -> void:
+	canvas.draw_rect(Rect2(base.x - 1.5, base.y - 10.0, 3.0, 4.0), Color(0.85, 0.9, 0.95, 0.8))
+	canvas.draw_circle(base + Vector2(0, -4.0), 4.0, color)
+	canvas.draw_circle(base + Vector2(-1.2, -5.2), 1.2, Color(1, 1, 1, 0.6))
+
 # ================================ Fighters ================================
 
 ## `f` standing (or lying) at `at`, its shadow on the floor at `ground_y`,

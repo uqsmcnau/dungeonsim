@@ -259,6 +259,39 @@ func test_the_game_says_when_the_party_is_stepping():
 	bw.advance(0.01)
 	assert_true(bw.walking)
 
+# ================================ At a shop ===============================
+
+func test_a_party_at_a_shop_finds_its_shopkeeper_there():
+	main.hud.inspect(a)
+	a.shopping_at = ItemCatalog.RARITY_SILVER
+	main._sync_battle_window()
+	assert_eq(bw.shop, ItemCatalog.RARITY_SILVER, "the counter trimmed in silver")
+	a.shopping_at = ""
+	main._sync_battle_window()
+	assert_eq(bw.shop, "", "gone once they've moved on")
+
+func test_not_for_a_party_nobodys_watching():
+	main.hud.inspect(a)
+	b.shopping_at = ItemCatalog.RARITY_BRONZE
+	main._sync_battle_window()
+	assert_eq(bw.shop, "")
+
+func test_nor_with_nobody_selected():
+	main.hud.inspect(a)
+	a.shopping_at = ItemCatalog.RARITY_BRONZE
+	main._sync_battle_window()
+	main.hud.close_inspector()
+	assert_eq(bw.shop, "")
+
+func test_a_visit_says_which_shop_while_it_lasts():
+	var players: Dictionary = {}
+	isolate(a, corridor(2), Vector2i(0, 0), players)
+	a.shops[Vector2i(0, 0)] = ItemCatalog.RARITY_BRONZE
+	a._start_shopping()
+	assert_eq(a.shopping_at, ItemCatalog.RARITY_BRONZE)
+	await wait_seconds(Shopping.SECONDS + 0.2)
+	assert_eq(a.shopping_at, "")
+
 # =============================== Playing out ==============================
 
 func test_a_blow_is_played_out_when_its_turn_comes():

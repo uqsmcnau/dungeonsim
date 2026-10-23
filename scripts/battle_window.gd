@@ -23,6 +23,10 @@ extends Control
 ## A name in the party menu was clicked: select them (see Hud).
 signal member_clicked(npc: NpcAgent)
 
+## Where the shopkeeper stands behind the counter, from the right like
+## FOE_SPOTS, while the party's at a shop (see `shop`).
+const SHOP_SPOT := Vector2(110, 120)
+
 enum Side { PARTY, FOES }
 
 const FIELD_HEIGHT := 200.0
@@ -101,6 +105,10 @@ var _foes_defeated := 0
 var _party_escaped := false
 ## Set by _reset: whoever's added next appears at once, without walking in.
 var _fresh := true
+## The rarity of the shop the party's visiting (see NpcAgent.shopping_at),
+## or "" -- GameManager sets it along with show_fight. While it's set, the
+## shopkeeper stands behind their counter where the foes would.
+var shop := ""
 ## The ids GameManager listed last time, either side (see show_fight). One
 ## who's fallen but still listed -- the selected character -- stays.
 var _listed: Dictionary = {}
@@ -450,6 +458,8 @@ func _feet_of(f: BattleFighter) -> float:
 
 func _draw() -> void:
 	BattlePainter.draw_backdrop(self, size.x, _walk_phase * WALK_SPEED, _time)
+	if shop != "" and fighters_on(Side.FOES).is_empty():
+		BattlePainter.draw_shop(self, Vector2(size.x - SHOP_SPOT.x, SHOP_SPOT.y), shop, _time)
 	var drawn := fighters.values()
 	drawn.sort_custom(func(a, b): return _place_of(a).y < _place_of(b).y)
 	for f in drawn:

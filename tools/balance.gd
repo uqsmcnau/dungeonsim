@@ -80,7 +80,7 @@ func _watch_shops() -> void:
 	for npc in main.npcs:
 		if not npc.is_party_leader:
 			continue
-		var at_silver: bool = npc.current_action == "Shopping" and main.shop_map.get(npc.cell_pos) == ItemCatalog.RARITY_SILVER
+		var at_silver: bool = npc.shopping_at == ItemCatalog.RARITY_SILVER
 		if at_silver and not _shopping.get(npc, false):
 			_shop_visits["%s@%s@%.0f" % [npc.npc_name, npc.cell_pos, t]] = true
 		_shopping[npc] = at_silver

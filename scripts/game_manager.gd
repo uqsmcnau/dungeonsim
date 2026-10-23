@@ -267,6 +267,7 @@ func _party_vision_focus() -> Array:
 ## whoever that party's fighting.
 func _sync_battle_window() -> void:
 	var npc: NpcAgent = hud.inspected
+	hud.battle_window.shop = ""
 	if npc == null:
 		hud.battle_window.show_fight([], [], "")
 		return
@@ -284,6 +285,7 @@ func _sync_battle_window() -> void:
 	if leader.living_party().size() > 1 and leader.party_name != "":
 		status = "%s\n%s" % [leader.party_name, status]
 	hud.battle_window.show_fight(members, GroupCombat.opponents_of(leader, enemy_map), status, leader.is_sliding())
+	hud.battle_window.shop = leader.shopping_at
 
 ## A blow, spell or escape in someone's fight: the battle window plays it
 ## out if it's the selected party's (brought up to date first, in case the
