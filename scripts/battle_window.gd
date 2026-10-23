@@ -107,8 +107,24 @@ var _party_escaped := false
 var _fresh := true
 ## The rarity of the shop the party's visiting (see NpcAgent.shopping_at),
 ## or "" -- GameManager sets it along with show_fight. While it's set, the
-## shopkeeper stands behind their counter where the foes would.
-var shop := ""
+## shopkeeper stands behind their counter where the foes would, having slid
+## in from the right (over ENTER_SECONDS); once it's "" again, they slide
+## back out (over LEAVE_SECONDS). A scene just started over (see _reset)
+## shows them in place, or not at all, straight away, as it does everyone.
+var shop := "":
+	set(value):
+		if value != "":
+			_shop_drawn = value
+		if _shop_snaps:
+			_shop_in = 1.0 if value != "" else 0.0
+			_shop_snaps = false
+		shop = value
+## The shop on show -- `shop`, or the one just left, sliding out -- or "".
+var _shop_drawn := ""
+## How far it's slid in: 0 off to the right, 1 in place.
+var _shop_in := 0.0
+## Set by _reset: the next `shop` is shown straight away, without sliding.
+var _shop_snaps := true
 ## The ids GameManager listed last time, either side (see show_fight). One
 ## who's fallen but still listed -- the selected character -- stays.
 var _listed: Dictionary = {}
@@ -183,6 +199,7 @@ func _reset() -> void:
 	banner = ""
 	_in_fight = false
 	_fresh = true
+	_shop_snaps = true
 
 func _sync_side(nodes: Array, side: int) -> void:
 	var listed: Dictionary = {}
@@ -274,6 +291,12 @@ func advance(delta: float) -> void:
 		_next_action_in = clampf(0.9 / (_queue.size() + 1), MIN_ACTION_GAP, ACTION_GAP)
 	_time += delta
 	_walk_hold = maxf(0.0, _walk_hold - delta)
+	if shop != "":
+		_shop_in = minf(1.0, _shop_in + delta / ENTER_SECONDS)
+	else:
+		_shop_in = maxf(0.0, _shop_in - delta / LEAVE_SECONDS)
+		if _shop_in == 0.0:
+			_shop_drawn = ""
 	walking = _walk_hold > 0.0 and fighters_on(Side.FOES).is_empty() and not fighters_on(Side.PARTY).is_empty()
 	if walking:
 		_walk_phase += delta
@@ -437,6 +460,13 @@ func _place_of(f: BattleFighter) -> Vector2:
 			p.y -= (sin(_time * 2.0 + f.slot) + 1.0) * 0.4  # breathing
 	return p
 
+## Where the shopkeeper stands (see `shop`): at SHOP_SPOT once slid in, and
+## off past the window's right edge, counter and all, before.
+func shop_position() -> Vector2:
+	var home := Vector2(size.x - SHOP_SPOT.x, SHOP_SPOT.y)
+	var out_of_sight := SHOP_SPOT.x + 50.0  # the counter reaches 44 either side
+	return home + Vector2((1.0 - smoothstep(0.0, 1.0, _shop_in)) * out_of_sight, 0.0)
+
 ## Where `f` is in its stride while walking, in strides (each member a
 ## little out of step with the next).
 func _stride_of(f: BattleFighter) -> float:
@@ -458,8 +488,8 @@ func _feet_of(f: BattleFighter) -> float:
 
 func _draw() -> void:
 	BattlePainter.draw_backdrop(self, size.x, _walk_phase * WALK_SPEED, _time)
-	if shop != "" and fighters_on(Side.FOES).is_empty():
-		BattlePainter.draw_shop(self, Vector2(size.x - SHOP_SPOT.x, SHOP_SPOT.y), shop, _time)
+	if _shop_drawn != "" and fighters_on(Side.FOES).is_empty():
+		BattlePainter.draw_shop(self, shop_position(), _shop_drawn, _time)
 	var drawn := fighters.values()
 	drawn.sort_custom(func(a, b): return _place_of(a).y < _place_of(b).y)
 	for f in drawn:
