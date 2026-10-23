@@ -18,16 +18,16 @@ static func hit_chance(accuracy: float, evasion: float) -> float:
 const ATTACK := "attack"
 const SPARK := "spark"
 const FIREBALL := "fireball"
-const RECOVER := "recover"
 const POTION := "potion_hp"
 
 ## What each action's called when it's announced (the battle window's
 ## caption, a killing blow's description). A plain attack goes unannounced.
-const ACTION_NAMES := {SPARK: "Spark", FIREBALL: "Fireball", RECOVER: "Recover", POTION: "Health Potion"}
+const ACTION_NAMES := {SPARK: "Spark", FIREBALL: "Fireball", POTION: "Health Potion"}
 
 ## Whether `action` heals whoever takes it, rather than hitting their foe.
+## (Recover's no combat action: it's only cast between fights.)
 static func is_heal(action: String) -> bool:
-	return action == RECOVER or action == POTION
+	return action == POTION
 
 ## Whether `action` is a spell cast at a foe (as opposed to a weapon blow).
 static func is_offensive_spell(action: String) -> bool:

@@ -787,35 +787,31 @@ func living_party() -> Array:
 			result.append(member)
 	return result
 
-## Survival first (Recover, or a Health Potion if it can't afford that), then
-## whichever of its attack spells or a plain attack actually deals the most
-## damage right now. A spell's damage is fixed by intelligence while a plain
+## Survival first (a Health Potion, if it has one -- Recover can't be cast
+## mid-fight, only between fights: see _see_to_ourselves), then whichever
+## of its attack spells or a plain attack actually deals the most damage
+## right now. A spell's damage is fixed by intelligence while a plain
 ## attack scales with strength, level and weapon bonuses, so a spell that
 ## out-damages a fresh character is often no longer the better choice once
 ## they've leveled up or found a sword — this compares them fresh each turn
 ## rather than always preferring magic once it's known.
 func choose_combat_action(opponent_stats: NpcStats) -> String:
-	if stats.hp < int(stats.max_hp * IN_COMBAT_HEAL_THRESHOLD) and stats.can_heal:
-		if stats.mp >= RECOVER_MP_COST:
-			return CombatRules.RECOVER
-		if stats.has_item("Health Potion"):
-			return CombatRules.POTION
+	var hurt := stats.hp < int(stats.max_hp * IN_COMBAT_HEAL_THRESHOLD)
+	if hurt and stats.can_heal and stats.has_item("Health Potion"):
+		return CombatRules.POTION
 
 	var best_action := CombatRules.ATTACK
 	var best_damage: float = CombatMath.expected_damage_dealt(stats, opponent_stats)
-	# Never spend the last of its mana on offense — always keep enough in
-	# reserve for one emergency Recover, so a spellcaster can't run itself
-	# out of healing by attacking too aggressively.
-	if stats.knows_spell("spark") and stats.mp - NpcStats.SPARK_MP_COST >= RECOVER_MP_COST and stats.spark_power() > best_damage:
+	if stats.knows_spell("spark") and stats.mp >= NpcStats.SPARK_MP_COST and stats.spark_power() > best_damage:
 		best_action = CombatRules.SPARK
 		best_damage = stats.spark_power()
-	if stats.knows_spell("fireball") and stats.mp - NpcStats.FIREBALL_MP_COST >= RECOVER_MP_COST and stats.fireball_power() > best_damage:
+	if stats.knows_spell("fireball") and stats.mp >= NpcStats.FIREBALL_MP_COST and stats.fireball_power() > best_damage:
 		best_action = CombatRules.FIREBALL
 		best_damage = stats.fireball_power()
 	return best_action
 
-## Applies one chosen combat action (a plain attack, a spell, a potion, or
-## Recover) against an opponent's stat block. Shared between a monster fight
+## Applies one chosen combat action (a plain attack, a spell, or a potion)
+## against an opponent's stat block. Shared between a monster fight
 ## and a player-vs-player one — only what each side does with it differs.
 ## Returns what happened, for the battle window: {"amount": the damage dealt
 ## or HP healed, "missed": whether a plain attack missed}.
@@ -823,9 +819,6 @@ func apply_combat_action(action: String, opponent_stats: NpcStats) -> Dictionary
 	var hp_before: int = stats.hp
 	var damage := 0
 	match action:
-		CombatRules.RECOVER:
-			stats.mp -= RECOVER_MP_COST
-			stats.heal(stats.recover_power())
 		CombatRules.POTION:
 			_apply_consumable_effect("Health Potion")
 		CombatRules.FIREBALL:

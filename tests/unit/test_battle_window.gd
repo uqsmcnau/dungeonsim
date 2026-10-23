@@ -293,7 +293,7 @@ func test_misses_crits_and_heals_read_differently():
 	_scene([a], [foe])
 	bw.play(_event(a, foe, CombatRules.ATTACK, 0, {"missed": true}))
 	bw.play(_event(foe, a, CombatRules.ATTACK, 9, {"crit": true}))
-	bw.play(_event(a, a, CombatRules.RECOVER, 5))
+	bw.play(_event(a, a, CombatRules.POTION, 5))
 	for i in range(3):
 		bw.advance(BattleWindow.ACTION_GAP)
 	assert_eq(_popup_texts(), ["Miss", "9!", "+5"])
@@ -418,8 +418,8 @@ func test_an_action_says_what_it_did():
 	assert_eq(result["missed"], result["amount"] == 0)
 	assert_eq(target.hp, 50 - result["amount"])
 	a.stats.hp = 10
-	a.stats.mp = 20
-	result = a.apply_combat_action(CombatRules.RECOVER, target)
+	a.stats.inventory["Health Potion"] = 1
+	result = a.apply_combat_action(CombatRules.POTION, target)
 	assert_eq(result["amount"], a.stats.hp - 10, "the HP healed")
 
 func test_a_pack_fight_turn_reports_every_action():
@@ -441,7 +441,7 @@ func test_a_pack_fight_turn_reports_every_action():
 		assert_true(ev.actor in [a, b] or ev.actor in foe.living_pack())
 
 func test_a_heal_is_on_the_healer_whoever_they_face():
-	var ev := CombatEvent.of_action(a, foe, CombatRules.RECOVER, 8)
+	var ev := CombatEvent.of_action(a, foe, CombatRules.POTION, 8)
 	assert_eq(ev.target, a)
 	assert_eq(ev.target_id, a.get_instance_id())
 	assert_true(ev.is_heal())
@@ -454,7 +454,6 @@ func test_an_event_says_where_things_stand_after_it():
 	assert_eq(ev.actor_mp, a.stats.mp)
 
 func test_spells_and_heals_are_told_apart():
-	assert_true(CombatRules.is_heal(CombatRules.RECOVER))
 	assert_true(CombatRules.is_heal(CombatRules.POTION))
 	assert_false(CombatRules.is_heal(CombatRules.SPARK))
 	assert_true(CombatRules.is_offensive_spell(CombatRules.FIREBALL))
