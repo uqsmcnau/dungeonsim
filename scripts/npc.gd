@@ -7,6 +7,10 @@ extends NpcBody
 
 const RECOVER_MP_COST := 5
 const RECOVER_CAST_SECONDS := 1.0
+## What a character can see to between fights besides an item (see
+## _what_to_see_to): casting Recover, or resting till it can.
+const RECOVER := "Recover"
+const REST := "Rest"
 const OUT_OF_COMBAT_HEAL_THRESHOLD := 0.9
 const IN_COMBAT_HEAL_THRESHOLD := 0.5
 ## How far (in cells) a character can see, and how far ahead it will plan a
@@ -274,29 +278,50 @@ func _settle_player_on_our_cell() -> bool:
 		return true
 	return false
 
-## Between fights: reading an unread tome, recovering when hurt (Recover,
-## else a Health Potion, else resting), and topping up low mana.
+## Between fights, the whole party sees to itself (see _what_to_see_to):
+## everyone with something to do does it at once -- casting Recover, or
+## drinking or reading something -- and the party waits for them all. Failing
+## that, if someone hurt can only wait for the mana to cast Recover, the
+## party rests with them. Not just the leader: its party-mates never get a
+## turn of their own, so a hurt one used to stay hurt while it carried on.
+## Whether the party stopped.
 func _see_to_ourselves() -> bool:
-	var pending_tome := _pending_tome()
-	if pending_tome != "":
-		_consume_item_idle(pending_tome)
+	var tending: Array = []
+	var resting := false
+	for member in _self_first_party():
+		var what: String = member._what_to_see_to()
+		if what == REST:
+			resting = true
+		elif what != "":
+			tending.append([member, what])
+	if not tending.is_empty():
+		_tend(tending)
 		return true
-	if _needs_healing() and stats.can_heal:  # no use trying in the storm
-		if stats.mp >= RECOVER_MP_COST:
-			_cast_recover_idle()
-		elif stats.has_item("Health Potion"):
-			_consume_item_idle("Health Potion")
-		else:
-			current_action = "Resting"
-		return true
-	if stats.mp < int(stats.max_mp * LOW_MANA_FRACTION) and stats.has_item("Mana Potion"):
-		_consume_item_idle("Mana Potion")
+	if resting:
+		current_action = "Resting"
 		return true
 	return false
 
-## Outside combat, a hurt character stops to recover rather than pressing on
-## injured — casting Recover when it can afford it, drinking a Health Potion
-## if it has one and can't, or just waiting for its mana to regenerate.
+## What this character would see to between fights, if anything ("" if
+## not): an unread tome to read; when hurt, RECOVER, else a Health Potion,
+## else REST -- waiting for its mana to come back; a Mana Potion when low
+## on mana. Nothing heals in the storm, so no use trying there.
+func _what_to_see_to() -> String:
+	var pending_tome := _pending_tome()
+	if pending_tome != "":
+		return pending_tome
+	if _needs_healing() and stats.can_heal:
+		if stats.mp >= RECOVER_MP_COST:
+			return RECOVER
+		if stats.has_item("Health Potion"):
+			return "Health Potion"
+		return REST
+	if stats.mp < int(stats.max_mp * LOW_MANA_FRACTION) and stats.has_item("Mana Potion"):
+		return "Mana Potion"
+	return ""
+
+## Outside combat, a hurt character (and so its party) stops to recover
+## rather than pressing on injured (see _what_to_see_to).
 func _needs_healing() -> bool:
 	return stats.hp < int(stats.max_hp * OUT_OF_COMBAT_HEAL_THRESHOLD)
 
@@ -312,18 +337,51 @@ func _pending_tome() -> String:
 			return item_name
 	return ""
 
-func _cast_recover_idle() -> void:
+## `tending` ([member, what] pairs, see _what_to_see_to) all at once, the
+## party (this, its leader) held till the last of them is done. Each takes
+## a full action, as in a fight: RECOVER_CAST_SECONDS to cast Recover,
+## CONSUME_SECONDS to drink or read something.
+func _tend(tending: Array) -> void:
 	is_moving = true
-	current_action = "Casting Recover"
-	show_label("%s ✨ Recover" % map_name())
-	var timer := get_tree().create_timer(RECOVER_CAST_SECONDS, false)
-	timer.timeout.connect(_finish_recover_idle)
+	current_action = "Waiting for the party"
+	for pair in tending:
+		pair[0].current_action = _tending_text(pair[1])
+	show_label("%s %s" % [map_name(), _tending_label(tending[0][1])])
+	var seconds := RECOVER_CAST_SECONDS if tending.any(func(p): return p[1] == RECOVER) else 0.0
+	if tending.any(func(p): return p[1] != RECOVER):
+		seconds = maxf(seconds, CONSUME_SECONDS)
+	var timer := get_tree().create_timer(seconds, false)
+	timer.timeout.connect(_finish_tending.bind(tending))
 
-func _finish_recover_idle() -> void:
-	stats.mp -= RECOVER_MP_COST
-	stats.heal(stats.recover_power())
+func _finish_tending(tending: Array) -> void:
+	for pair in tending:
+		var member: NpcAgent = pair[0]
+		if not is_instance_valid(member) or member.dead:
+			continue
+		if pair[1] == RECOVER:
+			member._recover()
+		else:
+			member._apply_consumable_effect(pair[1])
+		if member != self:
+			member.reset_label()
 	is_moving = false
 	reset_label()
+
+## "Casting Recover", "Drinking Health Potion", "Reading Tome of Spark".
+func _tending_text(what: String) -> String:
+	if what == RECOVER:
+		return "Casting Recover"
+	return "%s %s" % [_consume_verb(what), what]
+
+## How tending shows on the party's map label: "✨ Recover", "Drinking
+## Health Potion".
+func _tending_label(what: String) -> String:
+	return "✨ Recover" if what == RECOVER else _tending_text(what)
+
+## The Recover spell's effect, cast between fights.
+func _recover() -> void:
+	stats.mp -= RECOVER_MP_COST
+	stats.heal(stats.recover_power())
 
 ## Applies a consumable's effect (a heal, a mana top-up, or learning a spell
 ## from a tome) and uses up the one copy that was consumed.
@@ -340,21 +398,6 @@ func _apply_consumable_effect(item_name: String) -> void:
 
 func _consume_verb(item_name: String) -> String:
 	return "Reading" if ItemCatalog.find(item_name).effect == "learn_spell" else "Drinking"
-
-## Consuming an item — a potion or a tome — takes a full action outside
-## combat too, the same as casting a spell does.
-func _consume_item_idle(item_name: String) -> void:
-	is_moving = true
-	var verb := _consume_verb(item_name)
-	current_action = "%s %s" % [verb, item_name]
-	show_label("%s %s %s" % [map_name(), verb, item_name])
-	var timer := get_tree().create_timer(CONSUME_SECONDS, false)
-	timer.timeout.connect(_finish_consume_idle.bind(item_name))
-
-func _finish_consume_idle(item_name: String) -> void:
-	_apply_consumable_effect(item_name)
-	is_moving = false
-	reset_label()
 
 func _take_step() -> void:
 	_backed_off = 0

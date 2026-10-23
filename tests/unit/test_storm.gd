@@ -122,7 +122,7 @@ func test_nothing_heals_in_the_storm():
 	a.stats.mp = 30
 	a._weather_the_storm(0.01)
 	assert_false(a.stats.can_heal)
-	a._finish_recover_idle()
+	a._recover()
 	assert_eq(a.stats.hp, 10, "not from Recover")
 	a.stats.inventory["Health Potion"] = 1
 	a._apply_consumable_effect("Health Potion")
