@@ -2,9 +2,9 @@ name: Soak
 
 # Plays whole games headless, watching for frozen leaders, icons adrift
 # from their cells, stale map entries and fog lit with nobody near (see
-# tools/soak.gd). Every push plays a few games at x10 game speed, starting
-# from a different seed each run (the run number), so over time it sees
-# plenty of different games; run it by hand from the Actions tab for more,
+# tools/soak.gd). Every push plays a few games at x10 game speed, carrying
+# on from the seeds the last run played, so over time it sees plenty of
+# different games; run it by hand from the Actions tab for more,
 # or at another speed. A failing game replays exactly from the seed and
 # speed it reports.
 
@@ -57,9 +57,10 @@ jobs:
       - name: Soak
         env:
           GODOT: /opt/godot/godot
-        run: >-
-          tools/soak.sh
-          "${{ inputs.games || '3' }}"
-          "${{ inputs.first_seed || github.run_number }}"
-          "${{ inputs.seconds || '600' }}"
-          "${{ inputs.speed || '10' }}"
+        # On a push, each run starts where the last left off, so no two runs
+        # play the same game.
+        run: |
+          games="${{ inputs.games || '3' }}"
+          first="${{ inputs.first_seed }}"
+          if [ -z "$first" ]; then first=$(( (${{ github.run_number }} - 1) * games + 1 )); fi
+          tools/soak.sh "$games" "$first" "${{ inputs.seconds || '600' }}" "${{ inputs.speed || '10' }}"

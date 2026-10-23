@@ -25,6 +25,7 @@ done
 wait
 
 failed=0
+loops=0
 for ((s = first; s < first + games; s++)); do
 	log="$logs/$s.log"
 	if ! grep -q "^SOAK seed=$s " "$log"; then
@@ -33,7 +34,8 @@ for ((s = first; s < first + games; s++)); do
 		failed=1
 		continue
 	fi
-	grep -E "^(SOAK|PROBLEM|  [A-Z][a-z]+:|    t=)" "$log"
+	grep -E "^(SOAK|PROBLEM|LOOP|  [A-Z][a-z]+:|    t=)" "$log"
+	loops=$((loops + $(grep -c "^LOOP" "$log")))
 	if grep -q "^PROBLEM" "$log"; then
 		failed=1
 	fi
@@ -45,6 +47,6 @@ for ((s = first; s < first + games; s++)); do
 done
 rm -rf "$logs"
 if [ "$failed" -eq 0 ]; then
-	echo "Soak: $games games, no problems."
+	echo "Soak: $games games, no problems$([ "$loops" -gt 0 ] && echo " ($loops AI loops noted -- see LOOP above)")."
 fi
 exit "$failed"

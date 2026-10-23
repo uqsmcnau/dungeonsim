@@ -101,6 +101,12 @@ that touches movement, combat or parties:
 tools/soak.sh [games=8] [first_seed=1] [seconds=600] [speed=1]
 ```
 
+It also notes the AI caught in a loop — bouncing in and out of the storm,
+or pacing back and forth between a few cells — as `LOOP` lines that don't
+fail the run: loops have had many causes (each fixed one found another),
+and the odd one still turns up in corners round the storm's edge. Worth a
+look when they do; replay the game and trace the character's choices.
+
 Eight 600-second games take five minutes or so; at `speed` 10 (the
 toolbar's x10) a game takes a tenth of the frames. It exits 1 on any
 problem, printing the seed, speed and the recent history of whoever's
@@ -108,8 +114,9 @@ involved. A game replays exactly from its seed and speed
 (`GameManager.game_seed`; 0, the default, is a fresh random game), so a
 failure can be played again one game at a time:
 `godot --headless --path . --fixed-fps 60 --time-scale S -s tools/soak.gd -- --seed=N`.
-On GitHub it plays 3 games at x10 on every push, from a new seed each run
-(Actions → Soak), and runs by hand there for more.
+On GitHub it plays 3 games at x10 on every push, each run carrying on from
+the seeds the last one played (Actions → Soak), and runs by hand there for
+more.
 
 ## Where things live
 
