@@ -46,6 +46,16 @@ static func engage_pack(npc: NpcAgent, enemy_cell: Vector2i, enemy: EnemyAgent) 
 		pack_member.fighting_party = npc.party
 	run_pack_turn(npc.party, enemy_cell, npc.enemies)
 
+## Whether `me`, leading its side of a fight against someone with
+## `foe_stats`, breaks it off: when the next blow could well finish it --
+## unless it's cornered (NpcAgent.cornered), or has nowhere to back off to.
+## Fleeing on the spot would only end the fight for the other side to start
+## it again, over and over, nobody ever moving.
+static func _should_flee(me: NpcAgent, foe_stats: NpcStats) -> bool:
+	if me.cornered or NpcRoutes.retreat_cell(me) == me.cell_pos:
+		return false
+	return me.stats.hp <= CombatMath.damage_taken_per_hit(me.stats, foe_stats) * FLEE_DANGER_TURNS
+
 ## One turn of a party-vs-pack fight. `my_party` is the party's shared
 ## array, `enemy_cell` is where the pack is anchored, and `enemies` the
 ## shared monster map it's looked up in (passed along rather than read off a
@@ -67,7 +77,7 @@ static func run_pack_turn(my_party: Array, enemy_cell: Vector2i, enemies: Dictio
 		return
 
 	var target: EnemyAgent = me.weakest_of(foes)
-	if me.stats.hp <= CombatMath.damage_taken_per_hit(me.stats, target.stats) * FLEE_DANGER_TURNS:
+	if _should_flee(me, target.stats):
 		disengage_pack_fight(me, enemy_cell)
 		return
 
@@ -225,11 +235,11 @@ static func run_pvp_turn(my_party: Array, their_party: Array, my_cell: Vector2i,
 		return
 
 	var my_target: NpcAgent = me.weakest_of(foes)
-	if me.stats.hp <= CombatMath.damage_taken_per_hit(me.stats, my_target.stats) * FLEE_DANGER_TURNS:
+	if _should_flee(me, my_target.stats):
 		disengage_pvp(me, my_party, their_party)
 		return
 	var their_target: NpcAgent = them.weakest_of(allies)
-	if them.stats.hp <= CombatMath.damage_taken_per_hit(them.stats, their_target.stats) * FLEE_DANGER_TURNS:
+	if _should_flee(them, their_target.stats):
 		disengage_pvp(them, their_party, my_party)
 		return
 

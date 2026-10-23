@@ -5,21 +5,6 @@ extends DungeonTest
 ## in it (HP drains away, none comes back); and how everyone's AI keeps out
 ## of it where it can, and gets out of it when caught.
 
-## A storm covering just the cells it's given, and having cut off the
-## `pockets` it's given -- for steering tests on a hand-built maze, where
-## the real storm's ring means nothing.
-class _Region extends Storm:
-	func _init(cells: Array, pockets: Array = []) -> void:
-		elapsed = START_SECONDS + 1.0
-		for c in cells:
-			covered[c] = true
-			unsafe[c] = true
-		for c in pockets:
-			unsafe[c] = true
-
-	func covers(cell: Vector2i) -> bool:
-		return covered.has(cell)
-
 var a: NpcAgent
 var b: NpcAgent
 var players: Dictionary = {}
@@ -32,7 +17,7 @@ func before_each():
 ## `npc` alone on hand-built maze `g` at `cell`, with a storm over `stormy`.
 func _stand_in_storm(npc: NpcAgent, g: Array, cell: Vector2i, stormy: Array, explored: Array = []) -> void:
 	isolate(npc, g, cell, players, explored)
-	npc.storm = _Region.new(stormy)
+	npc.storm = StormOver.new(stormy)
 
 ## A maze cell the real storm covers, once it's been closing for a while.
 func _a_stormy_cell(storm: Storm) -> Vector2i:
@@ -262,7 +247,7 @@ func test_nobody_heads_over_to_a_party_in_the_storm():
 		npc.stats.alignment = NpcStats.ALIGNMENT_GOOD
 		set_stats(npc, 3, 40, 5, 5)
 	assert_ne(a._party_up_step(), a.cell_pos, "sanity: they'd team up")
-	a.storm = _Region.new([Vector2i(3, 0)])
+	a.storm = StormOver.new([Vector2i(3, 0)])
 	assert_eq(a._party_up_step(), a.cell_pos, "but not out there")
 
 func test_backing_off_backs_out_of_the_storm():
@@ -389,7 +374,7 @@ func test_safe_ground_isnt_left_for_anything_but_safety():
 
 func test_chests_in_a_cut_off_pocket_arent_worth_it():
 	isolate(a, corridor(4), Vector2i(2, 0), players)
-	a.storm = _Region.new([Vector2i(0, 0)], [Vector2i(1, 0)])
+	a.storm = StormOver.new([Vector2i(0, 0)], [Vector2i(1, 0)])
 	a.chests = {Vector2i(1, 0): true, Vector2i(3, 0): true}
 	assert_eq(a._chests_worth_trying().keys(), [Vector2i(3, 0)])
 

@@ -3,6 +3,11 @@ extends RefCounted
 
 const NONE := Vector2i(-1, -1)
 
+## How many cells apart `a` and `b` are as a king moves, diagonals counting
+## as one (Chebyshev distance) -- the shape sight reaches (see visible_cells).
+static func chebyshev(a: Vector2i, b: Vector2i) -> int:
+	return maxi(absi(a.x - b.x), absi(a.y - b.y))
+
 ## Cells reachable in one step from `cell` through an open passage.
 static func open_neighbors(grid: Array, cell: Vector2i) -> Array:
 	var walls: int = grid[cell.y][cell.x]

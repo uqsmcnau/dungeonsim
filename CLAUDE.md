@@ -54,9 +54,10 @@ Test scripts extend **`DungeonTest`** (`tests/dungeon_test.gd`, outside
 the shared helpers: `clear_cell()`, `set_stats()`, `new_enemy()`,
 `rank_npcs_by_index()`, `click_on()`, `monster_on()`, `from_middle()`,
 `isolate()` (a character alone on a hand-built maze), `fast_forward()`,
-`hold_everyone_else()`, and hand-built mazes (`walled_grid()`,
-`open_between()`, `corridor()`, `ring_maze()`, `cells_along()`). Add a
-helper there rather than copying it into a second test file. Pure logic
+`hold_everyone_else()`, hand-built mazes (`walled_grid()`,
+`open_between()`, `corridor()`, `ring_maze()`, `cells_along()`), and
+`StormOver`, a storm over just the cells you give it. Add a helper there
+rather than copying it into a second test file. Pure logic
 (`NpcStats`, `CombatMath`, a bare `MazeGenerator`) is tested without
 loading `Main` at all.
 

@@ -193,6 +193,8 @@ func test_attacker_is_freed_when_the_defender_flees():
 	var attacker: NpcAgent = pair[0]
 	var defender: NpcAgent = pair[1]
 	set_stats(defender, 1, 3, 5, 10)  # low enough to flee on the very first turn
+	for c in MazeQuery.open_neighbors(defender.grid, defender.cell_pos):
+		defender.visited[c] = true  # with somewhere to flee to (see GroupCombat._should_flee)
 
 	GroupCombat.engage_players(attacker, defender.cell_pos, defender)
 

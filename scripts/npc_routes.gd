@@ -14,11 +14,12 @@ extends RefCounted
 static func storm_cells(npc: NpcAgent) -> Dictionary:
 	return npc.storm.unsafe if npc.storm != null else {}
 
-## Cells with a live monster on them, as far as `npc` knows.
-static func live_enemy_cells(npc: NpcAgent) -> Dictionary:
+## Cells with a live monster on them, as far as `npc` knows -- only those
+## within `reach` cells of it, if that's given.
+static func live_enemy_cells(npc: NpcAgent, reach: int = -1) -> Dictionary:
 	var result: Dictionary = {}
 	for c in npc.enemies:
-		if npc.has_live_enemy(c):
+		if (reach < 0 or MazeQuery.chebyshev(c, npc.cell_pos) <= reach) and npc.has_live_enemy(c):
 			result[c] = true
 	return result
 
@@ -66,7 +67,15 @@ static func leaves_safe_ground(npc: NpcAgent, next: Vector2i) -> bool:
 ## out of it. On safe ground with none of that left, it wanders about on
 ## safe ground rather than step into the storm; only caught in it already
 ## (with no way out, or it'd be escaping) does it explore there.
+##
+## A cell where someone else is mid-fight, or a monster it's just backed
+## away from, is left alone while there's anywhere else to go (see
+## leave_alone).
 static func explore(npc: NpcAgent, open_dirs: Array) -> Vector2i:
+	var busy := leave_alone(npc)
+	var free: Array = open_dirs.filter(func(c): return not busy.has(c))
+	if not free.is_empty():
+		open_dirs = free
 	var stormy := storm_cells(npc)
 	var unvisited: Array = open_dirs.filter(func(c): return not npc.visited.has(c))
 	var dry: Array = unvisited.filter(func(c): return not stormy.has(c))
@@ -75,15 +84,17 @@ static func explore(npc: NpcAgent, open_dirs: Array) -> Vector2i:
 		return safe[randi() % safe.size()]
 	if not dry.is_empty():
 		return dry[randi() % dry.size()]
-	var frontier_step := toward_frontier(npc, stormy)
+	var avoid := stormy.duplicate()
+	avoid.merge(busy)
+	var frontier_step := toward_frontier(npc, avoid)
 	if frontier_step != npc.cell_pos:
 		return frontier_step
 	if not stormy.has(npc.cell_pos):
 		# On safe ground with nothing left to explore on it: wander about on
-		# it rather than into the storm (see leaves_safe_ground).
-		var dry_dirs: Array = open_dirs.filter(func(c): return not stormy.has(c))
-		if not dry_dirs.is_empty():
-			return dry_dirs[randi() % dry_dirs.size()]
+		# it rather than into the storm (see leaves_safe_ground) -- or, if
+		# the only safe way on is somewhere to leave alone for now, wait.
+		var dry_dirs: Array = open_dirs.filter(func(c): return not stormy.has(c) and not busy.has(c))
+		return dry_dirs[randi() % dry_dirs.size()] if not dry_dirs.is_empty() else npc.cell_pos
 	if not unvisited.is_empty():
 		var calm: Array = unvisited.filter(func(c): return not npc.has_live_enemy(c))
 		return calm[randi() % calm.size()] if not calm.is_empty() else unvisited[randi() % unvisited.size()]
@@ -91,6 +102,24 @@ static func explore(npc: NpcAgent, open_dirs: Array) -> Vector2i:
 	if frontier_step != npc.cell_pos:
 		return frontier_step
 	return open_dirs[randi() % open_dirs.size()]
+
+## Cells exploring leaves alone while there's anywhere else to go: where
+## another player (not one of `npc`'s party) is mid-fight, and the monsters
+## it's just backed away from (NpcAgent.daunted). Stepping there would only
+## mean backing off again -- someone else's fight can't be joined unless the
+## two parties could team up, and is never attacked; a monster too strong
+## for it is still too strong -- so exploring there would just mean walking
+## up to it and back, over and over.
+static func leave_alone(npc: NpcAgent) -> Dictionary:
+	var result: Dictionary = {}
+	for c in npc.daunted:
+		if npc.has_live_enemy(c):  # it's still there: once it's moved on, so has the problem
+			result[c] = true
+	for c in npc.players:
+		var other = npc.players[c]
+		if is_instance_valid(other) and not npc.party.has(other) and other.is_in_combat():
+			result[c] = true
+	return result
 
 ## BFS over cells reachable through open passages, looking for the nearest
 ## cell that still has an unvisited neighbor. Returns the first step along

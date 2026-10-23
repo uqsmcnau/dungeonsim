@@ -11,6 +11,21 @@ const ENEMY_SCENE: PackedScene = preload("res://scenes/Enemy.tscn")
 ## roster (see load_main). Freed after each test.
 var main: Node
 
+## A storm covering just the cells it's given, and having cut off the
+## `pockets` it's given -- for steering tests on a hand-built maze, where
+## the real storm's ring means nothing.
+class StormOver extends Storm:
+	func _init(cells: Array, pockets: Array = []) -> void:
+		elapsed = START_SECONDS + 1.0
+		for c in cells:
+			covered[c] = true
+			unsafe[c] = true
+		for c in pockets:
+			unsafe[c] = true
+
+	func covers(cell: Vector2i) -> bool:
+		return covered.has(cell)
+
 ## Instantiates the whole game -- maze, characters, monsters, HUD -- as
 ## `main`. Usually called from before_each.
 ##

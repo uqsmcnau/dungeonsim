@@ -18,6 +18,14 @@ const CHEST_PATH_DEPTH := 24
 ## off and explore elsewhere, short enough to come back for it once the
 ## monster in the way has moved on.
 const CHEST_SKIP_STEPS := 12
+## Backing off from a monster this many times without a step of its own in
+## between, a character is cornered -- harried back and forth by monsters
+## it can't get away from -- and stands and fights it out (see
+## _settle_enemy_on_our_cell and `cornered`).
+const CORNERED_AFTER := 3
+## How many steps a monster it's just backed away from is left alone for
+## when exploring (see `daunted`).
+const DAUNTED_STEPS := 12
 ## How far a character will plan a route to another party it wants to team
 ## up with. They're within SIGHT_RANGE in a straight line, so this mostly
 ## leaves room for detours around monsters.
@@ -52,6 +60,27 @@ var chests: Dictionary = {}
 var chest_goal: Vector2i = MazeQuery.NONE
 ## Chests set aside for now, by cell -> steps left to ignore them for.
 var skipped_chests: Dictionary = {}
+## The party leader it's heading over to team up with, if any (see
+## _party_up_step).
+var party_goal: NpcAgent = null
+## The shop it's heading for, if any, and shops set aside for now (see
+## Shopping.step).
+var shop_goal: Vector2i = MazeQuery.NONE
+## Where it last stepped towards shop_goal from (see Shopping.step).
+var shop_step_from: Vector2i = MazeQuery.NONE
+var skipped_shops: Dictionary = {}
+## Times backed off from a monster since its last step of its own (see
+## CORNERED_AFTER), and whether it's cornered: fighting it out, without
+## fleeing when the fight turns against it (see GroupCombat.run_pack_turn)
+## -- fleeing would only be backing off again.
+var _backed_off := 0
+var cornered := false
+## Monsters it's backed away from -- too strong to take on, or in a fight it
+## can't join -- by cell -> steps left to leave them be for (see
+## NpcRoutes.leave_alone). Otherwise exploring led straight back to the one
+## guarding the last unexplored cell about, say a mid boss's room: up to it,
+## back off, up to it again...
+var daunted: Dictionary = {}
 ## True while locked in a fight against another player. Unlike `is_moving`,
 ## this also has to freeze the OTHER side's own _process, since a PvP fight
 ## is driven entirely from one side's turn loop (see GroupCombat.run_pvp_turn).
@@ -206,9 +235,13 @@ func _settle_enemy_on_our_cell() -> bool:
 	if enemy.in_combat:
 		_try_join_fight_against(enemy)
 		return true
-	if CombatMath.decide_fight(stats, enemy.stats):
+	var nowhere_to_go := _backed_off >= CORNERED_AFTER
+	if CombatMath.decide_fight(stats, enemy.stats) or nowhere_to_go:
+		_backed_off = 0
+		cornered = nowhere_to_go
 		GroupCombat.engage_pack(self, cell_pos, enemy)
 		return true
+	_backed_off += 1
 	retreat()
 	return is_moving
 
@@ -320,6 +353,12 @@ func _finish_consume_idle(item_name: String) -> void:
 	reset_label()
 
 func _take_step() -> void:
+	_backed_off = 0
+	cornered = false
+	for c in daunted.keys():
+		daunted[c] -= 1
+		if daunted[c] <= 0:
+			daunted.erase(c)
 	Shopping.notice(self)
 
 	# The spectator's Guidance trumps everything else this party might want to do
@@ -354,6 +393,8 @@ func _take_step() -> void:
 		return
 	var candidate := NpcRoutes.explore(self, open_dirs)
 	if candidate == cell_pos:
+		# On safe ground with no safe way on just now (see NpcRoutes.explore).
+		current_action = "Waiting"
 		return
 	_attempt_move(candidate)
 
@@ -428,23 +469,39 @@ func _guidance_step() -> Vector2i:
 ## around monsters -- or our own cell if there's no one. Both sides run
 ## this, so two parties that spot each other close the gap from both ends;
 ## one stuck in a fight can't move, so the other comes to it.
+##
+## Once it's set off for one (party_goal), it keeps going for them while
+## they're still worth joining and not far off, even if a wall hides them
+## for a step: dropping them the moment they're out of sight had it step
+## towards them, lose sight, turn back to whatever else it was doing, see
+## them again...
 func _party_up_step() -> Vector2i:
-	var candidates: Dictionary = {}
 	var stormy := NpcRoutes.storm_cells(self)
-	for c in players:
-		# Not someone in the storm: they'll be getting out of it anyway, and
-		# going to them would mean leaving safe ground.
-		if _wants_to_party_with(players[c]) and not stormy.has(c):
-			candidates[c] = true
-	if candidates.is_empty():
+	if not _worth_heading_for(party_goal, stormy) or MazeQuery.chebyshev(cell_pos, party_goal.cell_pos) > SIGHT_RANGE * 2:
+		party_goal = null
+		var candidates: Dictionary = {}
+		for c in players:
+			if _worth_heading_for(players[c], stormy):
+				candidates[c] = true
+		var target := MazeQuery.nearest_visible(grid, cell_pos, SIGHT_RANGE, candidates)
+		if target == MazeQuery.NONE:
+			return cell_pos
+		party_goal = players[target]
+	var step := NpcRoutes.step_toward(self, party_goal.cell_pos, PARTY_PATH_DEPTH, NpcRoutes.live_enemy_cells(self))
+	if step == cell_pos:
+		party_goal = null
 		return cell_pos
-	var target := MazeQuery.nearest_visible(grid, cell_pos, SIGHT_RANGE, candidates)
-	if target == MazeQuery.NONE:
-		return cell_pos
-	var step := NpcRoutes.step_toward(self, target, PARTY_PATH_DEPTH, NpcRoutes.live_enemy_cells(self))
-	if step != cell_pos:
-		current_action = "Heading to join %s" % players[target].npc_name
+	current_action = "Heading to join %s" % party_goal.npc_name
 	return step
+
+## Whether `other` is a party leader worth heading over to team up with:
+## one we'd band together with (see _wants_to_party_with), on the map, and
+## not in the storm -- they'll be getting out of it anyway, and going to them
+## would mean leaving safe ground.
+func _worth_heading_for(other, stormy: Dictionary) -> bool:
+	if other == null or not is_instance_valid(other) or not other.is_party_leader:
+		return false
+	return _wants_to_party_with(other) and players.get(other.cell_pos) == other and not stormy.has(other.cell_pos)
 
 ## Whether this party and `other`'s would both rather band together than
 ## not: the usual merge rules allow it (PartyOps.can_form_party_with), and
@@ -550,10 +607,12 @@ func _attempt_move(next_cell: Vector2i) -> void:
 		var enemy: EnemyAgent = enemies[next_cell]
 		if enemy.in_combat:
 			if not _try_join_fight_against(enemy):
+				daunted[next_cell] = DAUNTED_STEPS
 				retreat()
 		elif CombatMath.decide_fight(stats, enemy.stats):
 			GroupCombat.engage_pack(self, next_cell, enemy)
 		else:
+			daunted[next_cell] = DAUNTED_STEPS
 			retreat()
 		return
 	if has_live_player(next_cell):

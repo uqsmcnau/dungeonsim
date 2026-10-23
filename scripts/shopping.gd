@@ -12,6 +12,10 @@ extends RefCounted
 const PATH_DEPTH := 80
 ## How long a visit takes, in game seconds.
 const SECONDS := 1.0
+## How many steps a shop with no way there round monsters (or without
+## leaving safe ground) is set aside for -- as a chest is, see
+## NpcAgent.CHEST_SKIP_STEPS.
+const SKIP_STEPS := 12
 
 ## Remembers any shop `npc` can see right now.
 static func notice(npc: NpcAgent) -> void:
@@ -23,21 +27,60 @@ static func notice(npc: NpcAgent) -> void:
 ## there (spare items to sell, potions to stock up on, or gold for an item
 ## not owned yet -- a silver shop's dearer stock, at a silver one) -- or its
 ## own cell if there's none.
+##
+## Once it's picked a shop it keeps going for that one (NpcAgent.shop_goal)
+## while it's still worth it: "nearest" is as the crow flies, and the
+## winding ways there could otherwise have it turn from one shop to another
+## and back with every step.
+##
+## Routes round monsters and the storm, as for a chest: a shop with no way
+## there that avoids them is set aside for SKIP_STEPS steps. Otherwise the
+## step that the shop wanted and a monster blocked would go to the next
+## thing on the list, a chest say, whose step could lead straight back --
+## back and forth for ever. Only the monsters in sight, though: a shop can
+## be a long way off, and steering round monsters wandering about far away
+## had the way there change with every step they took -- this way, then
+## back that way... And a way there that turns straight back the way its
+## last step came -- a monster pacing alongside, the far side of a wall,
+## blocking one way round and then the other -- has the shop set aside too.
 static func step(npc: NpcAgent) -> Vector2i:
+	for c in npc.skipped_shops.keys():
+		npc.skipped_shops[c] -= 1
+		if npc.skipped_shops[c] <= 0:
+			npc.skipped_shops.erase(c)
+	if npc.shop_goal == MazeQuery.NONE or npc.shop_goal == npc.cell_pos or not _worth_going_to(npc, npc.shop_goal):
+		npc.shop_goal = _nearest_worth_going_to(npc)
+		npc.shop_step_from = MazeQuery.NONE
+	var goal := npc.shop_goal
+	if goal == MazeQuery.NONE or goal == npc.cell_pos:
+		return npc.cell_pos
+	var next := NpcRoutes.step_toward(npc, goal, PATH_DEPTH, NpcRoutes.live_enemy_cells(npc, NpcAgent.SIGHT_RANGE))
+	if next == npc.cell_pos or NpcRoutes.leaves_safe_ground(npc, next) or next == npc.shop_step_from:
+		npc.skipped_shops[goal] = SKIP_STEPS
+		npc.shop_goal = MazeQuery.NONE
+		npc.shop_step_from = MazeQuery.NONE
+		return npc.cell_pos
+	npc.shop_step_from = npc.cell_pos
+	return next
+
+## Whether the known shop on `cell` is worth `npc`'s heading for: out of the
+## storm, not set aside, and with business there for its party.
+static func _worth_going_to(npc: NpcAgent, cell: Vector2i) -> bool:
+	if NpcRoutes.storm_cells(npc).has(cell) or npc.skipped_shops.has(cell):
+		return false
+	return npc.known_shops.has(cell) and party_has_business(npc, rarity_at(npc, cell))
+
+static func _nearest_worth_going_to(npc: NpcAgent) -> Vector2i:
 	var nearest := MazeQuery.NONE
 	var nearest_dist := 1 << 30
 	for c in npc.known_shops:
-		if NpcRoutes.storm_cells(npc).has(c):
-			continue  # not worth a trip into the storm
-		if not party_has_business(npc, rarity_at(npc, c)):
+		if not _worth_going_to(npc, c):
 			continue
 		var d: int = abs(c.x - npc.cell_pos.x) + abs(c.y - npc.cell_pos.y)
 		if d < nearest_dist:
 			nearest = c
 			nearest_dist = d
-	if nearest == MazeQuery.NONE:
-		return npc.cell_pos
-	return NpcRoutes.step_toward(npc, nearest, PATH_DEPTH)
+	return nearest
 
 ## Whether a visit to a shop of `rarity` would do anything for anyone in
 ## `npc`'s party -- the whole party shops together (see trade).
