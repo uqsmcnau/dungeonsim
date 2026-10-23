@@ -127,7 +127,7 @@ func _keep_someone_selected() -> void:
 
 func _check_frozen(living: Array) -> void:
 	for n in living:
-		if n.finished or not n.is_party_leader or n.current_action in ["Resting", "Waiting"]:
+		if n.finished or not n.is_party_leader or n.current_action in [NpcAgent.RESTING, NpcAgent.WAITING]:
 			continue
 		var state := [n.cell_pos, n.position.round(), n.is_moving, n.in_pvp_combat, n.in_pack_combat, n.current_action, _hp_around(n)]
 		if _last_state.get(n) != state:
@@ -207,7 +207,7 @@ func _check_storm_bounces(living: Array) -> void:
 		var was_inside: bool = _in_storm.get(n, false)
 		var was_escaping: bool = _escaping.get(n, false)
 		_in_storm[n] = inside
-		_escaping[n] = n.current_action == "Escaping the storm"
+		_escaping[n] = n.current_action == NpcAgent.ESCAPING
 		if was_inside and not inside:
 			_left_storm_at[n] = t
 		elif inside and not was_inside and not was_escaping and _moved_last(n) \

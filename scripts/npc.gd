@@ -30,6 +30,12 @@ const DAUNTED_STEPS := 12
 ## up with. They're within SIGHT_RANGE in a straight line, so this mostly
 ## leaves room for detours around monsters.
 const PARTY_PATH_DEPTH := 18
+## Statuses (current_action) read back as well as shown -- the soak test
+## goes by them (see tools/soak.gd): standing still on purpose, and getting
+## out of the storm. Set and compared through these, never the bare text.
+const RESTING := "Resting"
+const WAITING := "Waiting"
+const ESCAPING := "Escaping the storm"
 
 signal reached_exit(npc: NpcAgent)
 signal leveled_up(npc: NpcAgent)
@@ -224,7 +230,7 @@ func _escape_the_storm() -> bool:
 	var step := NpcRoutes.out_of_storm(self)
 	if step == cell_pos:
 		return false  # not caught in it, or nowhere left to run
-	current_action = "Escaping the storm"
+	current_action = ESCAPING
 	_attempt_move(step)
 	return true
 
@@ -294,7 +300,7 @@ func _see_to_ourselves() -> bool:
 		_tend(tending)
 		return true
 	if resting:
-		current_action = "Resting"
+		current_action = RESTING
 		return true
 	return false
 
@@ -378,7 +384,7 @@ func _take_step() -> void:
 	var candidate := NpcRoutes.explore(self, open_dirs)
 	if candidate == cell_pos:
 		# On safe ground with no safe way on just now (see NpcRoutes.explore).
-		current_action = "Waiting"
+		current_action = WAITING
 		return
 	_attempt_move(candidate)
 

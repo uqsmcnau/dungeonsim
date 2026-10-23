@@ -161,7 +161,7 @@ func test_caught_in_it_they_head_for_the_nearest_way_out():
 	_stand_in_storm(a, corridor(6), Vector2i(2, 0), [Vector2i(0, 0), Vector2i(1, 0), Vector2i(2, 0)])
 	a.finished = false
 	assert_true(a._escape_the_storm())
-	assert_eq(a.current_action, "Escaping the storm")
+	assert_eq(a.current_action, NpcAgent.ESCAPING)
 	assert_true(a.is_moving, "on their way to (3,0)")
 
 func test_the_way_out_is_the_shortest():
@@ -176,7 +176,7 @@ func test_escaping_comes_before_healing():
 	a.stats.hp = 5
 	a.stats.mp = 30
 	a._process(0.01)
-	assert_eq(a.current_action, "Escaping the storm", "not stopping to cast Recover")
+	assert_eq(a.current_action, NpcAgent.ESCAPING, "not stopping to cast Recover")
 
 func test_no_turn_wasted_on_healing_in_the_storm():
 	_stand_in_storm(a, corridor(3), Vector2i(0, 0), [Vector2i(0, 0)])

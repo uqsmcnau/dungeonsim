@@ -93,7 +93,7 @@ func test_with_no_mana_or_potion_the_party_rests_with_them():
 	b.stats.hp = 5
 	b.stats.mp = 0
 	assert_true(a._see_to_ourselves())
-	assert_eq(a.current_action, "Resting")
+	assert_eq(a.current_action, NpcAgent.RESTING)
 	assert_false(a.is_moving, "waiting on B's mana, ready to set off once healed")
 
 func test_a_healthy_party_carries_on():
