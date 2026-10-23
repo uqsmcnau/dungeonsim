@@ -45,10 +45,10 @@ func test_the_new_silver_pieces_show_in_battle():
 	var stats := NpcStats.new()
 	for item in ["Enchanted Tome", "Steel Helm", "Swift Boots", "Moonstone Amulet", "Ring of Vigor"]:
 		stats.acquire_item(item)
-	var look := BattleFighter.look_of(stats)
-	assert_eq(look["off_hand"], "tome")
+	var look := FigureLook.of(stats)
+	assert_eq(look.off_hand, "tome")
 	for part in ["helmet", "boots", "amulet", "ring"]:
-		assert_true(look[part], part)
+		assert_true(look.get(part), part)
 
 func test_a_gold_chest_holds_a_gold_item():
 	for i in range(20):

@@ -160,66 +160,65 @@ func _wearing(items: Array) -> NpcStats:
 	return stats
 
 func test_nothing_worn_is_a_bare_fisted_tunic():
-	assert_eq(BattleFighter.look_of(NpcStats.new()), {
-		"weapon": "", "off_hand": "", "armor": "",
-		"helmet": false, "gold_helm": false, "boots": false, "winged": false,
-		"amulet": false, "ring": false, "might": false,
-	})
+	var look := FigureLook.of(NpcStats.new())
+	assert_eq([look.weapon, look.off_hand, look.armor], ["", "", ""])
+	for part in ["helmet", "gold_helm", "boots", "winged", "amulet", "ring", "might"]:
+		assert_false(look.get(part), part)
 
 func test_everything_worn_shows():
-	var look := BattleFighter.look_of(_wearing([
+	var look := FigureLook.of(_wearing([
 		"Iron Sword", "Shield", "Leather Armor", "Helmet", "Leather Boots", "Sage's Amulet", "Silver Ring",
 	]))
-	assert_eq(look["weapon"], "iron_sword")
-	assert_eq(look["off_hand"], "shield")
-	assert_eq(look["armor"], "leather")
+	assert_eq(look.weapon, "iron_sword")
+	assert_eq(look.off_hand, "shield")
+	assert_eq(look.armor, "leather")
 	for part in ["helmet", "boots", "amulet", "ring"]:
-		assert_true(look[part], part)
+		assert_true(look.get(part), part)
 
 func test_silver_gear_looks_the_part():
-	var look := BattleFighter.look_of(_wearing(["Steel Sword", "Silver Shield", "Chainmail"]))
-	assert_eq(look["weapon"], "steel_sword")
-	assert_eq(look["off_hand"], "silver_shield")
-	assert_eq(look["armor"], "chainmail")
+	var look := FigureLook.of(_wearing(["Steel Sword", "Silver Shield", "Chainmail"]))
+	assert_eq(look.weapon, "steel_sword")
+	assert_eq(look.off_hand, "silver_shield")
+	assert_eq(look.armor, "chainmail")
 
 func test_gold_gear_looks_the_part():
-	var look := BattleFighter.look_of(_wearing([
+	var look := FigureLook.of(_wearing([
 		"Mithril Sword", "Aegis Shield", "Plate Armor", "Golden Helm", "Winged Boots", "Ring of Might",
 	]))
-	assert_eq(look["weapon"], "mithril_sword")
-	assert_eq(look["off_hand"], "aegis")
-	assert_eq(look["armor"], "plate")
+	assert_eq(look.weapon, "mithril_sword")
+	assert_eq(look.off_hand, "aegis")
+	assert_eq(look.armor, "plate")
 	for part in ["helmet", "gold_helm", "boots", "winged", "might"]:
-		assert_true(look[part], part)
-	assert_eq(BattleFighter.look_of(_wearing(["Mithril Sword", "Archmage's Staff"]))["off_hand"], "staff")
+		assert_true(look.get(part), part)
+	assert_eq(FigureLook.of(_wearing(["Mithril Sword", "Archmage's Staff"])).off_hand, "staff")
 
 func test_the_best_sword_goes_in_front():
-	var look := BattleFighter.look_of(_wearing(["Steel Sword", "Mithril Sword"]))
-	assert_eq(look["weapon"], "mithril_sword")
-	assert_eq(look["off_hand"], "iron_sword", "the other over the shoulder")
+	var look := FigureLook.of(_wearing(["Steel Sword", "Mithril Sword"]))
+	assert_eq(look.weapon, "mithril_sword")
+	assert_eq(look.off_hand, "iron_sword", "the other over the shoulder")
 
 func test_a_tome_is_held_in_the_off_hand():
-	assert_eq(BattleFighter.look_of(_wearing(["Arcane Tome"]))["off_hand"], "tome")
-	assert_eq(BattleFighter.look_of(_wearing(["Arcane Tome"]))["weapon"], "", "no sword: it's held out in front instead")
+	assert_eq(FigureLook.of(_wearing(["Arcane Tome"])).off_hand, "tome")
+	assert_eq(FigureLook.of(_wearing(["Arcane Tome"])).weapon, "", "no sword: it's held out in front instead")
 
 func test_two_swords_carry_both():
-	var look := BattleFighter.look_of(_wearing(["Iron Sword", "Steel Sword"]))
-	assert_eq(look["weapon"], "steel_sword", "the better one in front")
-	assert_eq(look["off_hand"], "iron_sword")
+	var look := FigureLook.of(_wearing(["Iron Sword", "Steel Sword"]))
+	assert_eq(look.weapon, "steel_sword", "the better one in front")
+	assert_eq(look.off_hand, "iron_sword")
 
 func test_new_gear_shows_on_their_figure():
 	a.stats.equipped.clear()
 	_scene([a], [])
-	assert_false(bw.fighter_of(a).look["helmet"])
+	assert_false(bw.fighter_of(a).look.helmet)
 	a.stats.acquire_item("Helmet")
 	_scene([a], [])
-	assert_true(bw.fighter_of(a).look["helmet"])
+	assert_true(bw.fighter_of(a).look.helmet)
 
 func test_a_rival_players_gear_shows_too():
 	b.stats.equipped.clear()
 	b.stats.acquire_item("Steel Sword")
 	_scene([a], [b])
-	assert_eq(bw.fighter_of(b).look["weapon"], "steel_sword")
+	assert_eq(bw.fighter_of(b).look.weapon, "steel_sword")
 
 # ================================ Walking =================================
 

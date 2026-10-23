@@ -202,7 +202,7 @@ there.
   sold). A shop's rarity is its value in `shop_map`
   (`Shopping.rarity_at`), and the `NpcStats` shopping calls take it. A
   new item that changes how a character looks in the battle window also
-  needs a look in `BattleFighter.look_of` and drawing in
+  needs a look in `FigureLook.of` and drawing in
   `BattlePainter.draw_figure`.
 - **`maze_shape.gd` (`MazeShape`, as `main.maze_shape`)** — the maze's
   outline, a circle in the 68x68 grid. Cells outside it are solid
