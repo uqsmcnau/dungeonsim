@@ -25,6 +25,11 @@ const BUS := "Music"
 
 ## Every track found in `music_dir`, as full paths.
 var tracks: Array[String] = []
+## The music's own dice, for picking tracks: never the game's. When a track
+## ends goes by real time, not game time, so a roll of the game's own dice
+## then would shift every roll the game makes after it -- and a game would
+## no longer play out the same from its seed (see GameManager.game_seed).
+var _dice := RandomNumberGenerator.new()
 ## The track playing (or fading in) right now, or "" if none.
 var current_track: String = ""
 var _players: Array[AudioStreamPlayer] = []
@@ -103,7 +108,7 @@ func _pick_next_track() -> String:
 	var choices: Array[String] = tracks.filter(func(t): return t != current_track)
 	if choices.is_empty():
 		choices = tracks
-	return choices[randi() % choices.size()]
+	return choices[_dice.randi() % choices.size()]
 
 ## Starts `path` straight away at full volume, no fade.
 func _play(path: String) -> void:
