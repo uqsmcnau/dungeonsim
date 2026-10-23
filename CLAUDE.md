@@ -131,7 +131,7 @@ On GitHub it plays 3 games at x10 on every push, from a new seed each run
   icon and battle body, and the features `BattlePainter.draw_monster` adds —
   bar the 8 weaker mid bosses out towards the edge: the Orc Chieftain
   (`ORC_CHIEFTAIN`, level 6, its own kind) with two level-3 guards. Both
-  tiers are `is_mini_boss` (`WorldBuilder._place_mid_bosses`).
+  tiers are `is_mid_boss` (`WorldBuilder._place_mid_bosses`).
   A boss's guards (`EnemyAgent.guarding`) never wander, even left leading
   their party (`EnemyAgent.roams`).
 - **`item_catalog.gd` (`ItemCatalog`)** — every item, in three rarities:
@@ -325,7 +325,7 @@ On GitHub it plays 3 games at x10 on every push, from a new seed each run
   over it (`MazeQuery.explore_step`, unseen passages assumed open).
 
 - **"Safe rooms" = `GameManager.restricted_cells`**, exposed to each
-  `NpcAgent` as `safe_cells`. Covers start zones, shops, mini boss rooms,
+  `NpcAgent` as `safe_cells`. Covers start zones, shops, mid boss rooms,
   and the boss room — monsters never spawn there, and PvP can't be
   initiated there either. If a feature needs "is this a peaceful zone"
   logic, this is almost certainly the dict to check rather than inventing a

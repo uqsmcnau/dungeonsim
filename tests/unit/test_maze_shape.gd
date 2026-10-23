@@ -114,10 +114,10 @@ func test_the_start_zones_ring_the_edge():
 func test_twenty_six_players_ten_shops_and_fourteen_mid_bosses():
 	assert_eq(main.npcs.size(), 26)
 	assert_eq(main.shop_cells.size(), 10, "8 bronze, 2 silver")
-	assert_eq(main.mini_boss_cells.size(), 14, "6 Ogre Warlords, 8 Orc Chieftains")
+	assert_eq(main.mid_boss_cells.size(), 14, "6 Ogre Warlords, 8 Orc Chieftains")
 	var minis := 0
 	for enemy in main.enemy_container.get_children():
-		if enemy.is_mini_boss:
+		if enemy.is_mid_boss:
 			minis += 1
 	assert_eq(minis, 14)
 
@@ -139,11 +139,11 @@ func test_the_shops_ring_the_boss_room():
 		quarters[int(fposmod(offset.angle(), TAU) / (TAU / 4.0))] = true
 	assert_eq(quarters.size(), 4, "some in every quarter of the maze")
 
-func test_shops_and_mini_boss_rooms_are_inside():
+func test_shops_and_mid_boss_rooms_are_inside():
 	for shop in main.shop_cells:
 		_assert_zone_inside(shop, "a shop")
-	for room in main.mini_boss_cells:
-		_assert_zone_inside(room, "a mini boss room")
+	for room in main.mid_boss_cells:
+		_assert_zone_inside(room, "a mid boss room")
 
 func test_nothing_stands_in_the_rock():
 	for npc in main.npcs:

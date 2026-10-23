@@ -6,7 +6,7 @@ var cell_size: float = 48.0
 var start_cells: Array = []
 ## Every shop, by cell, with its rarity (bronze or silver).
 var shops: Dictionary = {}
-var mini_boss_cells: Array = []
+var mid_boss_cells: Array = []
 var exit_cell: Vector2i = Vector2i.ZERO
 
 ## A shop's room on the map: blue for a bronze shop, silver for a silver one.
@@ -37,7 +37,7 @@ const STORM_EDGE_WIDTH := 3.0
 ## Fog of war: cells any character has ever seen stay in `discovered`
 ## forever. `currently_visible` is recomputed every tick from where
 ## characters are right now, plus any `sticky_cells` that have already
-## been discovered (shops and mini boss rooms stay fully revealed once
+## been discovered (shops and mid boss rooms stay fully revealed once
 ## found, rather than dimming again once nobody's nearby).
 var fog_enabled: bool = true
 var discovered: Dictionary = {}
@@ -80,13 +80,13 @@ func set_selection_highlight(center: Vector2, radius: float) -> void:
 	queue_redraw()
 
 func set_maze(new_grid: Array, new_cell_size: float, new_starts: Array, new_exit: Vector2i,
-		new_shops: Dictionary, new_mini_bosses: Array, shape: MazeShape = null) -> void:
+		new_shops: Dictionary, new_mid_bosses: Array, shape: MazeShape = null) -> void:
 	grid = new_grid
 	cell_size = new_cell_size
 	start_cells = new_starts
 	exit_cell = new_exit
 	shops = new_shops
-	mini_boss_cells = new_mini_bosses
+	mid_boss_cells = new_mid_bosses
 	_border = PackedVector2Array()
 	if shape != null:
 		for point in shape.outline(BORDER_POINTS, BORDER_WIDTH):
@@ -122,7 +122,7 @@ func reveal_permanently(cells: Dictionary) -> void:
 	permanent_cells.merge(cells)
 
 ## Cells that become permanently revealed once first discovered normally —
-## used for shop and mini boss room zones ("always visible once found").
+## used for shop and mid boss room zones ("always visible once found").
 func register_sticky_zone(cells: Dictionary) -> void:
 	sticky_cells.merge(cells)
 
@@ -209,15 +209,15 @@ func _draw() -> void:
 		var baseline := Vector2(shop.x * cell_size, shop.y * cell_size + cell_size * 0.78)
 		draw_string(font, baseline, "$", HORIZONTAL_ALIGNMENT_CENTER, cell_size, int(cell_size * 0.8), Color.WHITE)
 
-	for mini_boss in mini_boss_cells:
-		if not is_discovered(mini_boss):
+	for mid_boss in mid_boss_cells:
+		if not is_discovered(mid_boss):
 			continue
 		for dy in range(-1, 2):
 			for dx in range(-1, 2):
-				_draw_marker(mini_boss + Vector2i(dx, dy), Color(0.55, 0.15, 0.75, 0.18))
-		_draw_marker(mini_boss, Color(0.55, 0.15, 0.75, 0.6))
+				_draw_marker(mid_boss + Vector2i(dx, dy), Color(0.55, 0.15, 0.75, 0.18))
+		_draw_marker(mid_boss, Color(0.55, 0.15, 0.75, 0.6))
 		var mb_font := ThemeDB.fallback_font
-		var mb_baseline := Vector2(mini_boss.x * cell_size, mini_boss.y * cell_size + cell_size * 0.78)
+		var mb_baseline := Vector2(mid_boss.x * cell_size, mid_boss.y * cell_size + cell_size * 0.78)
 		draw_string(mb_font, mb_baseline, "☠", HORIZONTAL_ALIGNMENT_CENTER, cell_size, int(cell_size * 0.8), Color.WHITE)
 
 	for y in range(height):

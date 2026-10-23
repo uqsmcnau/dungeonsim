@@ -262,7 +262,7 @@ static func _draw_tome(canvas: CanvasItem, at: Vector2, alpha: float) -> void:
 ## A monster like the ones on the map -- its kind's outline and colour (see
 ## MonsterCatalog) -- only bigger and with a face, glaring left towards the
 ## party, and whatever marks its kind out: wings, a tail, horns, a crown...
-## Bosses' eyes glow red, mini bosses' purple. Shrinks a little as it
+## Bosses' eyes glow red, mid bosses' purple. Shrinks a little as it
 ## dissolves.
 static func draw_monster(canvas: CanvasItem, p: Vector2, color: Color, f: BattleFighter, alpha: float, depth: float) -> void:
 	var r := f.height() * 0.6 * depth
@@ -316,7 +316,7 @@ static func _draw_face(canvas: CanvasItem, p: Vector2, r: float, f: BattleFighte
 	var eye := Color(1.0, 0.95, 0.3, alpha)
 	if f.kind == "boss":
 		eye = Color(1.0, 0.2, 0.2, alpha)
-	elif f.kind == "mini_boss":
+	elif f.kind == "mid_boss":
 		eye = Color(0.75, 0.4, 1.0, alpha)
 	var eyes := [p + Vector2(-r * 0.35, -r * 0.25), p + Vector2(-r * 0.65, -r * 0.2)]
 	if features.has("sockets"):

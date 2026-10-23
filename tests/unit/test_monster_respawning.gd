@@ -43,7 +43,7 @@ func _middle_of(area: Vector2i) -> Vector2i:
 func _monsters_in(area: Vector2i) -> Array:
 	var result: Array = []
 	for enemy in main.enemy_container.get_children():
-		if not (enemy is EnemyAgent and enemy.alive) or enemy.is_boss or enemy.is_mini_boss:
+		if not (enemy is EnemyAgent and enemy.alive) or enemy.is_boss or enemy.is_mid_boss:
 			continue
 		if main.respawner.area_of(enemy.home_cell) == area:
 			result.append(enemy)
@@ -65,10 +65,10 @@ func test_each_area_remembers_how_many_monsters_it_started_with():
 		total += main.respawner.area_capacity[area]
 	assert_gt(total, 0)
 
-func test_bosses_and_mini_bosses_dont_count():
+func test_bosses_and_mid_bosses_dont_count():
 	var regular := 0
 	for enemy in main.enemy_container.get_children():
-		if enemy is EnemyAgent and not enemy.is_boss and not enemy.is_mini_boss:
+		if enemy is EnemyAgent and not enemy.is_boss and not enemy.is_mid_boss:
 			regular += 1
 	var total := 0
 	for area in main.respawner.area_capacity:

@@ -13,7 +13,7 @@ const GOLD_ITEMS := [
 func before_each():
 	load_main()
 
-## The mini boss party on `cell`, all of it.
+## The mid boss party on `cell`, all of it.
 func _party_on(cell: Vector2i) -> Array:
 	return main.enemy_map[cell].pack.duplicate()
 
@@ -77,7 +77,7 @@ func test_they_can_be_worn():
 
 ## The middle of the first mid boss room led by `kind_name`.
 func _room_of(kind_name: String) -> Vector2i:
-	for cell in main.mini_boss_cells:
+	for cell in main.mid_boss_cells:
 		if main.enemy_map[cell].kind["name"] == kind_name:
 			return cell
 	return MazeQuery.NONE
@@ -117,7 +117,7 @@ func test_not_until_the_whole_party_is_beaten():
 func test_only_mid_boss_parties_leave_chests():
 	var pack: Array = []
 	for enemy in main.enemy_container.get_children():
-		if enemy.pack.size() > 1 and enemy.guarding == "" and not enemy.is_mini_boss and not enemy.is_boss:
+		if enemy.pack.size() > 1 and enemy.guarding == "" and not enemy.is_mid_boss and not enemy.is_boss:
 			pack = enemy.pack.duplicate()
 			break
 	assert_false(pack.is_empty(), "sanity: there's an ordinary pack")

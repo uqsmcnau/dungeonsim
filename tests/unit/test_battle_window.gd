@@ -117,7 +117,7 @@ func test_a_monster_pack_they_fight_appears_opposite():
 	var foes := bw.fighters_on(BattleWindow.Side.FOES)
 	assert_eq(foes.size(), foe.living_pack().size())
 	assert_gt(bw._home_of(foes[0]).x, bw.size.x / 2.0)
-	assert_eq(foes[0].kind, "boss" if foe.is_boss else ("mini_boss" if foe.is_mini_boss else "monster"))
+	assert_eq(foes[0].kind, "boss" if foe.is_boss else ("mid_boss" if foe.is_mid_boss else "monster"))
 
 func test_a_rival_party_appears_opposite_in_a_player_fight():
 	var c: NpcAgent = main.npcs[2]

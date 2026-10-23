@@ -1,7 +1,7 @@
 extends DungeonTest
 
 ## Covers the kinds of monster (MonsterCatalog): one per level -- 1 to 10
-## roaming the maze, an Ogre Warlord leading each mini boss's party of
+## roaming the maze, an Ogre Warlord leading each mid boss's party of
 ## three, and the Dragon leading the boss's party of four -- each with its
 ## own name, colour and shape, on the map and in the battle window.
 
@@ -14,7 +14,7 @@ func _party_on(cell: Vector2i) -> EnemyAgent:
 
 func _roaming_monsters() -> Array:
 	return main.enemy_container.get_children().filter(func(e):
-		return e is EnemyAgent and e.alive and e.guarding == "" and not e.is_boss and not e.is_mini_boss)
+		return e is EnemyAgent and e.alive and e.guarding == "" and not e.is_boss and not e.is_mid_boss)
 
 # ============================== The catalogue =============================
 
@@ -59,7 +59,7 @@ func test_bar_the_orc_chieftains():
 	var chieftains: Array = main.enemy_container.get_children().filter(func(e): return e.kind == MonsterCatalog.ORC_CHIEFTAIN)
 	assert_eq(chieftains.size(), WorldBuilder.CHIEFTAIN_COUNT)
 	for chieftain in chieftains:
-		assert_true(chieftain.is_mini_boss, "each leads a mid boss's party")
+		assert_true(chieftain.is_mid_boss, "each leads a mid boss's party")
 		assert_eq(chieftain.stats.level, 6, "an Orc's level, but its own kind")
 		assert_eq(chieftain.visual.color, MonsterCatalog.ORC_CHIEFTAIN["color"])
 
@@ -81,16 +81,16 @@ func test_its_level_reads_on_its_icon_however_dark():
 
 ## The mid bosses (both tiers) whose leader is `kind_name`.
 func _mid_bosses(kind_name: String) -> Array:
-	return main.mini_boss_cells.map(func(c): return _party_on(c)).filter(func(b): return b.kind["name"] == kind_name)
+	return main.mid_boss_cells.map(func(c): return _party_on(c)).filter(func(b): return b.kind["name"] == kind_name)
 
 func _from_middle(cell: Vector2i) -> float:
 	return Vector2(cell - main.exit_cell).length()
 
 func test_each_ogre_warlord_leads_a_party_of_three_near_the_middle():
 	var warlords := _mid_bosses("Ogre Warlord")
-	assert_eq(warlords.size(), WorldBuilder.MINI_BOSS_COUNT)
+	assert_eq(warlords.size(), WorldBuilder.WARLORD_COUNT)
 	for warlord in warlords:
-		assert_true(warlord.is_mini_boss)
+		assert_true(warlord.is_mid_boss)
 		assert_eq(warlord.stats.level, 11)
 		assert_eq(warlord.pack.size(), 3)
 		for guard in warlord.pack.slice(1):
@@ -98,7 +98,7 @@ func test_each_ogre_warlord_leads_a_party_of_three_near_the_middle():
 			assert_eq(guard.kind["name"], "Troll")
 		for member in warlord.pack:
 			assert_false(member.wanders, "the party stays in its room")
-		assert_between(_from_middle(warlord.cell_pos), WorldBuilder.MINI_BOSS_REACH.x - 1.0, WorldBuilder.MINI_BOSS_REACH.y + 1.0)
+		assert_between(_from_middle(warlord.cell_pos), WorldBuilder.WARLORD_REACH.x - 1.0, WorldBuilder.WARLORD_REACH.y + 1.0)
 
 func test_each_orc_chieftain_leads_a_weaker_party_of_three_near_the_edge():
 	var chieftains := _mid_bosses("Orc Chieftain")

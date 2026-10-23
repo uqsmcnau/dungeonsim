@@ -24,7 +24,7 @@ var side: int = 0
 ## Its spot on its side of the field (see BattleWindow._free_slot), or -1
 ## until it's given one.
 var slot: int = -1
-## "player", "monster", "mini_boss" or "boss".
+## "player", "monster", "mid_boss" or "boss".
 var kind := "player"
 var name := ""
 var color := Color.WHITE
@@ -69,7 +69,7 @@ static func of(node: Node, fighter_side: int, enter_seconds: float) -> BattleFig
 		f.kind = "player"
 		f.name = node.npc_name
 	else:
-		f.kind = "boss" if node.is_boss else ("mini_boss" if node.is_mini_boss else "monster")
+		f.kind = "boss" if node.is_boss else ("mid_boss" if node.is_mid_boss else "monster")
 		f.monster = node.kind
 		f.name = node.kind["name"]
 	f.take_stats(node)
@@ -99,7 +99,7 @@ func height() -> float:
 			return 22.0 * FIGURE_SCALE
 		"boss":
 			return 64.0
-		"mini_boss":
+		"mid_boss":
 			return 44.0
 	return 30.0 * monster.get("size", 1.0)
 

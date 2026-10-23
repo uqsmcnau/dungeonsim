@@ -183,9 +183,9 @@ func test_boss_party_killer_descriptions():
 	var boss: EnemyAgent = main.enemy_map[main.exit_cell]
 	assert_eq(boss.killer_description(), "the Dragon (Lv.12)")
 	assert_eq(boss.pack[1].killer_description(), "a Wyvern (Lv.10), guarding the Dragon")
-	var mini_boss: EnemyAgent = main.enemy_map[main.mini_boss_cells[0]]
-	assert_eq(mini_boss.killer_description(), "an Ogre Warlord (Lv.11)")
-	assert_eq(mini_boss.pack[1].killer_description(), "a Troll (Lv.8), guarding an Ogre Warlord")
+	var mid_boss: EnemyAgent = main.enemy_map[main.mid_boss_cells[0]]
+	assert_eq(mid_boss.killer_description(), "an Ogre Warlord (Lv.11)")
+	assert_eq(mid_boss.pack[1].killer_description(), "a Troll (Lv.8), guarding an Ogre Warlord")
 
 func test_pack_monster_killer_description():
 	var cell := clear_cell()

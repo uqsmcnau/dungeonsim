@@ -69,9 +69,9 @@ var player_map: Dictionary = {}
 ## (bronze, or silver for the two near the middle).
 var shop_cells: Array = []
 var shop_map: Dictionary = {}
-## Centers of the mini boss rooms, for drawing.
-var mini_boss_cells: Array = []
-## Starting safe zones, shop zones, mini boss rooms and the boss room: no
+## Centers of the mid boss rooms, for drawing.
+var mid_boss_cells: Array = []
+## Starting safe zones, shop zones, mid boss rooms and the boss room: no
 ## enemies spawn or wander here, and no random chests are placed here.
 var restricted_cells: Dictionary = {}
 ## Seconds until Guidance can be used again (0 = ready). Ticked down in

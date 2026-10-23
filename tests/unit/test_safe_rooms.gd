@@ -1,7 +1,7 @@
 extends DungeonTest
 
 ## Covers that PvP combat can never be started in a safe room (a start
-## zone, shop, mini boss room, or the boss room -- game_manager's existing
+## zone, shop, mid boss room, or the boss room -- game_manager's existing
 ## `restricted_cells`), from both places a fight can be triggered: moving
 ## toward an opponent (_attempt_move) and finding one already on your own
 ## cell (the idle safety net in _process).

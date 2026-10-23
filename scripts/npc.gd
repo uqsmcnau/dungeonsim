@@ -67,7 +67,7 @@ var pvp_foes: Array = []
 ## frees is_moving for its own reasons (e.g. PartyOps.relocate_to_party when
 ## joining a party) knows to leave a fight's lock in place.
 var in_pack_combat: bool = false
-## Start zones, shop zones, mini boss rooms and the boss room — no PvP may
+## Start zones, shop zones, mid boss rooms and the boss room — no PvP may
 ## be started on any of these cells, on top of the existing rule that no
 ## monsters ever spawn there.
 var safe_cells: Dictionary = {}
@@ -217,7 +217,7 @@ func _settle_enemy_on_our_cell() -> bool:
 
 ## Same safety net for another player ending up on our cell. Whether we
 ## throw the first punch is up to alignment (see _decide_pvp_fight) --
-## unless we're in a safe room (a start zone, shop, mini boss room or the
+## unless we're in a safe room (a start zone, shop, mid boss room or the
 ## boss room), where PvP can never be started at all. If not fighting,
 ## we consider teaming up instead, and failing that they're just passing
 ## through (see _squeeze_past) -- so we carry on as normal.

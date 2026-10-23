@@ -8,7 +8,7 @@ extends RefCounted
 ## original count, and only out of sight of every player and at least
 ## RESPAWN_MIN_PLAYER_DISTANCE cells (in either direction) from all of
 ## them. If there's nowhere hidden to put one, it tries again every
-## RESPAWN_RETRY_SECONDS. Bosses and mini bosses never come back.
+## RESPAWN_RETRY_SECONDS. Bosses and mid bosses never come back.
 const AREA_SIZE := 8
 const RESPAWN_SECONDS := 40.0
 const RESPAWN_RETRY_SECONDS := 2.0
@@ -49,11 +49,11 @@ func area_of(cell: Vector2i) -> Vector2i:
 	return Vector2i(cell.x / AREA_SIZE, cell.y / AREA_SIZE)
 
 ## How many living monsters belong to each area right now (by home cell),
-## leaving out bosses and mini bosses, which never respawn.
+## leaving out bosses and mid bosses, which never respawn.
 func area_populations() -> Dictionary:
 	var counts: Dictionary = {}
 	for enemy in game.enemy_container.get_children():
-		if not enemy is EnemyAgent or not enemy.alive or enemy.is_boss or enemy.is_mini_boss:
+		if not enemy is EnemyAgent or not enemy.alive or enemy.is_boss or enemy.is_mid_boss:
 			continue
 		var area := area_of(enemy.home_cell)
 		counts[area] = int(counts.get(area, 0)) + 1

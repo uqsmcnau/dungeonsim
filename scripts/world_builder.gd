@@ -29,17 +29,16 @@ const BOSS_LEVEL := 12
 const BOSS_GUARD_LEVEL := 10
 const BOSS_GUARDS := 3
 const BOSS_SCALE := 1.5
-## The mid bosses (see _place_mid_bosses; both tiers count as mini bosses,
-## EnemyAgent.is_mini_boss), each with this many guards. The stronger tier,
-## the Ogre Warlords (MINI_BOSS_*), stand between MINI_BOSS_REACH cells from
-## the middle (x to y); the weaker Orc Chieftains between CHIEFTAIN_REACH,
-## out towards the edge.
+## The mid bosses (see _place_mid_bosses, EnemyAgent.is_mid_boss), each
+## with this many guards: the stronger Ogre Warlords (WARLORD_*) between
+## WARLORD_REACH cells from the middle (x to y), the weaker Orc Chieftains
+## (CHIEFTAIN_*) between CHIEFTAIN_REACH, out towards the edge.
 const MID_BOSS_GUARDS := 2
-const MINI_BOSS_COUNT := 6
-const MINI_BOSS_LEVEL := 11
-const MINI_BOSS_GUARD_LEVEL := 8
-const MINI_BOSS_SCALE := 1.3
-const MINI_BOSS_REACH := Vector2(11.0, 17.0)
+const WARLORD_COUNT := 6
+const WARLORD_LEVEL := 11
+const WARLORD_GUARD_LEVEL := 8
+const WARLORD_SCALE := 1.3
+const WARLORD_REACH := Vector2(11.0, 17.0)
 const CHIEFTAIN_COUNT := 8
 const CHIEFTAIN_LEVEL := 6
 const CHIEFTAIN_GUARD_LEVEL := 3
@@ -63,7 +62,7 @@ func _init(owner: GameManager) -> void:
 
 ## The maze and its zones, inside a circle (see MazeShape): the boss
 ## room at the center, a start zone for each character around the edge,
-## shops and mini boss rooms in between. Hands the result to the MazeView to
+## shops and mid boss rooms in between. Hands the result to the MazeView to
 ## draw.
 func build_maze() -> void:
 	var generator := MazeGenerator.new()
@@ -81,11 +80,11 @@ func build_maze() -> void:
 	# Sealing the boss rooms' sides can strand a dead end; let it back in,
 	# keeping the rooms to their four entrances.
 	var rooms: Dictionary = zone_cells(game.exit_cell)
-	for center in game.mini_boss_cells:
+	for center in game.mid_boss_cells:
 		rooms.merge(zone_cells(center))
 	generator.reconnect(game.grid, game.exit_cell, rooms)
 	game.maze_view.set_maze(game.grid, GameManager.CELL_SIZE, game.start_cells, game.exit_cell, game.shop_map,
-		game.mini_boss_cells, game.maze_shape)
+		game.mid_boss_cells, game.maze_shape)
 	game.maze_view.reveal_permanently(zone_cells(game.exit_cell))
 
 ## Monsters through the maze, the boss on the exit, and chests.
@@ -201,9 +200,9 @@ func _open_shop(generator: MazeGenerator, center: Vector2i, rarity: String) -> v
 ## Warlord's (a gold-only item, the best there is), silver from an Orc
 ## Chieftain's.
 func _place_mid_bosses(generator: MazeGenerator) -> void:
-	_place_in_ring(MINI_BOSS_COUNT, MINI_BOSS_REACH, func(center: Vector2i):
-		var boss := _open_mid_boss_room(generator, center, MINI_BOSS_LEVEL, MINI_BOSS_GUARD_LEVEL, ItemCatalog.RARITY_GOLD)
-		boss.scale = Vector2(MINI_BOSS_SCALE, MINI_BOSS_SCALE))
+	_place_in_ring(WARLORD_COUNT, WARLORD_REACH, func(center: Vector2i):
+		var boss := _open_mid_boss_room(generator, center, WARLORD_LEVEL, WARLORD_GUARD_LEVEL, ItemCatalog.RARITY_GOLD)
+		boss.scale = Vector2(WARLORD_SCALE, WARLORD_SCALE))
 	_place_in_ring(CHIEFTAIN_COUNT, CHIEFTAIN_REACH, func(center: Vector2i):
 		var boss := _open_mid_boss_room(generator, center, CHIEFTAIN_LEVEL, CHIEFTAIN_GUARD_LEVEL, ItemCatalog.RARITY_SILVER)
 		boss.set_kind(MonsterCatalog.ORC_CHIEFTAIN)
@@ -218,10 +217,10 @@ func _open_mid_boss_room(generator: MazeGenerator, center: Vector2i, level: int,
 		chest_rarity: String) -> EnemyAgent:
 	generator.carve_boss_room(game.grid, center, GameManager.MAZE_WIDTH, GameManager.MAZE_HEIGHT)
 	_restrict_zone(center)
-	game.mini_boss_cells.append(center)
+	game.mid_boss_cells.append(center)
 	game.maze_view.register_sticky_zone(zone_cells(center))
 	var boss := _spawn_boss_party(center, level, guard_level, MID_BOSS_GUARDS)
-	boss.is_mini_boss = true
+	boss.is_mid_boss = true
 	for member in boss.pack:
 		member.pack_defeated.connect(place_chest.bind(chest_rarity))
 	return boss

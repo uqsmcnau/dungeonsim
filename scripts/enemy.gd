@@ -40,7 +40,7 @@ var in_combat: bool = false
 ## fighters and join them.
 var fighting_party: Array = []
 var is_moving: bool = false
-var is_mini_boss: bool = false
+var is_mid_boss: bool = false
 ## The one guarding the exit (see WorldBuilder._spawn_boss).
 var is_boss: bool = false
 ## Stationary bosses never chase or wander, but still tick for HP regen. A
@@ -136,7 +136,7 @@ func killer_description() -> String:
 	var desc := "%s (Lv.%d)" % [MonsterCatalog.called(kind, is_boss), stats.level]
 	if guarding != "":
 		desc += ", guarding " + guarding
-	elif pack.size() > 1 and not is_mini_boss and not is_boss:
+	elif pack.size() > 1 and not is_mid_boss and not is_boss:
 		desc += ", one of a pack of %d" % pack.size()
 	return desc
 
