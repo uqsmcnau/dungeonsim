@@ -131,6 +131,24 @@ On GitHub it plays 3 games at x10 on every push, each run carrying on from
 the seeds the last one played (Actions → Soak), and runs by hand there for
 more.
 
+### Pictures
+
+Tests can't see the screen. To check how something looks -- or that a
+tidy-up of the drawing code changed nothing -- take pictures of a few fixed
+scenes: the battle window with a party in every kind of gear, facing the
+Dragon's party, facing a maze pack, at a shop; and the whole window, with
+someone selected and with the fog of war off:
+
+```
+godot --path . --fixed-fps 60 -s tools/snapshot.gd -- --out=DIR [--scenes=gear,boss,pack,shop,hud,map]
+```
+
+It needs a window (not `--headless`), and briefly opens one. Each scene is
+the same every run (a fixed seed and frame rate, everyone held still), so
+pictures taken before and after a refactor should be byte-identical --
+as long as both runs took the same `--scenes` (the whole window can differ
+by a few pixels of text after other scenes than on its own).
+
 ### Balance
 
 How hard is the game, and what's doing the damage? The balance report plays
