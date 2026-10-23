@@ -66,6 +66,7 @@ func map_area() -> Rect2:
 
 func _ready() -> void:
 	winner_label.visible = false
+	battle_window.member_clicked.connect(inspect)
 	selection_container.add_theme_constant_override("separation", 2)
 	leaderboard_container.add_theme_constant_override("separation", 2)
 	# The banner sits just below the toolbar (which has no room left for it
@@ -134,21 +135,24 @@ static func make_stat_bar(fill_color: Color) -> Dictionary:
 	return {"container": container, "bar": bar, "label": label, "fill": fill}
 
 ## Leaderboard panels are compact -- no gear section (see _build_panel) --
-## so all VISIBLE_HUD_COUNT of them fit down the one column. Clicking one
-## selects that character, as clicking them on the map does -- paused or
-## not, like the map (see GameManager._on_world_clicked).
+## so all VISIBLE_HUD_COUNT of them fit down the one column.
 func register_npc(npc: NpcAgent) -> void:
 	var r := _build_panel(npc, false)
-	var panel: PanelContainer = r["panel"]
-	panel.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	panel.process_mode = Node.PROCESS_MODE_ALWAYS
-	_ignore_mouse_inside(panel)  # a click on its HP bar is a click on the panel
-	panel.gui_input.connect(_on_row_input.bind(npc))
-	leaderboard_container.add_child(panel)
+	_select_on_click(r["panel"], npc)
+	leaderboard_container.add_child(r["panel"])
 	rows[npc] = r
 	_refresh_row(npc)
 
-func _on_row_input(event: InputEvent, npc: NpcAgent) -> void:
+## Has a click on `panel` (a leaderboard or party panel) select `npc`, as
+## clicking them on the map does -- paused or not, like the map (see
+## GameManager._on_world_clicked).
+func _select_on_click(panel: PanelContainer, npc: NpcAgent) -> void:
+	panel.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	panel.process_mode = Node.PROCESS_MODE_ALWAYS
+	_ignore_mouse_inside(panel)  # a click on its HP bar is a click on the panel
+	panel.gui_input.connect(_on_panel_input.bind(npc))
+
+func _on_panel_input(event: InputEvent, npc: NpcAgent) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		inspect(npc)
 		accept_event()
@@ -384,6 +388,7 @@ func _sync_party_panels() -> void:
 		var m: NpcAgent = members[i]
 		if not party_panels.has(m):
 			party_panels[m] = _build_panel(m, false)
+			_select_on_click(party_panels[m]["panel"], m)
 			selection_container.add_child(party_panels[m]["panel"])
 		selection_container.move_child(party_panels[m]["panel"], i + 1)
 

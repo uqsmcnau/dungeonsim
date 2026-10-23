@@ -123,6 +123,17 @@ func from_middle(cell: Vector2i) -> float:
 func click_on(npc: NpcAgent) -> void:
 	main._on_world_clicked(npc.global_position)
 
+## A left click (press and release) on the screen at `at`, as the mouse
+## would make it -- through the GUI, so whatever's on top there gets it.
+func click_screen_at(at: Vector2) -> void:
+	for pressed in [true, false]:
+		var click := InputEventMouseButton.new()
+		click.button_index = MOUSE_BUTTON_LEFT
+		click.pressed = pressed
+		click.position = at
+		click.global_position = at
+		main.get_viewport().push_input(click)
+
 # =========================== Hand-built mazes =============================
 
 ## A w x h maze with every wall up; knock passages through with open_between.

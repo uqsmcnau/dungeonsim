@@ -20,6 +20,9 @@ extends Control
 ## BattlePainter does the drawing. Runs with the game: pausing freezes it
 ## mid-blow.
 
+## A name in the party menu was clicked: select them (see Hud).
+signal member_clicked(npc: NpcAgent)
+
 enum Side { PARTY, FOES }
 
 const FIELD_HEIGHT := 200.0
@@ -105,6 +108,29 @@ var _listed: Dictionary = {}
 func _ready() -> void:
 	clip_contents = true
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# Clicks on the party menu, paused or not: the window itself pauses with
+	# the game (its animations stop), so they're caught by a layer that
+	# doesn't.
+	var clicks := Control.new()
+	clicks.name = "MenuClicks"
+	clicks.set_anchors_preset(Control.PRESET_FULL_RECT)
+	clicks.process_mode = Node.PROCESS_MODE_ALWAYS
+	clicks.gui_input.connect(_on_menu_input.bind(clicks))
+	add_child(clicks)
+
+## A click on a name in the party menu asks for that character to be
+## selected (see member_clicked); over one, the pointer shows it can be.
+func _on_menu_input(event: InputEvent, clicks: Control) -> void:
+	if not event is InputEventMouse:
+		return
+	var party := fighters_on(Side.PARTY)
+	var row := BattlePainter.party_row_at(size, event.position, party.size())
+	clicks.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND if row >= 0 else Control.CURSOR_ARROW
+	if row < 0 or not (event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT):
+		return
+	var npc = instance_from_id(party[row].id)
+	if npc is NpcAgent:
+		member_clicked.emit(npc)
 
 # ============================== Who's there ===============================
 

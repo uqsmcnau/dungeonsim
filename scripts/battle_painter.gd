@@ -385,18 +385,22 @@ static func draw_caption(canvas: CanvasItem, width: float, text: String) -> void
 static func draw_banner(canvas: CanvasItem, width: float, text: String) -> void:
 	draw_text_outlined(canvas, Vector2(width / 2.0, BattleWindow.FIELD_HEIGHT * 0.5), text, 26, Color(1, 1, 0.85), true)
 
+## A menu line's height, and how far below the top of the menus the party
+## menu's first name sits (its baseline).
+const MENU_ROW := 18.0
+const PARTY_FIRST_ROW := 30.0
+
 ## The blue boxes along the bottom of a window `size`: the party's HP and MP
 ## on the left, under them, and who they're up against on the right -- or,
 ## with nobody to fight, `status` (what they're up to).
 static func draw_menus(canvas: CanvasItem, size: Vector2, party: Array, foes: Array, status: String) -> void:
-	var top := BattleWindow.FIELD_HEIGHT + 4.0
+	var top := _menus_top()
 	var height := size.y - top - 4.0
-	var party_w := size.x * 0.62
-	var party_box := Rect2(4.0, top, party_w - 6.0, height)
-	var foe_box := Rect2(party_w + 2.0, top, size.x - party_w - 6.0, height)
+	var party_box := _party_box(size)
+	var foe_box := Rect2(size.x * 0.62 + 2.0, top, size.x * 0.38 - 6.0, height)
 	draw_box(canvas, party_box)
 	draw_box(canvas, foe_box)
-	var row := 18.0
+	var row := MENU_ROW
 	if foes.is_empty():
 		var text := status if not party.is_empty() else "Select a player to watch their battles."
 		var inner := foe_box.grow(-8.0)
@@ -413,7 +417,7 @@ static func draw_menus(canvas: CanvasItem, size: Vector2, party: Array, foes: Ar
 	if not party.is_empty():
 		draw_text(canvas, Vector2(party_box.position.x + 100.0, top + 14.0), "HP", 10, MISS_COLOR)
 		draw_text(canvas, Vector2(party_box.position.x + 178.0, top + 14.0), "MP", 10, MISS_COLOR)
-	var y2 := top + 30.0
+	var y2 := top + PARTY_FIRST_ROW
 	for f in party:
 		if y2 > top + height - 4.0:
 			break
@@ -427,6 +431,26 @@ static func draw_menus(canvas: CanvasItem, size: Vector2, party: Array, foes: Ar
 		draw_text(canvas, Vector2(x + 92.0, y2), "%d/%d" % [f.hp, f.max_hp], 13, color)
 		draw_text(canvas, Vector2(x + 170.0, y2), "%d" % f.mp, 13, MP_COLOR)
 		y2 += row
+
+## Which line of the party menu (see draw_menus) `pos` is on, in a window
+## `size` listing `count` of the party -- 0 for the first -- or -1 if none.
+static func party_row_at(size: Vector2, pos: Vector2, count: int) -> int:
+	var box := _party_box(size)
+	if not box.has_point(pos):
+		return -1
+	var first_line_top := _menus_top() + PARTY_FIRST_ROW - MENU_ROW + 4.0  # a name's top, just above its baseline
+	var i := floori((pos.y - first_line_top) / MENU_ROW)
+	var baseline := _menus_top() + PARTY_FIRST_ROW + i * MENU_ROW
+	if i < 0 or i >= count or baseline > box.end.y - 4.0:  # (below the last line drawn)
+		return -1
+	return i
+
+static func _menus_top() -> float:
+	return BattleWindow.FIELD_HEIGHT + 4.0
+
+static func _party_box(size: Vector2) -> Rect2:
+	var top := _menus_top()
+	return Rect2(4.0, top, size.x * 0.62 - 6.0, size.y - top - 4.0)
 
 static func draw_box(canvas: CanvasItem, rect: Rect2) -> void:
 	var style := StyleBoxFlat.new()

@@ -7,9 +7,10 @@ boss room at the center of a circular maze. Each `NpcAgent` drives
 itself from `_process`; the spectator can only watch, pause, speed the
 game up (x2/x5/x10, via `Engine.time_scale`), zoom and move the view about
 (or have it follow the selected party), inspect (click a character,
-gravestone or leaderboard panel), toggle the fog of war / Party Vision,
-and give the selected party Guidance (right-click a cell, on a cooldown)
-— they never control anyone directly.
+gravestone or leaderboard panel, or a party-mate's panel or name in the
+battle window), toggle the fog of war / Party Vision, and give the
+selected party Guidance (right-click a cell, on a cooldown) — they never
+control anyone directly.
 
 ## Running it
 
