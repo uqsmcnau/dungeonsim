@@ -39,7 +39,7 @@ func test_silver_fills_the_gap_between_bronze_and_gold():
 			["Silver Ring", "Ring of Vigor", "Ring of Might"]]:
 		for i in range(tiers.size() - 1):
 			assert_gt(ItemCatalog.value_of(tiers[i + 1]), ItemCatalog.value_of(tiers[i]), "%s over %s" % [tiers[i + 1], tiers[i]])
-		assert_eq(ItemCatalog.find(tiers[1])["rarity"], ItemCatalog.RARITY_SILVER, tiers[1])
+		assert_eq(ItemCatalog.find(tiers[1]).rarity, ItemCatalog.RARITY_SILVER, tiers[1])
 
 func test_the_new_silver_pieces_show_in_battle():
 	var stats := NpcStats.new()
@@ -53,12 +53,12 @@ func test_the_new_silver_pieces_show_in_battle():
 func test_a_gold_chest_holds_a_gold_item():
 	for i in range(20):
 		var item := ItemCatalog.random_item(ItemCatalog.RARITY_GOLD)
-		assert_eq(item["rarity"], ItemCatalog.RARITY_GOLD)
+		assert_eq(item.rarity, ItemCatalog.RARITY_GOLD)
 
 func test_nowhere_else_has_them():
 	for i in range(40):
-		assert_false(GOLD_ITEMS.has(ItemCatalog.random_item(ItemCatalog.RARITY_BRONZE)["name"]), "not in an ordinary chest")
-		assert_false(GOLD_ITEMS.has(ItemCatalog.random_item(ItemCatalog.RARITY_SILVER)["name"]), "nor a silver one")
+		assert_false(GOLD_ITEMS.has(ItemCatalog.random_item(ItemCatalog.RARITY_BRONZE).name), "not in an ordinary chest")
+		assert_false(GOLD_ITEMS.has(ItemCatalog.random_item(ItemCatalog.RARITY_SILVER).name), "nor a silver one")
 	for item_name in ItemCatalog.names(ItemCatalog.RARITY_BRONZE, ItemCatalog.KIND_EQUIPMENT) + ItemCatalog.stockable_names():
 		assert_false(GOLD_ITEMS.has(item_name), "nor a shop")
 	assert_true(_gold_chests().is_empty(), "and none lying about to start with")
@@ -74,7 +74,7 @@ func test_they_can_be_worn():
 ## The middle of the first mid boss room led by `kind_name`.
 func _room_of(kind_name: String) -> Vector2i:
 	for cell in main.mid_boss_cells:
-		if main.enemy_map[cell].kind["name"] == kind_name:
+		if main.enemy_map[cell].kind.name == kind_name:
 			return cell
 	return MazeQuery.NONE
 
@@ -89,7 +89,7 @@ func test_beating_an_ogre_warlords_party_leaves_a_gold_chest():
 	var cell := _room_of("Ogre Warlord")
 	_beat(cell)
 	assert_eq(_gold_chests(), [cell], "where the party stood")
-	assert_eq(ItemCatalog.find(main.chest_map[cell].loot.keys()[0])["rarity"], ItemCatalog.RARITY_GOLD)
+	assert_eq(ItemCatalog.find(main.chest_map[cell].loot.keys()[0]).rarity, ItemCatalog.RARITY_GOLD)
 
 func test_beating_an_orc_chieftains_party_leaves_a_silver_chest():
 	var cell := _room_of("Orc Chieftain")

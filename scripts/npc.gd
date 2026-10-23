@@ -270,7 +270,7 @@ func _pending_tome() -> String:
 	for item_name in ["Tome of Fireball", "Tome of Spark"]:
 		if not stats.has_item(item_name):
 			continue
-		var spell: String = ItemCatalog.find(item_name)["spell"]
+		var spell: String = ItemCatalog.find(item_name).spell
 		if not stats.knows_spell(spell):
 			return item_name
 	return ""
@@ -292,17 +292,17 @@ func _finish_recover_idle() -> void:
 ## from a tome) and uses up the one copy that was consumed.
 func _apply_consumable_effect(item_name: String) -> void:
 	var item := ItemCatalog.find(item_name)
-	match item.get("effect", ""):
+	match item.effect:
 		"heal_hp":
-			stats.heal(int(item["amount"]))
+			stats.heal(item.amount)
 		"restore_mp":
-			stats.mp = min(stats.max_mp, stats.mp + int(item["amount"]))
+			stats.mp = min(stats.max_mp, stats.mp + item.amount)
 		"learn_spell":
-			stats.learn_spell(item["spell"])
+			stats.learn_spell(item.spell)
 	stats.consume_item(item_name)
 
 func _consume_verb(item_name: String) -> String:
-	return "Reading" if ItemCatalog.find(item_name).get("effect") == "learn_spell" else "Drinking"
+	return "Reading" if ItemCatalog.find(item_name).effect == "learn_spell" else "Drinking"
 
 ## Consuming an item — a potion or a tome — takes a full action outside
 ## combat too, the same as casting a spell does.
@@ -676,7 +676,7 @@ func _self_first_party() -> Array:
 func receive_item(item_name: String) -> void:
 	stats.acquire_item(item_name)
 	var item := ItemCatalog.find(item_name)
-	if not is_party_leader and item.get("effect") == "learn_spell" and not stats.knows_spell(item["spell"]):
+	if not is_party_leader and item.effect == "learn_spell" and not stats.knows_spell(item.spell):
 		_apply_consumable_effect(item_name)
 
 ## Every living member of this character's party, including itself.
@@ -792,7 +792,7 @@ func killing_blow(action: String, damage: int) -> String:
 		weapon = CombatRules.ACTION_NAMES[action]
 	else:
 		for item_name in stats.equipped_in("hand"):
-			if ItemCatalog.find(item_name).get("effects", {}).has("attack"):
+			if ItemCatalog.find(item_name).effects.has("attack"):
 				weapon = item_name
 				break
 	return "%s for %d damage" % [weapon, damage]

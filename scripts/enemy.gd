@@ -18,7 +18,7 @@ const CHASE_LEASH_RADIUS := 6
 const REGEN_TIME_SCALE := 0.03
 
 ## How far a monster's map icon reaches from its middle (see
-## MonsterCatalog.outline).
+## MonsterKind.outline).
 const ICON_RADIUS := 9.0
 
 ## Emitted by the last of a pack to fall, as it does -- the whole pack's
@@ -31,7 +31,7 @@ var home_cell: Vector2i = Vector2i.ZERO
 var stats: NpcStats
 ## What kind of monster it is -- a Rat, a Troll, the Dragon -- which goes
 ## with its level (see MonsterCatalog).
-var kind: Dictionary = {}
+var kind: MonsterKind
 var alive: bool = true
 var in_combat: bool = false
 ## The shared party array of whoever this pack is fighting (set alongside
@@ -95,13 +95,13 @@ func setup(cell: Vector2i, cs: float, enemy_level: int, maze_grid: Array, enemy_
 
 ## Makes it a `new_kind` of monster (see MonsterCatalog) -- the kind for
 ## its level, unless it's an Orc Chieftain -- and shows it on its icon.
-func set_kind(new_kind: Dictionary) -> void:
+func set_kind(new_kind: MonsterKind) -> void:
 	kind = new_kind
-	var icon := MonsterCatalog.outline(kind)
+	var icon := kind.outline()
 	for i in range(icon.size()):
 		icon[i] *= ICON_RADIUS
 	visual.polygon = icon
-	visual.color = kind["color"]
+	visual.color = kind.color
 	label.text = "%d" % stats.level
 	label.add_theme_color_override("font_color", Color.BLACK if visual.color.get_luminance() > 0.45 else Color.WHITE)
 
@@ -133,7 +133,7 @@ static func form_pack(members: Array, spread: float = 7.0) -> void:
 ## boss it was guarding or the pack it was part of, if either:
 ## "a Wyvern (Lv.10), guarding the Dragon", "a Rat (Lv.2), one of a pack of 3".
 func killer_description() -> String:
-	var desc := "%s (Lv.%d)" % [MonsterCatalog.called(kind, is_boss), stats.level]
+	var desc := "%s (Lv.%d)" % [kind.called(is_boss), stats.level]
 	if guarding != "":
 		desc += ", guarding " + guarding
 	elif pack.size() > 1 and not is_mid_boss and not is_boss:

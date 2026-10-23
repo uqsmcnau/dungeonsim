@@ -15,26 +15,26 @@ func _roaming_monsters() -> Array:
 # ============================== The catalogue =============================
 
 func test_a_kind_for_every_level():
-	assert_eq(MonsterCatalog.KINDS.size(), 12)
+	assert_eq(MonsterCatalog.kinds.size(), 12)
 	var names := {}
 	var colors := {}
 	var shapes := {}
-	for kind in MonsterCatalog.KINDS:
-		names[kind["name"]] = true
-		colors[kind["color"]] = true
-		shapes[[kind["sides"], kind["inner"], kind["turn"], kind["stretch"]]] = true
+	for kind in MonsterCatalog.kinds:
+		names[kind.name] = true
+		colors[kind.color] = true
+		shapes[[kind.sides, kind.inner, kind.turn, kind.stretch]] = true
 	assert_eq(names.size(), 12, "each its own name")
 	assert_eq(colors.size(), 12, "and colour")
 	assert_eq(shapes.size(), 12, "and shape")
 
 func test_levels_past_the_ends_get_the_nearest_kind():
-	assert_eq(MonsterCatalog.for_level(0)["name"], "Rat")
-	assert_eq(MonsterCatalog.for_level(99)["name"], "Dragon")
+	assert_eq(MonsterCatalog.for_level(0).name, "Rat")
+	assert_eq(MonsterCatalog.for_level(99).name, "Dragon")
 
 func test_names_take_the_right_article():
-	assert_eq(MonsterCatalog.called(MonsterCatalog.for_level(6)), "an Orc")
-	assert_eq(MonsterCatalog.called(MonsterCatalog.for_level(8)), "a Troll")
-	assert_eq(MonsterCatalog.called(MonsterCatalog.for_level(12), true), "the Dragon")
+	assert_eq(MonsterCatalog.for_level(6).called(), "an Orc")
+	assert_eq(MonsterCatalog.for_level(8).called(), "a Troll")
+	assert_eq(MonsterCatalog.for_level(12).called(true), "the Dragon")
 
 # ================================ The maze ================================
 
@@ -44,25 +44,25 @@ func test_maze_monsters_run_from_level_1_at_the_edge_to_10_by_the_boss_room():
 	var outside_boss_room: Vector2i = main.exit_cell + Vector2i(WorldBuilder.BOSS_ROOM_REACH, 0)
 	assert_eq(main.world.enemy_level_for(outside_boss_room), MonsterCatalog.MAZE_MAX_LEVEL)
 	for monster in _roaming_monsters():
-		assert_between(monster.stats.level, 1, MonsterCatalog.MAZE_MAX_LEVEL, monster.kind["name"])
+		assert_between(monster.stats.level, 1, MonsterCatalog.MAZE_MAX_LEVEL, monster.kind.name)
 
 func test_every_monster_is_the_kind_for_its_level():
 	for monster in main.enemy_container.get_children():
-		if monster.kind != MonsterCatalog.ORC_CHIEFTAIN:
+		if monster.kind != MonsterCatalog.orc_chieftain:
 			assert_eq(monster.kind, MonsterCatalog.for_level(monster.stats.level))
 
 func test_bar_the_orc_chieftains():
-	var chieftains: Array = main.enemy_container.get_children().filter(func(e): return e.kind == MonsterCatalog.ORC_CHIEFTAIN)
+	var chieftains: Array = main.enemy_container.get_children().filter(func(e): return e.kind == MonsterCatalog.orc_chieftain)
 	assert_eq(chieftains.size(), WorldBuilder.CHIEFTAIN_COUNT)
 	for chieftain in chieftains:
 		assert_true(chieftain.is_mid_boss, "each leads a mid boss's party")
 		assert_eq(chieftain.stats.level, 6, "an Orc's level, but its own kind")
-		assert_eq(chieftain.visual.color, MonsterCatalog.ORC_CHIEFTAIN["color"])
+		assert_eq(chieftain.visual.color, MonsterCatalog.orc_chieftain.color)
 
 func test_its_kind_shows_on_the_map():
 	var monster: EnemyAgent = _roaming_monsters()[0]
-	assert_eq(monster.visual.color, monster.kind["color"])
-	var icon := MonsterCatalog.outline(monster.kind)
+	assert_eq(monster.visual.color, monster.kind.color)
+	var icon := monster.kind.outline()
 	assert_eq(monster.visual.polygon.size(), icon.size())
 	assert_almost_eq(monster.visual.polygon[0], icon[0] * EnemyAgent.ICON_RADIUS, Vector2.ONE * 0.01)
 
@@ -77,7 +77,7 @@ func test_its_level_reads_on_its_icon_however_dark():
 
 ## The mid bosses (both tiers) whose leader is `kind_name`.
 func _mid_bosses(kind_name: String) -> Array:
-	return main.mid_boss_cells.map(func(c): return monster_on(c)).filter(func(b): return b.kind["name"] == kind_name)
+	return main.mid_boss_cells.map(func(c): return monster_on(c)).filter(func(b): return b.kind.name == kind_name)
 
 func test_each_ogre_warlord_leads_a_party_of_three_near_the_middle():
 	var warlords := _mid_bosses("Ogre Warlord")
@@ -88,7 +88,7 @@ func test_each_ogre_warlord_leads_a_party_of_three_near_the_middle():
 		assert_eq(warlord.pack.size(), 3)
 		for guard in warlord.pack.slice(1):
 			assert_eq(guard.stats.level, 8)
-			assert_eq(guard.kind["name"], "Troll")
+			assert_eq(guard.kind.name, "Troll")
 		for member in warlord.pack:
 			assert_false(member.wanders, "the party stays in its room")
 		assert_between(from_middle(warlord.cell_pos), WorldBuilder.WARLORD_REACH.x - 1.0, WorldBuilder.WARLORD_REACH.y + 1.0)
@@ -101,7 +101,7 @@ func test_each_orc_chieftain_leads_a_weaker_party_of_three_near_the_edge():
 		assert_eq(chieftain.pack.size(), 3)
 		for guard in chieftain.pack.slice(1):
 			assert_eq(guard.stats.level, 3)
-			assert_eq(guard.kind["name"], "Bat")
+			assert_eq(guard.kind.name, "Bat")
 			assert_eq(guard.killer_description(), "a Bat (Lv.3), guarding an Orc Chieftain")
 		for member in chieftain.pack:
 			assert_false(member.wanders)
@@ -113,12 +113,12 @@ func test_each_orc_chieftain_leads_a_weaker_party_of_three_near_the_edge():
 func test_the_boss_leads_a_party_of_four():
 	var boss := monster_on(main.exit_cell)
 	assert_true(boss.is_boss)
-	assert_eq(boss.kind["name"], "Dragon")
+	assert_eq(boss.kind.name, "Dragon")
 	assert_eq(boss.stats.level, 12)
 	assert_eq(boss.pack.size(), 4)
 	for guard in boss.pack.slice(1):
 		assert_eq(guard.stats.level, 10)
-		assert_eq(guard.kind["name"], "Wyvern")
+		assert_eq(guard.kind.name, "Wyvern")
 		assert_false(guard.is_boss, "only the Dragon itself")
 	for member in boss.pack:
 		assert_false(member.wanders)

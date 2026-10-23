@@ -56,7 +56,7 @@ func test_it_sells_the_silver_gear():
 	silver.sort()
 	assert_eq(stock, silver)
 	for item_name in _shopper().missing_items():
-		assert_eq(ItemCatalog.find(item_name)["rarity"], ItemCatalog.RARITY_BRONZE, "a bronze shop sells none of it")
+		assert_eq(ItemCatalog.find(item_name).rarity, ItemCatalog.RARITY_BRONZE, "a bronze shop sells none of it")
 
 func test_at_a_silver_price():
 	var stats := _shopper()
@@ -79,8 +79,8 @@ func test_a_party_at_a_silver_shop_buys_silver():
 	assert_true(npc.stats.has_item("Steel Sword") or npc.stats.has_item("Chainmail"), "came away with silver gear")
 	for item_name in npc.stats.inventory:
 		var item := ItemCatalog.find(item_name)
-		if item["kind"] == ItemCatalog.KIND_EQUIPMENT:
-			assert_eq(item["rarity"], ItemCatalog.RARITY_SILVER, "no bronze gear from a silver shop: %s" % item_name)
+		if item.kind == ItemCatalog.KIND_EQUIPMENT:
+			assert_eq(item.rarity, ItemCatalog.RARITY_SILVER, "no bronze gear from a silver shop: %s" % item_name)
 
 func test_they_only_make_for_a_silver_shop_with_business_there():
 	var npc: NpcAgent = main.npcs[0]

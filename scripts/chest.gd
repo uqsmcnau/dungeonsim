@@ -14,7 +14,7 @@ var rarity: String = ItemCatalog.RARITY_BRONZE
 func setup(cell: Vector2i, cell_size: float, item_rarity: String = ItemCatalog.RARITY_BRONZE) -> void:
 	position = Vector2((cell.x + 0.5) * cell_size, (cell.y + 0.5) * cell_size)
 	rarity = item_rarity
-	loot[ItemCatalog.random_item(rarity)["name"]] = 1
+	loot[ItemCatalog.random_item(rarity).name] = 1
 	if rarity == ItemCatalog.RARITY_SILVER:
 		box.color = Color(0.55, 0.58, 0.65, 1.0)
 		band.color = Color(0.85, 0.88, 0.95, 1.0)

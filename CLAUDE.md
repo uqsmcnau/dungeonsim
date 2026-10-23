@@ -122,8 +122,9 @@ On GitHub it plays 3 games at x10 on every push, from a new seed each run
   maze and its zones and stocks it (monsters, bosses, chests), plus chests
   placed later (mid boss drops, death chests). Writes into GameManager's
   state rather than keeping its own.
-- **`monster_catalog.gd` (`MonsterCatalog`)** — the kinds of monster, one
-  per level: 1–10 roam the maze (`WorldBuilder.enemy_level_for`: level 1 at
+- **`monster_catalog.gd` (`MonsterCatalog`)** — the kinds of monster
+  (**`MonsterKind`**, `monster_kind.gd`: name, colour, outline, features),
+  one per level: 1–10 roam the maze (`WorldBuilder.enemy_level_for`: level 1 at
   the edge up to 10 outside the boss room), 11 (Ogre Warlord) leads each
   of the 6 stronger mid bosses' parties of three, with two level-8 guards,
   in a ring near the middle; 12 (the Dragon) leads the boss's party of four
@@ -131,11 +132,12 @@ On GitHub it plays 3 games at x10 on every push, from a new seed each run
   (`EnemyAgent.kind`, set by `set_kind`) — name, colour, outline for its map
   icon and battle body, and the features `BattlePainter.draw_monster` adds —
   bar the 8 weaker mid bosses out towards the edge: the Orc Chieftain
-  (`ORC_CHIEFTAIN`, level 6, its own kind) with two level-3 guards. Both
+  (`orc_chieftain`, level 6, its own kind) with two level-3 guards. Both
   tiers are `is_mid_boss` (`WorldBuilder._place_mid_bosses`).
   A boss's guards (`EnemyAgent.guarding`) never wander, even left leading
   their party (`EnemyAgent.roams`).
-- **`item_catalog.gd` (`ItemCatalog`)** — every item, in three rarities:
+- **`item_catalog.gd` (`ItemCatalog`)** — every item (**`Item`**,
+  `item.gd`, made by `Item.gear` or `Item.consumable`), in three rarities:
   bronze (ordinary chests and the eight bronze shops), silver (the chest
   an Orc Chieftain's whole party leaves once all three fall, and the two
   silver shops near the middle, at `SILVER_BUY_PRICE`) and gold (the chest

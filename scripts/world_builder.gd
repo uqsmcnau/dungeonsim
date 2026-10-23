@@ -205,9 +205,9 @@ func _place_mid_bosses(generator: MazeGenerator) -> void:
 		boss.scale = Vector2(WARLORD_SCALE, WARLORD_SCALE))
 	_place_in_ring(CHIEFTAIN_COUNT, CHIEFTAIN_REACH, func(center: Vector2i):
 		var boss := _open_mid_boss_room(generator, center, CHIEFTAIN_LEVEL, CHIEFTAIN_GUARD_LEVEL, ItemCatalog.RARITY_SILVER)
-		boss.set_kind(MonsterCatalog.ORC_CHIEFTAIN)
+		boss.set_kind(MonsterCatalog.orc_chieftain)
 		for guard in boss.pack.slice(1):
-			guard.guarding = MonsterCatalog.called(boss.kind)
+			guard.guarding = boss.kind.called()
 		boss.scale = Vector2(CHIEFTAIN_SCALE, CHIEFTAIN_SCALE))
 
 ## A mid boss room on `center`, held by a level `level` mid boss and its two
@@ -299,7 +299,7 @@ func _spawn_boss() -> void:
 	boss.scale = Vector2(BOSS_SCALE, BOSS_SCALE)
 	for guard in boss.pack:
 		if guard != boss:
-			guard.guarding = MonsterCatalog.called(boss.kind, true)
+			guard.guarding = boss.kind.called(true)
 
 ## A boss of level `level` on `cell` leading `guards` guards of level
 ## `guard_level`: one pack, none of whom ever leave the room. Returns the
@@ -314,7 +314,7 @@ func _spawn_boss_party(cell: Vector2i, level: int, guard_level: int, guards: int
 	EnemyAgent.form_pack(members, BOSS_GUARD_SPREAD)
 	var boss: EnemyAgent = members[0]
 	for guard in members.slice(1):
-		guard.guarding = MonsterCatalog.called(boss.kind)
+		guard.guarding = boss.kind.called()
 	return boss
 
 ## Every cell of the maze outside the safe zones, shuffled.

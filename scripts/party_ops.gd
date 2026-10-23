@@ -209,13 +209,13 @@ static func promote_next_leader(former_leader: NpcAgent) -> void:
 ## - Anything else (potions): whoever holds the fewest of it.
 static func best_recipient(members: Array, item_name: String) -> NpcAgent:
 	var item := ItemCatalog.find(item_name)
-	if item.get("kind") == ItemCatalog.KIND_EQUIPMENT:
+	if item.is_equipment():
 		var wearer := best_wearer(members, item_name)
 		return wearer if wearer != null else members[0]
-	if item.get("effect") == "learn_spell":
+	if item.effect == "learn_spell":
 		var reader: NpcAgent = null
 		for m in members:
-			if m.stats.knows_spell(item["spell"]) or m.stats.has_item(item_name):
+			if m.stats.knows_spell(item.spell) or m.stats.has_item(item_name):
 				continue
 			if reader == null or m.stats.intelligence > reader.stats.intelligence:
 				reader = m

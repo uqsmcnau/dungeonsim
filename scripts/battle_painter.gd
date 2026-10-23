@@ -268,8 +268,8 @@ static func draw_monster(canvas: CanvasItem, p: Vector2, color: Color, f: Battle
 	var r := f.height() * 0.6 * depth
 	if f.dissolve >= 0.0:
 		r *= 0.8 + 0.2 * alpha
-	var kind: Dictionary = f.monster if not f.monster.is_empty() else MonsterCatalog.for_level(f.level)
-	var features: Array = kind["features"]
+	var kind: MonsterKind = f.monster if f.monster != null else MonsterCatalog.for_level(f.level)
+	var features: Array[String] = kind.features
 	if features.has("ghostly"):
 		color.a *= 0.7
 	var edge := Color(color.darkened(0.5), alpha)
@@ -284,7 +284,7 @@ static func draw_monster(canvas: CanvasItem, p: Vector2, color: Color, f: Battle
 			p + Vector2(r * 1.55, -r * 0.35)]), edge, maxf(1.5, r * 0.12))
 	# The body.
 	var points := PackedVector2Array()
-	for point in MonsterCatalog.outline(kind):
+	for point in kind.outline():
 		points.append(p + point * r)
 	canvas.draw_colored_polygon(points, color)
 	points.append(points[0])

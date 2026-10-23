@@ -1,76 +1,40 @@
 class_name MonsterCatalog
 extends RefCounted
 
-## Every kind of monster in the dungeon, one per level: levels 1-10 roam
-## the maze (weakest at its edge, strongest round the boss room), level 11
-## leads each of the stronger mid bosses' parties and level 12 is the boss.
-## A monster's level is what makes it the kind it is (see EnemyAgent.setup)
-## -- a pack's weaker members are the kind for their own, lower level --
-## bar the lesser mid bosses, the Orc Chieftains (ORC_CHIEFTAIN).
-##
-## Each kind has a `name`; a `color`; an outline (see outline) for its map
-## icon and its body in the battle window -- `sides` points round, every
-## other one pulled in to `inner` of the way out for a star (1 for none),
-## turned by `turn` degrees and stretched by `stretch`; a `size` for how big
-## it's drawn in battle; and `features` (see BattlePainter.draw_monster).
-
-const KINDS := [
-	{"name": "Rat", "color": Color(0.62, 0.52, 0.42), "sides": 10, "inner": 1.0, "turn": 0.0,
-		"stretch": Vector2(1.0, 0.75), "size": 0.75, "features": ["tail", "ears"]},
-	{"name": "Slime", "color": Color(0.4, 0.85, 0.35), "sides": 12, "inner": 1.0, "turn": 0.0,
-		"stretch": Vector2(1.15, 0.7), "size": 0.85, "features": ["shine"]},
-	{"name": "Bat", "color": Color(0.5, 0.38, 0.6), "sides": 4, "inner": 0.55, "turn": 0.0,
-		"stretch": Vector2(1.3, 0.8), "size": 0.8, "features": ["wings", "ears"]},
-	{"name": "Goblin", "color": Color(0.6, 0.72, 0.25), "sides": 3, "inner": 1.0, "turn": -90.0,
-		"stretch": Vector2(1.0, 1.0), "size": 0.9, "features": ["ears", "teeth"]},
-	{"name": "Skeleton", "color": Color(0.9, 0.88, 0.78), "sides": 4, "inner": 1.0, "turn": -90.0,
-		"stretch": Vector2(0.8, 1.0), "size": 1.0, "features": ["sockets", "teeth"]},
-	{"name": "Orc", "color": Color(0.78, 0.45, 0.3), "sides": 4, "inner": 1.0, "turn": 45.0,
-		"stretch": Vector2(1.0, 1.0), "size": 1.05, "features": ["tusks"]},
-	{"name": "Wraith", "color": Color(0.6, 0.75, 0.95), "sides": 5, "inner": 1.0, "turn": 90.0,
-		"stretch": Vector2(0.9, 1.0), "size": 1.0, "features": ["ghostly"]},
-	{"name": "Troll", "color": Color(0.35, 0.62, 0.62), "sides": 6, "inner": 1.0, "turn": 0.0,
-		"stretch": Vector2(1.0, 1.0), "size": 1.15, "features": ["horns", "tusks"]},
-	{"name": "Golem", "color": Color(0.62, 0.62, 0.66), "sides": 8, "inner": 0.82, "turn": 0.0,
-		"stretch": Vector2(1.0, 1.0), "size": 1.2, "features": ["cracks"]},
-	{"name": "Wyvern", "color": Color(0.88, 0.25, 0.3), "sides": 5, "inner": 0.5, "turn": -90.0,
-		"stretch": Vector2(1.0, 1.0), "size": 1.2, "features": ["wings", "horns", "tail"]},
-	{"name": "Ogre Warlord", "color": Color(0.55, 0.15, 0.75), "sides": 6, "inner": 0.6, "turn": -90.0,
-		"stretch": Vector2(1.0, 1.0), "size": 1.0, "features": ["crown", "tusks"]},
-	{"name": "Dragon", "color": Color(0.55, 0.02, 0.05), "sides": 8, "inner": 0.55, "turn": -90.0,
-		"stretch": Vector2(1.0, 1.0), "size": 1.0, "features": ["wings", "horns", "tail"]},
-]
-
-## The lesser mid boss, out towards the maze's edge: a level 6 like the
-## Orc, but its own kind (see WorldBuilder._place_mid_bosses).
-const ORC_CHIEFTAIN := {"name": "Orc Chieftain", "color": Color(0.92, 0.62, 0.15), "sides": 7, "inner": 0.65,
-	"turn": -90.0, "stretch": Vector2(1.0, 1.0), "size": 1.0, "features": ["crown", "ears", "teeth"]}
+## Every kind of monster in the dungeon (see MonsterKind), one per level:
+## levels 1-10 roam the maze (weakest at its edge, strongest round the boss
+## room), level 11 leads each of the stronger mid bosses' parties and level
+## 12 is the boss. A monster's level is what makes it the kind it is (see
+## EnemyAgent.setup) -- a pack's weaker members are the kind for their own,
+## lower level -- bar the lesser mid bosses, the Orc Chieftains
+## (orc_chieftain).
 
 ## The highest level a monster roaming the maze reaches (see
 ## WorldBuilder.enemy_level_for).
 const MAZE_MAX_LEVEL := 10
 
+## By level, from 1: name, colour, outline (sides, inner, turn, stretch),
+## size in battle, and features.
+static var kinds: Array[MonsterKind] = [
+	MonsterKind.new("Rat", Color(0.62, 0.52, 0.42), 10, 1.0, 0.0, Vector2(1.0, 0.75), 0.75, ["tail", "ears"]),
+	MonsterKind.new("Slime", Color(0.4, 0.85, 0.35), 12, 1.0, 0.0, Vector2(1.15, 0.7), 0.85, ["shine"]),
+	MonsterKind.new("Bat", Color(0.5, 0.38, 0.6), 4, 0.55, 0.0, Vector2(1.3, 0.8), 0.8, ["wings", "ears"]),
+	MonsterKind.new("Goblin", Color(0.6, 0.72, 0.25), 3, 1.0, -90.0, Vector2(1.0, 1.0), 0.9, ["ears", "teeth"]),
+	MonsterKind.new("Skeleton", Color(0.9, 0.88, 0.78), 4, 1.0, -90.0, Vector2(0.8, 1.0), 1.0, ["sockets", "teeth"]),
+	MonsterKind.new("Orc", Color(0.78, 0.45, 0.3), 4, 1.0, 45.0, Vector2(1.0, 1.0), 1.05, ["tusks"]),
+	MonsterKind.new("Wraith", Color(0.6, 0.75, 0.95), 5, 1.0, 90.0, Vector2(0.9, 1.0), 1.0, ["ghostly"]),
+	MonsterKind.new("Troll", Color(0.35, 0.62, 0.62), 6, 1.0, 0.0, Vector2(1.0, 1.0), 1.15, ["horns", "tusks"]),
+	MonsterKind.new("Golem", Color(0.62, 0.62, 0.66), 8, 0.82, 0.0, Vector2(1.0, 1.0), 1.2, ["cracks"]),
+	MonsterKind.new("Wyvern", Color(0.88, 0.25, 0.3), 5, 0.5, -90.0, Vector2(1.0, 1.0), 1.2, ["wings", "horns", "tail"]),
+	MonsterKind.new("Ogre Warlord", Color(0.55, 0.15, 0.75), 6, 0.6, -90.0, Vector2(1.0, 1.0), 1.0, ["crown", "tusks"]),
+	MonsterKind.new("Dragon", Color(0.55, 0.02, 0.05), 8, 0.55, -90.0, Vector2(1.0, 1.0), 1.0, ["wings", "horns", "tail"]),
+]
+
+## The lesser mid boss, out towards the maze's edge: a level 6 like the
+## Orc, but its own kind (see WorldBuilder._place_mid_bosses).
+static var orc_chieftain := MonsterKind.new("Orc Chieftain", Color(0.92, 0.62, 0.15), 7, 0.65, -90.0,
+	Vector2(1.0, 1.0), 1.0, ["crown", "ears", "teeth"])
+
 ## The kind of monster of level `level` (clamped to the ones there are).
-static func for_level(level: int) -> Dictionary:
-	return KINDS[clampi(level, 1, KINDS.size()) - 1]
-
-## `kind`'s outline, as points round its middle at a radius of about 1.
-static func outline(kind: Dictionary) -> PackedVector2Array:
-	var inner: float = kind["inner"]
-	var corners: int = kind["sides"] * (2 if inner < 1.0 else 1)
-	var turn := deg_to_rad(kind["turn"])
-	var stretch: Vector2 = kind["stretch"]
-	var points := PackedVector2Array()
-	for i in range(corners):
-		var a := turn + TAU * i / corners
-		var reach := inner if inner < 1.0 and i % 2 == 1 else 1.0
-		points.append(Vector2(cos(a), sin(a)) * reach * stretch)
-	return points
-
-## "a Troll", "an Orc", "the Dragon" -- `kind`'s name with the article
-## that goes with it.
-static func called(kind: Dictionary, the: bool = false) -> String:
-	var name: String = kind["name"]
-	if the:
-		return "the " + name
-	return ("an " if "AEIOU".contains(name[0]) else "a ") + name
+static func for_level(level: int) -> MonsterKind:
+	return kinds[clampi(level, 1, kinds.size()) - 1]

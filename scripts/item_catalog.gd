@@ -26,65 +26,48 @@ const RARITY_SILVER := "silver"
 const RARITY_GOLD := "gold"
 
 ## Equipment sits in a slot and grants its effects for as long as it's worn.
-## A consumable is used up on the spot for a one-off effect (see "effect"
-## below) and never occupies a slot.
+## A consumable is used up on the spot for a one-off effect and never
+## occupies a slot (see Item).
 const KIND_EQUIPMENT := "equipment"
 const KIND_CONSUMABLE := "consumable"
 
-## Each equipment item goes in one slot, has a rarity, and grants a set of
-## effects while equipped. An effect key is either an ability score
-## (strength, dexterity, constitution, intelligence, wisdom, charisma) or a
-## combat stat boosted directly (attack, defense, evasion — evasion is a
-## fraction, so 0.05 is +5%).
-##
-## A consumable instead has an "effect" of its own: "heal_hp" or
-## "restore_mp" (with an "amount"), or "learn_spell" (with a "spell" name,
-## permanently unlocking that spell — see NpcStats.knows_spell).
-const ITEMS := [
-	{"name": "Iron Sword", "kind": "equipment", "slot": "hand", "rarity": "bronze", "effects": {"attack": 2}},
-	{"name": "Shield", "kind": "equipment", "slot": "hand", "rarity": "bronze", "effects": {"defense": 1, "evasion": 0.03}},
-	{"name": "Arcane Tome", "kind": "equipment", "slot": "hand", "rarity": "bronze", "effects": {"intelligence": 2}},
-	{"name": "Leather Armor", "kind": "equipment", "slot": "armor", "rarity": "bronze", "effects": {"defense": 2}},
-	{"name": "Helmet", "kind": "equipment", "slot": "helmet", "rarity": "bronze", "effects": {"defense": 1}},
-	{"name": "Leather Boots", "kind": "equipment", "slot": "feet", "rarity": "bronze", "effects": {"defense": 1, "evasion": 0.05}},
-	{"name": "Sage's Amulet", "kind": "equipment", "slot": "accessory", "rarity": "bronze", "effects": {"wisdom": 2}},
-	{"name": "Silver Ring", "kind": "equipment", "slot": "accessory", "rarity": "bronze", "effects": {"charisma": 2}},
+## Every item there is.
+static var items: Array[Item] = [
+	Item.gear("Iron Sword", "hand", RARITY_BRONZE, {"attack": 2}),
+	Item.gear("Shield", "hand", RARITY_BRONZE, {"defense": 1, "evasion": 0.03}),
+	Item.gear("Arcane Tome", "hand", RARITY_BRONZE, {"intelligence": 2}),
+	Item.gear("Leather Armor", "armor", RARITY_BRONZE, {"defense": 2}),
+	Item.gear("Helmet", "helmet", RARITY_BRONZE, {"defense": 1}),
+	Item.gear("Leather Boots", "feet", RARITY_BRONZE, {"defense": 1, "evasion": 0.05}),
+	Item.gear("Sage's Amulet", "accessory", RARITY_BRONZE, {"wisdom": 2}),
+	Item.gear("Silver Ring", "accessory", RARITY_BRONZE, {"charisma": 2}),
 
 	# Silver tier: an upgrade of each bronze piece above.
-	{"name": "Steel Sword", "kind": "equipment", "slot": "hand", "rarity": "silver", "effects": {"attack": 4}},
-	{"name": "Chainmail", "kind": "equipment", "slot": "armor", "rarity": "silver", "effects": {"defense": 4}},
-	{"name": "Silver Shield", "kind": "equipment", "slot": "hand", "rarity": "silver", "effects": {"defense": 2, "evasion": 0.06}},
-	{"name": "Enchanted Tome", "kind": "equipment", "slot": "hand", "rarity": "silver",
-		"effects": {"intelligence": 3, "wisdom": 1}},
-	{"name": "Steel Helm", "kind": "equipment", "slot": "helmet", "rarity": "silver", "effects": {"defense": 2}},
-	{"name": "Swift Boots", "kind": "equipment", "slot": "feet", "rarity": "silver",
-		"effects": {"defense": 1, "evasion": 0.07, "dexterity": 1}},
-	{"name": "Moonstone Amulet", "kind": "equipment", "slot": "accessory", "rarity": "silver",
-		"effects": {"wisdom": 3, "intelligence": 1}},
-	{"name": "Ring of Vigor", "kind": "equipment", "slot": "accessory", "rarity": "silver",
-		"effects": {"constitution": 2, "charisma": 1}},
+	Item.gear("Steel Sword", "hand", RARITY_SILVER, {"attack": 4}),
+	Item.gear("Chainmail", "armor", RARITY_SILVER, {"defense": 4}),
+	Item.gear("Silver Shield", "hand", RARITY_SILVER, {"defense": 2, "evasion": 0.06}),
+	Item.gear("Enchanted Tome", "hand", RARITY_SILVER, {"intelligence": 3, "wisdom": 1}),
+	Item.gear("Steel Helm", "helmet", RARITY_SILVER, {"defense": 2}),
+	Item.gear("Swift Boots", "feet", RARITY_SILVER, {"defense": 1, "evasion": 0.07, "dexterity": 1}),
+	Item.gear("Moonstone Amulet", "accessory", RARITY_SILVER, {"wisdom": 3, "intelligence": 1}),
+	Item.gear("Ring of Vigor", "accessory", RARITY_SILVER, {"constitution": 2, "charisma": 1}),
 
 	# Gold tier: upgrades of the silver gear, and the best of every other slot.
-	{"name": "Mithril Sword", "kind": "equipment", "slot": "hand", "rarity": "gold", "effects": {"attack": 6}},
-	{"name": "Aegis Shield", "kind": "equipment", "slot": "hand", "rarity": "gold", "effects": {"defense": 3, "evasion": 0.1}},
-	{"name": "Archmage's Staff", "kind": "equipment", "slot": "hand", "rarity": "gold",
-		"effects": {"intelligence": 4, "wisdom": 2}},
-	{"name": "Plate Armor", "kind": "equipment", "slot": "armor", "rarity": "gold", "effects": {"defense": 6}},
-	{"name": "Golden Helm", "kind": "equipment", "slot": "helmet", "rarity": "gold", "effects": {"defense": 2, "constitution": 2}},
-	{"name": "Winged Boots", "kind": "equipment", "slot": "feet", "rarity": "gold",
-		"effects": {"defense": 2, "evasion": 0.1, "dexterity": 2}},
-	{"name": "Ring of Might", "kind": "equipment", "slot": "accessory", "rarity": "gold",
-		"effects": {"strength": 3, "constitution": 2}},
+	Item.gear("Mithril Sword", "hand", RARITY_GOLD, {"attack": 6}),
+	Item.gear("Aegis Shield", "hand", RARITY_GOLD, {"defense": 3, "evasion": 0.1}),
+	Item.gear("Archmage's Staff", "hand", RARITY_GOLD, {"intelligence": 4, "wisdom": 2}),
+	Item.gear("Plate Armor", "armor", RARITY_GOLD, {"defense": 6}),
+	Item.gear("Golden Helm", "helmet", RARITY_GOLD, {"defense": 2, "constitution": 2}),
+	Item.gear("Winged Boots", "feet", RARITY_GOLD, {"defense": 2, "evasion": 0.1, "dexterity": 2}),
+	Item.gear("Ring of Might", "accessory", RARITY_GOLD, {"strength": 3, "constitution": 2}),
 
-	# Consumables. Potions don't drop from chests (see random_item) — a shop
-	# is their only source, and unlike equipment it'll sell any number of them
-	# (see "shop_stock" / NpcStats.buy_potions).
-	{"name": "Health Potion", "kind": "consumable", "rarity": "bronze", "effect": "heal_hp", "amount": 15,
-		"in_chests": false, "shop_stock": true},
-	{"name": "Mana Potion", "kind": "consumable", "rarity": "bronze", "effect": "restore_mp", "amount": 10,
-		"in_chests": false, "shop_stock": true},
-	{"name": "Tome of Spark", "kind": "consumable", "rarity": "bronze", "effect": "learn_spell", "spell": "spark"},
-	{"name": "Tome of Fireball", "kind": "consumable", "rarity": "silver", "effect": "learn_spell", "spell": "fireball"},
+	# Consumables. Potions never turn up in a chest -- a shop is their only
+	# source, and unlike equipment it'll sell any number of them (see
+	# NpcStats.buy_potions).
+	Item.consumable("Health Potion", RARITY_BRONZE, "heal_hp", 15, "", true),
+	Item.consumable("Mana Potion", RARITY_BRONZE, "restore_mp", 10, "", true),
+	Item.consumable("Tome of Spark", RARITY_BRONZE, "learn_spell", 0, "spark"),
+	Item.consumable("Tome of Fireball", RARITY_SILVER, "learn_spell", 0, "fireball"),
 ]
 
 ## How much each kind of effect is worth when deciding which of two items
@@ -99,41 +82,39 @@ const EFFECT_WEIGHTS := {
 ## stock is bronze-tier equipment only).
 static func names(rarity: String = "", kind: String = "") -> Array:
 	var result: Array = []
-	for item in ITEMS:
-		if rarity != "" and item["rarity"] != rarity:
+	for item in items:
+		if rarity != "" and item.rarity != rarity:
 			continue
-		if kind != "" and item["kind"] != kind:
+		if kind != "" and item.kind != kind:
 			continue
-		result.append(item["name"])
+		result.append(item.name)
 	return result
 
 ## Consumables a shop keeps in stock and will sell any number of (potions),
 ## as opposed to equipment, which it only ever sells one of.
 static func stockable_names(rarity: String = RARITY_BRONZE) -> Array:
 	var result: Array = []
-	for item in ITEMS:
-		if item["rarity"] == rarity and item.get("shop_stock", false):
-			result.append(item["name"])
+	for item in items:
+		if item.rarity == rarity and item.shop_stock:
+			result.append(item.name)
 	return result
 
 ## A random item of the given rarity, from whatever can drop in a chest
-## (some consumables, like potions, are opted out via "in_chests": false).
-static func random_item(rarity: String = RARITY_BRONZE) -> Dictionary:
-	var pool: Array = []
-	for item in ITEMS:
-		if item["rarity"] == rarity and item.get("in_chests", true):
-			pool.append(item)
+## (not potions -- see Item.in_chests).
+static func random_item(rarity: String = RARITY_BRONZE) -> Item:
+	var pool: Array = items.filter(func(item): return item.rarity == rarity and item.in_chests)
 	return pool[randi() % pool.size()]
 
-static func find(item_name: String) -> Dictionary:
-	for item in ITEMS:
-		if item["name"] == item_name:
+## The item called `item_name`, or null if there's no such item.
+static func find(item_name: String) -> Item:
+	for item in items:
+		if item.name == item_name:
 			return item
-	return {}
+	return null
 
 static func value_of(item_name: String) -> float:
 	var total := 0.0
-	var effects: Dictionary = find(item_name).get("effects", {})
+	var effects: Dictionary = find(item_name).effects
 	for stat in effects:
 		total += float(effects[stat]) * float(EFFECT_WEIGHTS.get(stat, 0.0))
 	return total

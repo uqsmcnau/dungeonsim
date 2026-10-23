@@ -202,7 +202,7 @@ func equipped_in(slot: String) -> Array:
 ## in a full slot. They give no bonus and can be sold. Consumables are never
 ## "spare"; they're held on purpose until used, not sold off.
 func spare_count(item_name: String) -> int:
-	if ItemCatalog.find(item_name).get("kind") != ItemCatalog.KIND_EQUIPMENT:
+	if not ItemCatalog.find(item_name).is_equipment():
 		return 0
 	return max(0, int(inventory.get(item_name, 0)) - (1 if is_equipped(item_name) else 0))
 
@@ -227,11 +227,11 @@ func missing_items(rarity: String = ItemCatalog.RARITY_BRONZE) -> Array:
 ## room, or it's worth more than the weakest thing currently in that slot.
 ## Always false for a consumable — it doesn't have a slot to wear into.
 func would_equip(item_name: String) -> bool:
-	if ItemCatalog.find(item_name).get("kind") != ItemCatalog.KIND_EQUIPMENT:
+	if not ItemCatalog.find(item_name).is_equipment():
 		return false
 	if is_equipped(item_name):
 		return false
-	var slot: String = ItemCatalog.find(item_name)["slot"]
+	var slot: String = ItemCatalog.find(item_name).slot
 	if equipped_in(slot).size() < int(ItemCatalog.SLOT_CAPACITY[slot]):
 		return true
 	return ItemCatalog.value_of(item_name) > ItemCatalog.value_of(_weakest_in(slot))
@@ -244,7 +244,7 @@ func would_equip(item_name: String) -> bool:
 func upgrade_value(item_name: String) -> float:
 	if not would_equip(item_name):
 		return 0.0
-	var slot: String = ItemCatalog.find(item_name)["slot"]
+	var slot: String = ItemCatalog.find(item_name).slot
 	if equipped_in(slot).size() < int(ItemCatalog.SLOT_CAPACITY[slot]):
 		return ItemCatalog.value_of(item_name)
 	return ItemCatalog.value_of(item_name) - ItemCatalog.value_of(_weakest_in(slot))
@@ -258,7 +258,7 @@ func acquire_item(item_name: String) -> bool:
 	inventory[item_name] = int(inventory.get(item_name, 0)) + 1
 	if not would_equip(item_name):
 		return false
-	var slot: String = ItemCatalog.find(item_name)["slot"]
+	var slot: String = ItemCatalog.find(item_name).slot
 	if equipped_in(slot).size() >= int(ItemCatalog.SLOT_CAPACITY[slot]):
 		_unequip(_weakest_in(slot))
 	_equip(item_name)
@@ -330,15 +330,15 @@ func _weakest_in(slot: String) -> String:
 
 func _equip(item_name: String) -> void:
 	var item := ItemCatalog.find(item_name)
-	if not equipped.has(item["slot"]):
-		equipped[item["slot"]] = []
-	equipped[item["slot"]].append(item_name)
-	_apply_effects(item["effects"], 1)
+	if not equipped.has(item.slot):
+		equipped[item.slot] = []
+	equipped[item.slot].append(item_name)
+	_apply_effects(item.effects, 1)
 
 func _unequip(item_name: String) -> void:
 	var item := ItemCatalog.find(item_name)
-	equipped[item["slot"]].erase(item_name)
-	_apply_effects(item["effects"], -1)
+	equipped[item.slot].erase(item_name)
+	_apply_effects(item.effects, -1)
 
 ## Applies (sign 1) or takes back (sign -1) an item's effects. An effect is
 ## either an ability score or one of the combat stats boosted directly
