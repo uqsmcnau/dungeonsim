@@ -16,7 +16,9 @@ extends SceneTree
 ## a push over):
 ##   - a leader bouncing in and out of the storm: walking back into it,
 ##     within BOUNCE_SECONDS of getting out, BOUNCE_LIMIT times in
-##     BOUNCE_WINDOW seconds (heading back to a pocket the storm had cut off);
+##     BOUNCE_WINDOW seconds (heading back to a pocket the storm had cut off)
+##     -- not on its way out of it, whose route can cross the ring's edge
+##     back and forth, the maze's passages being square and the ring round;
 ##   - a leader pacing: PACING_MOVES or more steps in PACING_SECONDS over
 ##     PACING_CELLS cells or fewer, with plenty of safe ground about (walking
 ##     up to the storm's edge after a chest and back, over and over).
@@ -62,6 +64,9 @@ var _stale_since: Dictionary = {}
 var _in_storm: Dictionary = {}
 var _left_storm_at: Dictionary = {}
 var _bounces: Dictionary = {}
+## Per leader: whether it was escaping the storm last frame -- its label's
+## back to its usual by the frame its step ends.
+var _escaping: Dictionary = {}
 ## Per leader: its recent steps, as [time, cell].
 var _steps: Dictionary = {}
 var _maze_cells := -1
@@ -200,10 +205,13 @@ func _check_storm_bounces(living: Array) -> void:
 			continue
 		var inside := storm.covers(n.cell_pos)
 		var was_inside: bool = _in_storm.get(n, false)
+		var was_escaping: bool = _escaping.get(n, false)
 		_in_storm[n] = inside
+		_escaping[n] = n.current_action == "Escaping the storm"
 		if was_inside and not inside:
 			_left_storm_at[n] = t
-		elif inside and not was_inside and _moved_last(n) and t - _left_storm_at.get(n, -INF) < BOUNCE_SECONDS:
+		elif inside and not was_inside and not was_escaping and _moved_last(n) \
+				and t - _left_storm_at.get(n, -INF) < BOUNCE_SECONDS:
 			var recent: Array = _bounces.get(n, []).filter(func(at): return t - at < BOUNCE_WINDOW)
 			recent.append(t)
 			_bounces[n] = recent
