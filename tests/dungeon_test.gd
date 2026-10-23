@@ -119,6 +119,24 @@ func monster_on(cell: Vector2i) -> EnemyAgent:
 func from_middle(cell: Vector2i) -> float:
 	return Vector2(cell - main.exit_cell).length()
 
+## `leader` leading a party of itself and `members` -- a party of their own,
+## whatever they were in before -- all on the leader's cell if
+## `on_leaders_cell`.
+static func make_party(leader: NpcAgent, members: Array, on_leaders_cell: bool = false) -> Array:
+	leader.party = [leader]
+	leader.is_party_leader = true
+	add_to_party(leader, members, on_leaders_cell)
+	return leader.party
+
+## `members` joining the party `leader` leads already, as followers.
+static func add_to_party(leader: NpcAgent, members: Array, on_leaders_cell: bool = false) -> void:
+	for m in members:
+		leader.party.append(m)
+		m.party = leader.party
+		m.is_party_leader = false
+		if on_leaders_cell:
+			m.cell_pos = leader.cell_pos
+
 ## Left-clicks `npc`'s icon on the map, as the spectator would.
 func click_on(npc: NpcAgent) -> void:
 	main._on_world_clicked(npc.global_position)

@@ -64,11 +64,7 @@ func test_pack_cell_cleared_once_the_whole_pack_is_gone():
 func test_party_defeats_a_weaker_enemy_pack():
 	var leader: NpcAgent = main.npcs[0]
 	var follower: NpcAgent = main.npcs[1]
-	leader.party = [leader]
-	leader.is_party_leader = true
-	follower.party = leader.party
-	follower.is_party_leader = false
-	leader.party.append(follower)
+	make_party(leader, [follower])
 	set_stats(leader, 10, 60, 15, 10)
 	set_stats(follower, 10, 60, 15, 10)
 	leader.stats.inventory.clear()
@@ -107,11 +103,7 @@ func test_mid_fight_leader_death_hands_off_to_a_surviving_follower():
 	# promotion hands the fight off cleanly rather than freezing it.
 	var frail: NpcAgent = main.npcs[0]
 	var tanky: NpcAgent = main.npcs[1]
-	frail.party = [frail]
-	frail.is_party_leader = true
-	tanky.party = frail.party
-	tanky.is_party_leader = false
-	frail.party.append(tanky)
+	make_party(frail, [tanky])
 	set_stats(frail, 5, 1, 10, 10, 3)
 	set_stats(tanky, 5, 300, 15, 15, 10)
 	frail.stats.inventory.clear()
@@ -295,11 +287,7 @@ func test_pvp_does_not_freeze_when_both_sides_share_a_cell():
 func test_engaging_a_pack_locks_is_moving_for_every_party_member_not_just_the_driver():
 	var leader: NpcAgent = main.npcs[0]
 	var follower: NpcAgent = main.npcs[1]
-	leader.party = [leader]
-	leader.is_party_leader = true
-	follower.party = leader.party
-	follower.is_party_leader = false
-	leader.party.append(follower)
+	make_party(leader, [follower])
 	follower.is_moving = false  # sanity: a follower's own flag starts false
 
 	var enemy := new_enemy()
@@ -315,11 +303,7 @@ func test_engaging_a_pack_locks_is_moving_for_every_party_member_not_just_the_dr
 func test_a_follower_promoted_mid_fight_cannot_act_independently():
 	var leader: NpcAgent = main.npcs[0]
 	var follower: NpcAgent = main.npcs[1]
-	leader.party = [leader]
-	leader.is_party_leader = true
-	follower.party = leader.party
-	follower.is_party_leader = false
-	leader.party.append(follower)
+	make_party(leader, [follower])
 	set_stats(follower, 5, 100, 15, 15)
 	follower.stats.inventory.clear()
 
@@ -366,12 +350,7 @@ func test_follower_dying_mid_fight_does_not_strand_the_party():
 	var leader: NpcAgent = main.npcs[0]
 	var follower: NpcAgent = main.npcs[1]
 	var doomed: NpcAgent = main.npcs[2]
-	leader.party = [leader, follower, doomed]
-	leader.is_party_leader = true
-	for m in [follower, doomed]:
-		m.party = leader.party
-		m.is_party_leader = false
-		m.cell_pos = leader.cell_pos
+	make_party(leader, [follower, doomed], true)
 	for m in leader.party:
 		set_stats(m, 10, 500, 30, 30)
 		m.stats.inventory.clear()
@@ -429,9 +408,7 @@ func test_promotion_does_not_overwrite_another_partys_registration():
 	var leader: NpcAgent = main.npcs[0]
 	var follower: NpcAgent = main.npcs[1]
 	var other: NpcAgent = main.npcs[2]
-	leader.party = [leader, follower]
-	follower.party = leader.party
-	follower.is_party_leader = false
+	make_party(leader, [follower])
 	other.cell_pos = leader.cell_pos
 	main.player_map[leader.cell_pos] = other  # the other party's leader holds the shared cell
 

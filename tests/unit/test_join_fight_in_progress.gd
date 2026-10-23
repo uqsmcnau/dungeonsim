@@ -108,11 +108,7 @@ func test_incompatible_newcomer_retreats_instead_of_joining_or_attacking():
 
 func test_newcomer_cannot_join_when_it_would_exceed_the_party_cap():
 	_start_monster_fight()
-	for i in range(3, 2 + PartyOps.MAX_PARTY_SIZE):
-		var extra: NpcAgent = main.npcs[i]
-		host.party.append(extra)
-		extra.party = host.party
-		extra.is_party_leader = false
+	add_to_party(host, main.npcs.slice(3, 2 + PartyOps.MAX_PARTY_SIZE))
 	assert_eq(host.party.size(), PartyOps.MAX_PARTY_SIZE, "sanity: the host's party is already full")
 	newcomer._attempt_move(host.cell_pos)
 
@@ -166,9 +162,7 @@ func test_pack_records_the_party_it_is_fighting():
 func test_newcomer_finds_the_promoted_leader_if_the_original_fighter_died():
 	var follower: NpcAgent = main.npcs[3]
 	follower.stats.alignment = NpcStats.ALIGNMENT_GOOD
-	host.party.append(follower)
-	follower.party = host.party
-	follower.is_party_leader = false
+	add_to_party(host, [follower])
 	var fight := _start_monster_fight()
 	host.die()
 	assert_true(follower.is_party_leader, "sanity: the follower should be promoted")

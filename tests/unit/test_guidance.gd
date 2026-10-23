@@ -50,9 +50,7 @@ func test_seen_cells_count_as_known():
 func test_a_partys_pooled_map_counts():
 	_isolate(corridor(6), Vector2i(0, 0), [])
 	var mate: NpcAgent = main.npcs[1]
-	a.party.append(mate)
-	mate.party = a.party
-	mate.is_party_leader = false
+	add_to_party(a, [mate])
 	mate.visited = {Vector2i(4, 0): true}
 	mate.seen_cells = {Vector2i(5, 0): true}
 	var known: Dictionary = a._party_known_cells()
@@ -212,9 +210,7 @@ func test_party_finds_an_unexplored_spot_in_the_real_maze():
 func test_order_carries_over_to_a_promoted_leader():
 	_isolate(corridor(6), Vector2i(0, 0), cells_along(0, 5))
 	var mate: NpcAgent = main.npcs[1]
-	a.party.append(mate)
-	mate.party = a.party
-	mate.is_party_leader = false
+	add_to_party(a, [mate])
 	mate.cell_pos = a.cell_pos
 	a.guide_to(Vector2i(5, 0))
 	a.die()

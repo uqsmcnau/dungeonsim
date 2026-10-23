@@ -76,12 +76,8 @@ func test_merge_refused_once_it_would_exceed_the_party_size_cap():
 		n.stats.alignment = NpcStats.ALIGNMENT_EVIL
 		set_stats(n, 5, 50, 10, 10)
 
-	a.party = [a, extra1, extra2, extra4]  # a already leads a party of 4
-	for m in a.party:
-		m.is_party_leader = (m == a)
-	b.party = [b, extra3]  # b already leads a party of 2 -- 4+2=6 > cap of 5
-	extra3.party = b.party
-	extra3.is_party_leader = false
+	make_party(a, [extra1, extra2, extra4])  # a already leads a party of 4
+	make_party(b, [extra3])  # b already leads a party of 2 -- 4+2=6 > cap of 5
 
 	assert_false(PartyOps.can_form_party_with(a, b))
 	assert_eq(PartyOps.MAX_PARTY_SIZE, 5)

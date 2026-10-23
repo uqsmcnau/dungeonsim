@@ -11,10 +11,7 @@ func before_each():
 func _party_of_two() -> Array:
 	var leader: NpcAgent = main.npcs[0]
 	var follower: NpcAgent = main.npcs[1]
-	leader.party = [leader, follower]
-	leader.is_party_leader = true
-	follower.party = leader.party
-	follower.is_party_leader = false
+	make_party(leader, [follower])
 	for m in leader.party:
 		m.stats.xp = 0
 		m.stats.xp_to_next = 5

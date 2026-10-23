@@ -55,9 +55,7 @@ func _party() -> void:
 	isolate(b, g, Vector2i(1, 0), {})
 	set_stats(b, 5, 40, 10, 10)
 	b.stats.inventory.clear()
-	a.party.append(b)
-	b.party = a.party
-	b.is_party_leader = false
+	add_to_party(a, [b])
 	a.stats.mp = 50
 
 func test_a_hurt_party_mate_stops_the_party():

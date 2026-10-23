@@ -28,9 +28,7 @@ func _hunter(hp: int) -> void:
 func _with_party_mate(hp: int) -> void:
 	isolate(b, a.grid, a.cell_pos, {})
 	set_stats(b, 5, hp, 10, 10)
-	a.party.append(b)
-	b.party = a.party
-	b.is_party_leader = false
+	add_to_party(a, [b])
 
 ## A monster of `level` (worth more XP the higher it is) on `cell`, staying
 ## put, with `hp` HP.

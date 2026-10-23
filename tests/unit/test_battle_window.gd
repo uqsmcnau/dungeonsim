@@ -2,8 +2,9 @@ extends DungeonTest
 
 ## Covers the battle window (BattleWindow), bottom left: the selected party
 ## and whoever they're fighting, with every blow of the fight played out in
-## turn, Final Fantasy-style -- and the reporting behind it (a CombatEvent
-## on each action's combat_event).
+## turn, Final Fantasy-style. (How figures look in their gear, the shop and
+## the reporting behind it all have files of their own: test_figure_looks,
+## test_battle_shop, test_combat_reporting.)
 
 var bw: BattleWindow
 var a: NpcAgent
@@ -34,12 +35,6 @@ func _event(actor: Node, target: Node, action: String, amount: int, extra: Dicti
 
 func _popup_texts() -> Array:
 	return bw.popups.map(func(p): return p["text"])
-
-## Enough HP all round that nobody in `foe`'s pack falls in a turn or two.
-func _toughen_pack() -> void:
-	for m in foe.living_pack():
-		m.stats.hp = 500
-		m.stats.max_hp = 500
 
 # ================================ Layout ==================================
 
@@ -151,75 +146,6 @@ func test_they_face_each_other():
 	assert_gt(bw._facing_of(bw.fighter_of(a)), 0.0, "the party faces right")
 	assert_lt(bw._facing_of(bw.fighter_of(b)), 0.0, "their foes left")
 
-# ================================== Gear ==================================
-
-func _wearing(items: Array) -> NpcStats:
-	var stats := NpcStats.new()
-	for item in items:
-		stats.acquire_item(item)
-	return stats
-
-func test_nothing_worn_is_a_bare_fisted_tunic():
-	var look := FigureLook.of(NpcStats.new())
-	assert_eq([look.weapon, look.off_hand, look.armor], ["", "", ""])
-	for part in ["helmet", "gold_helm", "boots", "winged", "amulet", "ring", "might"]:
-		assert_false(look.get(part), part)
-
-func test_everything_worn_shows():
-	var look := FigureLook.of(_wearing([
-		"Iron Sword", "Shield", "Leather Armor", "Helmet", "Leather Boots", "Sage's Amulet", "Silver Ring",
-	]))
-	assert_eq(look.weapon, "iron_sword")
-	assert_eq(look.off_hand, "shield")
-	assert_eq(look.armor, "leather")
-	for part in ["helmet", "boots", "amulet", "ring"]:
-		assert_true(look.get(part), part)
-
-func test_silver_gear_looks_the_part():
-	var look := FigureLook.of(_wearing(["Steel Sword", "Silver Shield", "Chainmail"]))
-	assert_eq(look.weapon, "steel_sword")
-	assert_eq(look.off_hand, "silver_shield")
-	assert_eq(look.armor, "chainmail")
-
-func test_gold_gear_looks_the_part():
-	var look := FigureLook.of(_wearing([
-		"Mithril Sword", "Aegis Shield", "Plate Armor", "Golden Helm", "Winged Boots", "Ring of Might",
-	]))
-	assert_eq(look.weapon, "mithril_sword")
-	assert_eq(look.off_hand, "aegis")
-	assert_eq(look.armor, "plate")
-	for part in ["helmet", "gold_helm", "boots", "winged", "might"]:
-		assert_true(look.get(part), part)
-	assert_eq(FigureLook.of(_wearing(["Mithril Sword", "Archmage's Staff"])).off_hand, "staff")
-
-func test_the_best_sword_goes_in_front():
-	var look := FigureLook.of(_wearing(["Steel Sword", "Mithril Sword"]))
-	assert_eq(look.weapon, "mithril_sword")
-	assert_eq(look.off_hand, "iron_sword", "the other over the shoulder")
-
-func test_a_tome_is_held_in_the_off_hand():
-	assert_eq(FigureLook.of(_wearing(["Arcane Tome"])).off_hand, "tome")
-	assert_eq(FigureLook.of(_wearing(["Arcane Tome"])).weapon, "", "no sword: it's held out in front instead")
-
-func test_two_swords_carry_both():
-	var look := FigureLook.of(_wearing(["Iron Sword", "Steel Sword"]))
-	assert_eq(look.weapon, "steel_sword", "the better one in front")
-	assert_eq(look.off_hand, "iron_sword")
-
-func test_new_gear_shows_on_their_figure():
-	a.stats.equipped.clear()
-	_scene([a], [])
-	assert_false(bw.fighter_of(a).look.helmet)
-	a.stats.acquire_item("Helmet")
-	_scene([a], [])
-	assert_true(bw.fighter_of(a).look.helmet)
-
-func test_a_rival_players_gear_shows_too():
-	b.stats.equipped.clear()
-	b.stats.acquire_item("Steel Sword")
-	_scene([a], [b])
-	assert_eq(bw.fighter_of(b).look.weapon, "steel_sword")
-
 # ================================ Walking =================================
 
 func test_on_the_move_they_walk_and_the_scenery_scrolls_past():
@@ -257,75 +183,6 @@ func test_the_game_says_when_the_party_is_stepping():
 	main._process(0.0)
 	bw.advance(0.01)
 	assert_true(bw.walking)
-
-# ================================ At a shop ===============================
-
-func test_a_party_at_a_shop_finds_its_shopkeeper_there():
-	main.hud.inspect(a)
-	a.shopping_at = ItemCatalog.RARITY_SILVER
-	main._sync_battle_window()
-	assert_eq(bw.shop, ItemCatalog.RARITY_SILVER, "the counter trimmed in silver")
-	a.shopping_at = ""
-	main._sync_battle_window()
-	assert_eq(bw.shop, "", "gone once they've moved on")
-
-func test_not_for_a_party_nobodys_watching():
-	main.hud.inspect(a)
-	b.shopping_at = ItemCatalog.RARITY_BRONZE
-	main._sync_battle_window()
-	assert_eq(bw.shop, "")
-
-func test_nor_with_nobody_selected():
-	main.hud.inspect(a)
-	a.shopping_at = ItemCatalog.RARITY_BRONZE
-	main._sync_battle_window()
-	main.hud.close_inspector()
-	assert_eq(bw.shop, "")
-
-## Where the shopkeeper stands once slid in.
-func _shop_home() -> Vector2:
-	return Vector2(bw.size.x - BattleWindow.SHOP_SPOT.x, BattleWindow.SHOP_SPOT.y)
-
-## A's selected and on its way, then arrives at a silver shop.
-func _arrive_at_shop() -> void:
-	main.hud.inspect(a)
-	main._sync_battle_window()
-	a.shopping_at = ItemCatalog.RARITY_SILVER
-	main._sync_battle_window()
-
-func test_the_shop_slides_in_from_the_right():
-	_arrive_at_shop()
-	assert_gt(bw.shop_position().x, bw.size.x, "out of sight to start with")
-	bw.advance(BattleWindow.ENTER_SECONDS / 2.0)
-	assert_between(bw.shop_position().x, _shop_home().x + 1.0, bw.size.x, "on its way in")
-	bw.advance(BattleWindow.ENTER_SECONDS / 2.0)
-	assert_eq(bw.shop_position(), _shop_home())
-
-func test_and_back_out_once_they_leave():
-	_arrive_at_shop()
-	bw.advance(BattleWindow.ENTER_SECONDS)
-	a.shopping_at = ""
-	main._sync_battle_window()
-	bw.advance(BattleWindow.LEAVE_SECONDS / 2.0)
-	assert_eq(bw._shop_drawn, ItemCatalog.RARITY_SILVER, "still the shop they left, on its way out")
-	assert_between(bw.shop_position().x, _shop_home().x + 1.0, bw.size.x)
-	bw.advance(BattleWindow.LEAVE_SECONDS / 2.0)
-	assert_eq(bw._shop_drawn, "", "gone")
-
-func test_a_party_selected_mid_visit_is_shown_at_the_counter_straight_away():
-	a.shopping_at = ItemCatalog.RARITY_BRONZE
-	main.hud.inspect(a)
-	main._sync_battle_window()
-	assert_eq(bw.shop_position(), _shop_home(), "as everyone in a scene just started appears at once")
-
-func test_a_visit_says_which_shop_while_it_lasts():
-	var players: Dictionary = {}
-	isolate(a, corridor(2), Vector2i(0, 0), players)
-	a.shops[Vector2i(0, 0)] = ItemCatalog.RARITY_BRONZE
-	a._start_shopping()
-	assert_eq(a.shopping_at, ItemCatalog.RARITY_BRONZE)
-	await wait_seconds(Shopping.SECONDS + 0.2)
-	assert_eq(a.shopping_at, "")
 
 # =============================== Playing out ==============================
 
@@ -474,88 +331,3 @@ func test_it_pauses_with_the_game():
 	get_tree().paused = true
 	assert_false(bw.can_process())
 	get_tree().paused = false
-
-# =============================== Reporting ================================
-
-func test_an_action_says_what_it_did():
-	set_stats(a, 3, 30, 6, 4)
-	var target := NpcStats.new()
-	target.hp = 50
-	target.max_hp = 50
-	var result: Dictionary = CombatActions.apply(a.stats, CombatRules.ATTACK, target)
-	assert_eq(result["missed"], result["amount"] == 0)
-	assert_eq(target.hp, 50 - result["amount"])
-	a.stats.hp = 10
-	a.stats.inventory["Health Potion"] = 1
-	result = CombatActions.apply(a.stats, CombatRules.POTION, target)
-	assert_eq(result["amount"], a.stats.hp - 10, "the HP healed")
-
-func test_a_pack_fight_turn_reports_every_action():
-	PartyOps.join_party_of(b, a)
-	for m in [a, b]:
-		set_stats(m, 5, 80, 6, 6)
-		m.in_pack_combat = true
-		m.is_moving = true
-	_toughen_pack()
-	foe.in_combat = true
-	foe.fighting_party = a.party
-	var events: Array = []
-	for m in [a, b]:
-		m.combat_event.connect(func(ev): events.append(ev))
-	GroupCombat.resolve_pack_turn(a.party, foe.cell_pos, main.enemy_map)
-	assert_eq(events.size(), 2 + foe.living_pack().size(), "one per party member, one per monster")
-	for ev in events:
-		assert_eq(ev.kind, CombatEvent.Kind.ACTION)
-		assert_true(ev.actor in [a, b] or ev.actor in foe.living_pack())
-
-func test_a_heal_is_on_the_healer_whoever_they_face():
-	var ev := CombatEvent.of_action(a, foe, CombatRules.POTION, 8)
-	assert_eq(ev.target, a)
-	assert_eq(ev.target_id, a.get_instance_id())
-	assert_true(ev.is_heal())
-
-func test_an_event_says_where_things_stand_after_it():
-	foe.stats.hp = 0
-	var ev := CombatEvent.of_action(a, foe, CombatRules.FIREBALL, 12)
-	assert_true(ev.killed)
-	assert_eq(ev.target_hp, 0)
-	assert_eq(ev.actor_mp, a.stats.mp)
-
-func test_spells_and_heals_are_told_apart():
-	assert_true(CombatRules.is_heal(CombatRules.POTION))
-	assert_false(CombatRules.is_heal(CombatRules.SPARK))
-	assert_true(CombatRules.is_offensive_spell(CombatRules.FIREBALL))
-	assert_false(CombatRules.is_offensive_spell(CombatRules.ATTACK))
-	assert_eq(CombatActions.killing_blow(a.stats, CombatRules.SPARK, 4), "Spark for 4 damage")
-
-func test_who_theyre_fighting_can_be_looked_up():
-	assert_eq(GroupCombat.opponents_of(a, main.enemy_map), [], "nobody, between fights")
-	a.in_pack_combat = true
-	foe.in_combat = true
-	foe.fighting_party = a.party
-	assert_eq(GroupCombat.opponents_of(a, main.enemy_map), foe.living_pack())
-	a.in_pack_combat = false
-	GroupCombat.engage_players(a, b.cell_pos, b)
-	assert_eq(GroupCombat.opponents_of(a, main.enemy_map), [b])
-	assert_eq(GroupCombat.opponents_of(b, main.enemy_map), [a])
-	GroupCombat.release_pvp(a.party, b.party)
-	assert_eq(GroupCombat.opponents_of(a, main.enemy_map), [])
-
-func test_joining_a_player_fight_takes_on_the_same_foes():
-	var c: NpcAgent = main.npcs[2]
-	GroupCombat.engage_players(a, b.cell_pos, b)
-	PartyOps.join_party_of(c, a)
-	assert_eq(GroupCombat.opponents_of(c, main.enemy_map), [b])
-
-func test_the_selected_partys_fight_plays_out_in_the_window():
-	fast_forward()
-	PartyOps.join_party_of(b, a)
-	for m in [a, b]:
-		set_stats(m, 5, 80, 6, 6)
-	_toughen_pack()
-	hold_everyone_else([a, b] + foe.living_pack())
-	main.hud.inspect(a)
-	GroupCombat.engage_pack(a, foe.cell_pos, foe)
-	await wait_seconds(GroupCombat.TURN_SECONDS + 0.8)
-	assert_gt(bw.actions_played, 0, "the first turn's blows have been played")
-	assert_false(bw.fighters_on(BattleWindow.Side.FOES).is_empty())

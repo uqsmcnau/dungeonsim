@@ -12,14 +12,7 @@ func before_each():
 ## reset their xp counter and muddy the sums).
 func _party(size: int) -> Array:
 	var leader: NpcAgent = main.npcs[0]
-	leader.party = [leader]
-	leader.is_party_leader = true
-	for i in range(1, size):
-		var member: NpcAgent = main.npcs[i]
-		member.party = leader.party
-		member.is_party_leader = false
-		member.cell_pos = leader.cell_pos
-		leader.party.append(member)
+	make_party(leader, main.npcs.slice(1, size), true)
 	for m in leader.party:
 		m.stats.xp = 0
 		m.stats.xp_to_next = 100000
