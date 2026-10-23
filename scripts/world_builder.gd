@@ -24,10 +24,10 @@ const LEVEL_CURVE_EXPONENT := 1.5
 ## where the maze's strongest monsters are.
 const BOSS_ROOM_REACH := 2
 ## The boss (the Dragon -- see MonsterCatalog) and the guards in its party
-## of four.
+## of five.
 const BOSS_LEVEL := 12
 const BOSS_GUARD_LEVEL := 10
-const BOSS_GUARDS := 3
+const BOSS_GUARDS := 4
 const BOSS_SCALE := 1.5
 ## The mid bosses (see _place_mid_bosses, EnemyAgent.is_mid_boss), each
 ## with this many guards: the stronger Ogre Warlords (WARLORD_*) between
@@ -287,7 +287,7 @@ func spawn_enemy_pack(cell: Vector2i, base_level: int, max_size: int = 3) -> voi
 		members.append(enemy)
 	EnemyAgent.form_pack(members)
 
-## The boss's stationary party of four -- the boss and three guards (see
+## The boss's stationary party of five -- the boss and four guards (see
 ## _spawn_boss_party) -- holds the exit cell. Since a live enemy always
 ## blocks its cell until defeated, nobody can set foot on the goal until
 ## the whole party falls — and the NPC that lands the winning blow is the

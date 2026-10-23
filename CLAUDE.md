@@ -165,8 +165,8 @@ there.
   one per level: 1–10 roam the maze (`WorldBuilder.enemy_level_for`: level 1 at
   the edge up to 10 outside the boss room), 11 (Ogre Warlord) leads each
   of the 6 stronger mid bosses' parties of three, with two level-8 guards,
-  in a ring near the middle; 12 (the Dragon) leads the boss's party of four
-  with three level-10 guards. A monster's level decides its kind
+  in a ring near the middle; 12 (the Dragon) leads the boss's party of five
+  with four level-10 guards. A monster's level decides its kind
   (`EnemyAgent.kind`, set by `set_kind`) — name, colour, outline for its map
   icon and battle body, and the features `BattlePainter.draw_monster` adds —
   bar the 8 weaker mid bosses out towards the edge: the Orc Chieftain

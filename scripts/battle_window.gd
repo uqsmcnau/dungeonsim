@@ -57,7 +57,7 @@ const FOE_SPOTS := [Vector2(100, 112), Vector2(150, 72), Vector2(150, 152), Vect
 ## (by their slot, the boss having the first) in front of it -- from the
 ## right, like FOE_SPOTS.
 const BOSS_SPOT := Vector2(80, 112)
-const BOSS_GUARD_SPOTS := [Vector2(175, 70), Vector2(175, 70), Vector2(175, 154), Vector2(215, 112)]
+const BOSS_GUARD_SPOTS := [Vector2(165, 68), Vector2(165, 68), Vector2(165, 156), Vector2(225, 90), Vector2(225, 134)]
 ## On the move between fights: the party marches on the spot while the
 ## floor and the pillars along the back wall scroll past. Steps come a
 ## frame or two apart, so walking carries on this long after the last one.

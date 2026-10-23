@@ -117,7 +117,7 @@ static func form_pack(members: Array, spread: float = 7.0) -> void:
 	for m in members:
 		m.pack = members
 	var leader: EnemyAgent = members[0]
-	var offsets := [Vector2(-spread, -spread), Vector2(spread, -spread), Vector2(-spread, spread)]
+	var offsets := [Vector2(-spread, -spread), Vector2(spread, -spread), Vector2(-spread, spread), Vector2(spread, spread)]
 	for i in range(1, members.size()):
 		var follower: EnemyAgent = members[i]
 		follower.is_pack_leader = false

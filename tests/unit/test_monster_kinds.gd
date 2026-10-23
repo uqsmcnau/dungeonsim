@@ -2,7 +2,7 @@ extends DungeonTest
 
 ## Covers the kinds of monster (MonsterCatalog): one per level -- 1 to 10
 ## roaming the maze, an Ogre Warlord leading each mid boss's party of
-## three, and the Dragon leading the boss's party of four -- each with its
+## three, and the Dragon leading the boss's party of five -- each with its
 ## own name, colour and shape, on the map and in the battle window.
 
 func before_each():
@@ -110,13 +110,15 @@ func test_each_orc_chieftain_leads_a_weaker_party_of_three_near_the_edge():
 	for warlord in _mid_bosses("Ogre Warlord"):
 		assert_lt(from_middle(warlord.cell_pos), nearest, "every Ogre Warlord nearer the middle than any Orc Chieftain")
 
-func test_the_boss_leads_a_party_of_four():
+func test_the_boss_leads_a_party_of_five():
 	var boss := monster_on(main.exit_cell)
 	assert_true(boss.is_boss)
 	assert_eq(boss.kind.name, "Dragon")
 	assert_eq(boss.stats.level, 12)
-	assert_eq(boss.pack.size(), 4)
+	assert_eq(boss.pack.size(), 5)
+	var offsets: Array = boss.pack.slice(1).map(func(g): return g.pack_offset)
 	for guard in boss.pack.slice(1):
+		assert_eq(offsets.count(guard.pack_offset), 1, "each guard stands apart on the map")
 		assert_eq(guard.stats.level, 10)
 		assert_eq(guard.kind.name, "Wyvern")
 		assert_false(guard.is_boss, "only the Dragon itself")
@@ -150,19 +152,20 @@ func test_monsters_go_by_their_kind_in_battle():
 	bw.show_fight([main.npcs[0]], boss.living_pack(), "Fighting")
 	var names := bw.fighters_on(BattleWindow.Side.FOES).map(func(f): return f.name)
 	names.sort()
-	assert_eq(names, ["Dragon", "Wyvern", "Wyvern", "Wyvern"])
+	assert_eq(names, ["Dragon", "Wyvern", "Wyvern", "Wyvern", "Wyvern"])
 
 func test_the_boss_stands_at_the_back_behind_its_guards():
 	var boss := monster_on(main.exit_cell)
 	var bw: BattleWindow = main.hud.battle_window
 	bw.show_fight([main.npcs[0]], boss.living_pack(), "Fighting")
 	var dragon_x := 0.0
-	var guards_x: Array = []
+	var guard_spots: Array = []
 	for f in bw.fighters_on(BattleWindow.Side.FOES):
 		if f.kind == "boss":
 			dragon_x = bw._home_of(f).x
 		else:
-			guards_x.append(bw._home_of(f).x)
-	assert_eq(guards_x.size(), 3)
-	for x in guards_x:
-		assert_lt(x + 30.0, dragon_x, "a guard well in front of the Dragon")
+			guard_spots.append(bw._home_of(f))
+	assert_eq(guard_spots.size(), 4)
+	for spot in guard_spots:
+		assert_lt(spot.x + 30.0, dragon_x, "a guard well in front of the Dragon")
+		assert_eq(guard_spots.count(spot), 1, "each guard on a spot of its own")
