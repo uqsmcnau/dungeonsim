@@ -10,9 +10,6 @@ func before_each():
 func _shops_of(rarity: String) -> Array:
 	return main.shop_cells.filter(func(c): return main.shop_map[c] == rarity)
 
-func _from_middle(cell: Vector2i) -> float:
-	return Vector2(cell - main.exit_cell).length()
-
 ## A character with plenty of gold, nothing to sell and potions enough --
 ## its only business at a shop is gear.
 func _shopper() -> NpcStats:
@@ -29,10 +26,10 @@ func test_two_silver_shops_nearer_the_middle_than_any_bronze_one():
 	assert_eq(silver.size(), WorldBuilder.SILVER_SHOP_COUNT)
 	var nearest_bronze := INF
 	for shop in _shops_of(ItemCatalog.RARITY_BRONZE):
-		nearest_bronze = minf(nearest_bronze, _from_middle(shop))
+		nearest_bronze = minf(nearest_bronze, from_middle(shop))
 	for shop in silver:
-		assert_between(_from_middle(shop), WorldBuilder.SILVER_SHOP_REACH.x - 1.0, WorldBuilder.SILVER_SHOP_REACH.y + 1.0)
-		assert_lt(_from_middle(shop), nearest_bronze)
+		assert_between(from_middle(shop), WorldBuilder.SILVER_SHOP_REACH.x - 1.0, WorldBuilder.SILVER_SHOP_REACH.y + 1.0)
+		assert_lt(from_middle(shop), nearest_bronze)
 
 func test_on_opposite_sides_of_the_boss_room():
 	var silver := _shops_of(ItemCatalog.RARITY_SILVER)

@@ -13,10 +13,6 @@ const GOLD_ITEMS := [
 func before_each():
 	load_main()
 
-## The mid boss party on `cell`, all of it.
-func _party_on(cell: Vector2i) -> Array:
-	return main.enemy_map[cell].pack.duplicate()
-
 ## Gold chests in the maze, by cell.
 func _gold_chests() -> Array:
 	return main.chest_map.keys().filter(func(c): return main.chest_map[c].rarity == ItemCatalog.RARITY_GOLD)
@@ -83,7 +79,7 @@ func _room_of(kind_name: String) -> Vector2i:
 	return MazeQuery.NONE
 
 func _beat(cell: Vector2i, last_first: bool = false) -> void:
-	var party := _party_on(cell)
+	var party := monster_on(cell).pack.duplicate()
 	if last_first:
 		party.reverse()
 	for member in party:
@@ -109,7 +105,7 @@ func test_whichever_falls_last():
 func test_not_until_the_whole_party_is_beaten():
 	for kind_name in ["Ogre Warlord", "Orc Chieftain"]:
 		var cell := _room_of(kind_name)
-		var party := _party_on(cell)
+		var party := monster_on(cell).pack.duplicate()
 		party[0].defeat()
 		party[1].defeat()
 		assert_false(main.chest_map.has(cell), "%s's party still has a guard standing" % kind_name)

@@ -16,20 +16,14 @@ func before_each():
 	a = main.npcs[0]
 	b = main.npcs[1]
 
-func _row(from_x: int, to_x: int) -> Array:
-	var cells: Array = []
-	for x in range(from_x, to_x + 1):
-		cells.append(Vector2i(x, 0))
-	return cells
-
 ## A (Evil, too weak to pick a fight) and B (Neutral, never starts one) face
 ## each other in the middle of a corridor, each having explored its own end
 ## -- so each one's way on is past the other.
 func _standoff(length: int = 6) -> void:
 	var g := corridor(length)
 	var mid := length / 2
-	isolate(a, g, Vector2i(mid - 1, 0), players, _row(0, mid - 1))
-	isolate(b, g, Vector2i(mid, 0), players, _row(mid, length - 1))
+	isolate(a, g, Vector2i(mid - 1, 0), players, cells_along(0, mid - 1))
+	isolate(b, g, Vector2i(mid, 0), players, cells_along(mid, length - 1))
 	a.stats.alignment = NpcStats.ALIGNMENT_EVIL
 	b.stats.alignment = NpcStats.ALIGNMENT_NEUTRAL
 	set_stats(a, 1, 10, 1, 1)
@@ -63,7 +57,7 @@ func test_passing_works_in_a_safe_room_too():
 	b.stats.alignment = NpcStats.ALIGNMENT_EVIL
 	set_stats(a, 5, 60, 10, 10)
 	set_stats(b, 5, 60, 10, 10)
-	for c in _row(0, 5):
+	for c in cells_along(0, 5):
 		a.safe_cells[c] = true
 		b.safe_cells[c] = true
 	var passed: bool = await _run_until(func(): return a.visited.has(Vector2i(5, 0)) and b.visited.has(Vector2i(0, 0)), 8.0)

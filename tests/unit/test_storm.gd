@@ -297,20 +297,14 @@ func _hairpin_storm(g: Array) -> Storm:
 	storm.advance((Storm.START_SECONDS + Storm.CLOSED_SECONDS) / 2.0)
 	return storm
 
-func _row(y: int, from_x: int, to_x: int) -> Array:
-	var cells: Array = []
-	for x in range(from_x, to_x + 1):
-		cells.append(Vector2i(x, y))
-	return cells
-
 func test_dry_ground_the_storm_cuts_off_from_the_middle_isnt_safe():
 	var storm := _hairpin_storm(_hairpin())
 	for c in [Vector2i(4, 0), Vector2i(4, 1)]:
 		assert_true(storm.covers(c), "sanity: %s is in the storm" % c)
-	for c in _row(1, 1, 3):
+	for c in cells_along(1, 3, 1):
 		assert_false(storm.covers(c), "sanity: %s is dry" % c)
 		assert_false(storm.is_safe(c), "but cut off: %s" % c)
-	for c in _row(0, 0, 3):
+	for c in cells_along(0, 3, 0):
 		assert_true(storm.is_safe(c), str(c))
 
 func test_on_the_real_map_safe_ground_is_all_joined_to_the_middle():

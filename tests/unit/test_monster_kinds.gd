@@ -8,10 +8,6 @@ extends DungeonTest
 func before_each():
 	load_main()
 
-## The monster leading the party on `cell`.
-func _party_on(cell: Vector2i) -> EnemyAgent:
-	return main.enemy_map[cell]
-
 func _roaming_monsters() -> Array:
 	return main.enemy_container.get_children().filter(func(e):
 		return e is EnemyAgent and e.alive and e.guarding == "" and not e.is_boss and not e.is_mid_boss)
@@ -71,7 +67,7 @@ func test_its_kind_shows_on_the_map():
 	assert_almost_eq(monster.visual.polygon[0], icon[0] * EnemyAgent.ICON_RADIUS, Vector2.ONE * 0.01)
 
 func test_its_level_reads_on_its_icon_however_dark():
-	var dragon := _party_on(main.exit_cell)
+	var dragon := monster_on(main.exit_cell)
 	assert_eq(dragon.label.get_theme_color("font_color"), Color.WHITE)
 	var skeleton := new_enemy()
 	skeleton.setup(clear_cell(), main.CELL_SIZE, 5, main.grid, {}, {}, [])
@@ -81,10 +77,7 @@ func test_its_level_reads_on_its_icon_however_dark():
 
 ## The mid bosses (both tiers) whose leader is `kind_name`.
 func _mid_bosses(kind_name: String) -> Array:
-	return main.mid_boss_cells.map(func(c): return _party_on(c)).filter(func(b): return b.kind["name"] == kind_name)
-
-func _from_middle(cell: Vector2i) -> float:
-	return Vector2(cell - main.exit_cell).length()
+	return main.mid_boss_cells.map(func(c): return monster_on(c)).filter(func(b): return b.kind["name"] == kind_name)
 
 func test_each_ogre_warlord_leads_a_party_of_three_near_the_middle():
 	var warlords := _mid_bosses("Ogre Warlord")
@@ -98,7 +91,7 @@ func test_each_ogre_warlord_leads_a_party_of_three_near_the_middle():
 			assert_eq(guard.kind["name"], "Troll")
 		for member in warlord.pack:
 			assert_false(member.wanders, "the party stays in its room")
-		assert_between(_from_middle(warlord.cell_pos), WorldBuilder.WARLORD_REACH.x - 1.0, WorldBuilder.WARLORD_REACH.y + 1.0)
+		assert_between(from_middle(warlord.cell_pos), WorldBuilder.WARLORD_REACH.x - 1.0, WorldBuilder.WARLORD_REACH.y + 1.0)
 
 func test_each_orc_chieftain_leads_a_weaker_party_of_three_near_the_edge():
 	var chieftains := _mid_bosses("Orc Chieftain")
@@ -112,13 +105,13 @@ func test_each_orc_chieftain_leads_a_weaker_party_of_three_near_the_edge():
 			assert_eq(guard.killer_description(), "a Bat (Lv.3), guarding an Orc Chieftain")
 		for member in chieftain.pack:
 			assert_false(member.wanders)
-		assert_between(_from_middle(chieftain.cell_pos), WorldBuilder.CHIEFTAIN_REACH.x - 1.0, WorldBuilder.CHIEFTAIN_REACH.y + 1.0)
-		nearest = minf(nearest, _from_middle(chieftain.cell_pos))
+		assert_between(from_middle(chieftain.cell_pos), WorldBuilder.CHIEFTAIN_REACH.x - 1.0, WorldBuilder.CHIEFTAIN_REACH.y + 1.0)
+		nearest = minf(nearest, from_middle(chieftain.cell_pos))
 	for warlord in _mid_bosses("Ogre Warlord"):
-		assert_lt(_from_middle(warlord.cell_pos), nearest, "every Ogre Warlord nearer the middle than any Orc Chieftain")
+		assert_lt(from_middle(warlord.cell_pos), nearest, "every Ogre Warlord nearer the middle than any Orc Chieftain")
 
 func test_the_boss_leads_a_party_of_four():
-	var boss := _party_on(main.exit_cell)
+	var boss := monster_on(main.exit_cell)
 	assert_true(boss.is_boss)
 	assert_eq(boss.kind["name"], "Dragon")
 	assert_eq(boss.stats.level, 12)
@@ -131,10 +124,10 @@ func test_the_boss_leads_a_party_of_four():
 		assert_false(member.wanders)
 
 func test_a_guard_left_leading_still_holds_the_room():
-	var boss := _party_on(main.exit_cell)
+	var boss := monster_on(main.exit_cell)
 	var guard: EnemyAgent = boss.pack[1]
 	boss.defeat()
-	assert_eq(_party_on(main.exit_cell), guard, "the exit's still blocked")
+	assert_eq(monster_on(main.exit_cell), guard, "the exit's still blocked")
 	assert_true(guard.is_pack_leader)
 	assert_false(guard.wanders, "but it never comes out")
 
@@ -152,7 +145,7 @@ func test_a_pack_follower_left_leading_roams_as_usual():
 # ============================ In the battle window ========================
 
 func test_monsters_go_by_their_kind_in_battle():
-	var boss := _party_on(main.exit_cell)
+	var boss := monster_on(main.exit_cell)
 	var bw: BattleWindow = main.hud.battle_window
 	bw.show_fight([main.npcs[0]], boss.living_pack(), "Fighting")
 	var names := bw.fighters_on(BattleWindow.Side.FOES).map(func(f): return f.name)
@@ -160,7 +153,7 @@ func test_monsters_go_by_their_kind_in_battle():
 	assert_eq(names, ["Dragon", "Wyvern", "Wyvern", "Wyvern"])
 
 func test_the_boss_stands_at_the_back_behind_its_guards():
-	var boss := _party_on(main.exit_cell)
+	var boss := monster_on(main.exit_cell)
 	var bw: BattleWindow = main.hud.battle_window
 	bw.show_fight([main.npcs[0]], boss.living_pack(), "Fighting")
 	var dragon_x := 0.0

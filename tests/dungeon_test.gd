@@ -95,6 +95,15 @@ func rank_npcs_by_index(count: int) -> void:
 		npc.stats.attack_bonus = i * 10
 		npc.stats.max_hp = 10 + i * 10
 
+## The monster on `cell` of the real map -- the one leading whatever pack
+## or boss's party is there.
+func monster_on(cell: Vector2i) -> EnemyAgent:
+	return main.enemy_map[cell]
+
+## How far `cell` is from the middle of the real map, as the crow flies.
+func from_middle(cell: Vector2i) -> float:
+	return Vector2(cell - main.exit_cell).length()
+
 ## Left-clicks `npc`'s icon on the map, as the spectator would.
 func click_on(npc: NpcAgent) -> void:
 	main._on_world_clicked(npc.global_position)
@@ -110,6 +119,14 @@ static func walled_grid(w: int, h: int) -> Array:
 			row.append(MazeGenerator.WALL_N | MazeGenerator.WALL_E | MazeGenerator.WALL_S | MazeGenerator.WALL_W)
 		g.append(row)
 	return g
+
+## The cells from (from_x, y) to (to_x, y), both ends included -- a stretch
+## of a hand-built maze to have explored, or covered by a storm.
+static func cells_along(from_x: int, to_x: int, y: int = 0) -> Array:
+	var cells: Array = []
+	for x in range(from_x, to_x + 1):
+		cells.append(Vector2i(x, y))
+	return cells
 
 ## Opens the passage between two neighbouring cells, from both sides.
 static func open_between(g: Array, a: Vector2i, b: Vector2i) -> void:

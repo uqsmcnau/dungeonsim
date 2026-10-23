@@ -52,10 +52,11 @@ Test scripts extend **`DungeonTest`** (`tests/dungeon_test.gd`, outside
 `tests/unit` so GUT doesn't collect it) rather than `GutTest`. It provides
 `main` / `load_main()` for tests that need the whole generated game, plus
 the shared helpers: `clear_cell()`, `set_stats()`, `new_enemy()`,
-`rank_npcs_by_index()`, `click_on()`, `isolate()` (a character alone on a
-hand-built maze), `fast_forward()`, `hold_everyone_else()`, and hand-built
-mazes (`walled_grid()`, `open_between()`, `corridor()`, `ring_maze()`). Add
-a helper there rather than copying it into a second test file. Pure logic
+`rank_npcs_by_index()`, `click_on()`, `monster_on()`, `from_middle()`,
+`isolate()` (a character alone on a hand-built maze), `fast_forward()`,
+`hold_everyone_else()`, and hand-built mazes (`walled_grid()`,
+`open_between()`, `corridor()`, `ring_maze()`, `cells_along()`). Add a
+helper there rather than copying it into a second test file. Pure logic
 (`NpcStats`, `CombatMath`, a bare `MazeGenerator`) is tested without
 loading `Main` at all.
 

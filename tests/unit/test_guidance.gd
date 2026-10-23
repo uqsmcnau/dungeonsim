@@ -27,24 +27,18 @@ func _isolate(g: Array, cell: Vector2i, explored: Array) -> void:
 	a.sight_cells = {}
 	a._sight_cell = cell  # so nothing gets "seen" until it moves
 
-func _row(from_x: int, to_x: int) -> Array:
-	var cells: Array = []
-	for x in range(from_x, to_x + 1):
-		cells.append(Vector2i(x, 0))
-	return cells
-
 func _ring_cells() -> Array:
 	return [Vector2i(0, 0), Vector2i(1, 0), Vector2i(2, 0), Vector2i(0, 1), Vector2i(1, 1), Vector2i(2, 1)]
 
 # ========================== Choosing the destination ======================
 
 func test_order_to_an_explored_cell_goes_exactly_there():
-	_isolate(corridor(6), Vector2i(0, 0), _row(0, 5))
+	_isolate(corridor(6), Vector2i(0, 0), cells_along(0, 5))
 	assert_true(a.guide_to(Vector2i(5, 0)))
 	assert_eq(a.guidance_target, Vector2i(5, 0))
 
 func test_order_into_unexplored_ground_goes_exactly_there():
-	_isolate(corridor(6), Vector2i(0, 0), _row(0, 2))
+	_isolate(corridor(6), Vector2i(0, 0), cells_along(0, 2))
 	assert_true(a.guide_to(Vector2i(5, 0)))
 	assert_eq(a.guidance_target, Vector2i(5, 0), "no stopping short at the edge of the known")
 
@@ -65,14 +59,14 @@ func test_a_partys_pooled_map_counts():
 	assert_true(known.has(Vector2i(4, 0)) and known.has(Vector2i(5, 0)), "what a party member has explored and seen counts too")
 
 func test_order_to_where_the_party_already_is_does_nothing():
-	_isolate(corridor(6), Vector2i(2, 0), _row(0, 5))
+	_isolate(corridor(6), Vector2i(2, 0), cells_along(0, 5))
 	assert_false(a.guide_to(Vector2i(2, 0)))
 	assert_eq(a.guidance_target, MazeQuery.NONE)
 
 # ============================== Following it ==============================
 
 func test_order_takes_priority_over_a_chest():
-	_isolate(corridor(7), Vector2i(3, 0), _row(0, 6))
+	_isolate(corridor(7), Vector2i(3, 0), cells_along(0, 6))
 	a.chests[Vector2i(0, 0)] = true
 	a.guide_to(Vector2i(6, 0))
 	a.current_action = "Exploring"  # so only the step itself can set it
@@ -87,7 +81,7 @@ func test_order_routes_around_a_monster():
 	assert_eq(a._guidance_step(), Vector2i(0, 1))
 
 func test_order_is_abandoned_if_the_party_backs_off_from_whoever_blocks_the_only_way():
-	_isolate(corridor(5), Vector2i(1, 0), _row(0, 4))
+	_isolate(corridor(5), Vector2i(1, 0), cells_along(0, 4))
 	var enemy := new_enemy()
 	enemy.setup(Vector2i(2, 0), main.CELL_SIZE, 1, a.grid, a.enemies, {}, [], false)
 	# Mid-fight with nobody we could join -- so we can only back off.
@@ -98,7 +92,7 @@ func test_order_is_abandoned_if_the_party_backs_off_from_whoever_blocks_the_only
 	assert_eq(a.current_action, "Guidance blocked")
 
 func test_arriving_clears_the_order():
-	_isolate(corridor(5), Vector2i(2, 0), _row(0, 4))
+	_isolate(corridor(5), Vector2i(2, 0), cells_along(0, 4))
 	a.guidance_target = Vector2i(2, 0)
 	a._take_step()
 	assert_eq(a.guidance_target, MazeQuery.NONE)
@@ -107,7 +101,7 @@ func test_party_actually_walks_to_the_ordered_spot():
 	fast_forward()
 	# Unexplored ground lies to the right, which its own AI would head for --
 	# the order sends it back left over ground it's already covered.
-	_isolate(corridor(9), Vector2i(4, 0), _row(0, 5))
+	_isolate(corridor(9), Vector2i(4, 0), cells_along(0, 5))
 	a.guide_to(Vector2i(0, 0))
 	var reached := false
 	for i in range(50):  # polled in real time: moves are timed in seconds, not frames
@@ -186,7 +180,7 @@ func test_search_finds_a_way_round_once_its_guess_turns_out_wrong():
 func test_search_does_not_detour_to_the_nearest_known_cell_first():
 	# Open 6x6 room. It's explored the top row and down column 3, so the
 	# known cell nearest the target (0,5) is (3,4) -- off to one side...
-	var explored := _row(0, 5)
+	var explored := cells_along(0, 5)
 	for y in range(1, 5):
 		explored.append(Vector2i(3, y))
 	_isolate(_open_room(6, 6), Vector2i(0, 0), explored)
@@ -216,7 +210,7 @@ func test_party_finds_an_unexplored_spot_in_the_real_maze():
 # =========================== Party bookkeeping ============================
 
 func test_order_carries_over_to_a_promoted_leader():
-	_isolate(corridor(6), Vector2i(0, 0), _row(0, 5))
+	_isolate(corridor(6), Vector2i(0, 0), cells_along(0, 5))
 	var mate: NpcAgent = main.npcs[1]
 	a.party.append(mate)
 	mate.party = a.party
@@ -227,7 +221,7 @@ func test_order_carries_over_to_a_promoted_leader():
 	assert_eq(mate.guidance_target, Vector2i(5, 0))
 
 func test_order_is_dropped_when_the_party_merges_into_another():
-	_isolate(corridor(6), Vector2i(0, 0), _row(0, 5))
+	_isolate(corridor(6), Vector2i(0, 0), cells_along(0, 5))
 	var host: NpcAgent = main.npcs[1]
 	host.players = players
 	a.guide_to(Vector2i(5, 0))
