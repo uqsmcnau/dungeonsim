@@ -2,7 +2,7 @@ extends DungeonTest
 
 ## Covers Recover being cast only between fights (see
 ## NpcAgent._see_to_ourselves), never mid-fight (see
-## NpcAgent.choose_combat_action) -- where a Health Potion is the only
+## CombatActions.choose) -- where a Health Potion is the only
 ## healing -- and spellcasters, with no Recover to keep mana back for,
 ## spending the last of it on their attack spells. And between fights the
 ## whole party sees to itself, not just its leader.
@@ -23,13 +23,13 @@ func before_each():
 func test_not_mid_fight():
 	a.stats.hp = 5
 	a.stats.mp = 50
-	assert_eq(a.choose_combat_action(foe), CombatRules.ATTACK, "fighting on, however much mana it has")
+	assert_eq(CombatActions.choose(a.stats, foe), CombatRules.ATTACK, "fighting on, however much mana it has")
 
 func test_a_potion_still_heals_mid_fight():
 	a.stats.hp = 5
 	a.stats.mp = 50
 	a.stats.inventory["Health Potion"] = 1
-	assert_eq(a.choose_combat_action(foe), CombatRules.POTION)
+	assert_eq(CombatActions.choose(a.stats, foe), CombatRules.POTION)
 
 func test_but_between_fights_it_casts_recover():
 	a.stats.hp = 5
@@ -43,7 +43,7 @@ func test_a_spellcaster_spends_its_last_mana_on_a_spell():
 	a.stats.learn_spell("spark")
 	a.stats.mp = NpcStats.SPARK_MP_COST
 	assert_gt(float(a.stats.spark_power()), CombatMath.expected_damage_dealt(a.stats, foe), "sanity: Spark hits harder")
-	assert_eq(a.choose_combat_action(foe), CombatRules.SPARK, "nothing to keep back for a Recover mid-fight")
+	assert_eq(CombatActions.choose(a.stats, foe), CombatRules.SPARK, "nothing to keep back for a Recover mid-fight")
 
 # ============================ The whole party ==============================
 

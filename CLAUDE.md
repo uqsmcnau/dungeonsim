@@ -224,10 +224,13 @@ there.
   above that count. Monsters belong to the area of their *home* cell (they're
   leashed to it).
 - **`npc.gd` (`NpcAgent`)** — one character: exploring, chests, shopping,
-  consumables, Guidance, sight (`seen_cells`/`sight_cells`), what its map
-  label says, and its own combat tactics (`choose_combat_action`,
-  `apply_combat_action`). Still the biggest file: when it grows, move a
-  coherent piece out rather than loosening the line limit. Which way it
+  its party seeing to itself between fights, Guidance, sight
+  (`seen_cells`/`sight_cells`), and what its map label says. Still the
+  biggest file: when it grows, move a coherent piece out rather than
+  loosening the line limit. What it does with its turn in a fight is
+  **`combat_actions.gd` (`CombatActions`)**, and what it sees to between
+  fights (Recover, potions, tomes) **`upkeep.gd` (`Upkeep`)** — static
+  functions on its stat block. Which way it
   steps next (exploring, routes round the storm and monsters, escaping the
   storm, backing off) is **`npc_routes.gd` (`NpcRoutes`)**, static functions
   taking the character, and its dealings with shops (which to head for,

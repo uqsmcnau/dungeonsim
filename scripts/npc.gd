@@ -5,14 +5,10 @@ extends NpcBody
 ## map label. Where it is and how it moves -- cells, steps, its icon, its
 ## place on the shared `players` map -- is NpcBody's.
 
-const RECOVER_MP_COST := 5
+## How long seeing to oneself between fights takes (see
+## _see_to_ourselves): a full action, as in a fight.
 const RECOVER_CAST_SECONDS := 1.0
-## What a character can see to between fights besides an item (see
-## _what_to_see_to): casting Recover, or resting till it can.
-const RECOVER := "Recover"
-const REST := "Rest"
-const OUT_OF_COMBAT_HEAL_THRESHOLD := 0.9
-const IN_COMBAT_HEAL_THRESHOLD := 0.5
+const CONSUME_SECONDS := 1.0
 ## How far (in cells) a character can see, and how far ahead it will plan a
 ## route to a chest it has spotted.
 const SIGHT_RANGE := 6
@@ -34,9 +30,6 @@ const DAUNTED_STEPS := 12
 ## up with. They're within SIGHT_RANGE in a straight line, so this mostly
 ## leaves room for detours around monsters.
 const PARTY_PATH_DEPTH := 18
-const CONSUME_SECONDS := 1.0
-## Below this fraction of max MP, top up with a Mana Potion if carrying one.
-const LOW_MANA_FRACTION := 0.3
 
 signal reached_exit(npc: NpcAgent)
 signal leveled_up(npc: NpcAgent)
@@ -281,7 +274,7 @@ func _settle_player_on_our_cell() -> bool:
 		return true
 	return false
 
-## Between fights, the whole party sees to itself (see _what_to_see_to):
+## Between fights, the whole party sees to itself (see Upkeep):
 ## everyone with something to do does it at once -- casting Recover, or
 ## drinking or reading something -- and the party waits for them all. Failing
 ## that, if someone hurt can only wait for the mana to cast Recover, the
@@ -292,8 +285,8 @@ func _see_to_ourselves() -> bool:
 	var tending: Array = []
 	var resting := false
 	for member in _self_first_party():
-		var what: String = member._what_to_see_to()
-		if what == REST:
+		var what := Upkeep.what_to_see_to(member.stats)
+		if what == Upkeep.REST:
 			resting = true
 		elif what != "":
 			tending.append([member, what])
@@ -305,54 +298,17 @@ func _see_to_ourselves() -> bool:
 		return true
 	return false
 
-## What this character would see to between fights, if anything ("" if
-## not): an unread tome to read; when hurt, RECOVER, else a Health Potion,
-## else REST -- waiting for its mana to come back; a Mana Potion when low
-## on mana. Nothing heals in the storm, so no use trying there.
-func _what_to_see_to() -> String:
-	var pending_tome := _pending_tome()
-	if pending_tome != "":
-		return pending_tome
-	if _needs_healing() and stats.can_heal:
-		if stats.mp >= RECOVER_MP_COST:
-			return RECOVER
-		if stats.has_item("Health Potion"):
-			return "Health Potion"
-		return REST
-	if stats.mp < int(stats.max_mp * LOW_MANA_FRACTION) and stats.has_item("Mana Potion"):
-		return "Mana Potion"
-	return ""
-
-## Outside combat, a hurt character (and so its party) stops to recover
-## rather than pressing on injured (see _what_to_see_to).
-func _needs_healing() -> bool:
-	return stats.hp < int(stats.max_hp * OUT_OF_COMBAT_HEAL_THRESHOLD)
-
-## An unread tome the character is carrying, if any — Fireball takes priority
-## over Spark since it's the stronger spell. Read at the next idle moment,
-## since there's no reason to delay learning a permanent spell.
-func _pending_tome() -> String:
-	for item_name in ["Tome of Fireball", "Tome of Spark"]:
-		if not stats.has_item(item_name):
-			continue
-		var spell: String = ItemCatalog.find(item_name).spell
-		if not stats.knows_spell(spell):
-			return item_name
-	return ""
-
-## `tending` ([member, what] pairs, see _what_to_see_to) all at once, the
-## party (this, its leader) held till the last of them is done. Each takes
-## a full action, as in a fight: RECOVER_CAST_SECONDS to cast Recover,
-## CONSUME_SECONDS to drink or read something.
+## `tending` ([member, what] pairs, see Upkeep.what_to_see_to) all at
+## once, the party (this, its leader) held till the last of them is done
+## (see Upkeep.seconds_for).
 func _tend(tending: Array) -> void:
 	is_moving = true
 	current_action = "Waiting for the party"
+	var seconds := 0.0
 	for pair in tending:
-		pair[0].current_action = _tending_text(pair[1])
-	show_label("%s %s" % [map_name(), _tending_label(tending[0][1])])
-	var seconds := RECOVER_CAST_SECONDS if tending.any(func(p): return p[1] == RECOVER) else 0.0
-	if tending.any(func(p): return p[1] != RECOVER):
-		seconds = maxf(seconds, CONSUME_SECONDS)
+		pair[0].current_action = Upkeep.doing(pair[1])
+		seconds = maxf(seconds, Upkeep.seconds_for(pair[1]))
+	show_label("%s %s" % [map_name(), Upkeep.label(tending[0][1])])
 	var timer := get_tree().create_timer(seconds, false)
 	timer.timeout.connect(_finish_tending.bind(tending))
 
@@ -361,46 +317,11 @@ func _finish_tending(tending: Array) -> void:
 		var member: NpcAgent = pair[0]
 		if not is_instance_valid(member) or member.dead:
 			continue
-		if pair[1] == RECOVER:
-			member._recover()
-		else:
-			member._apply_consumable_effect(pair[1])
+		Upkeep.see_to(member.stats, pair[1])
 		if member != self:
 			member.reset_label()
 	is_moving = false
 	reset_label()
-
-## "Casting Recover", "Drinking Health Potion", "Reading Tome of Spark".
-func _tending_text(what: String) -> String:
-	if what == RECOVER:
-		return "Casting Recover"
-	return "%s %s" % [_consume_verb(what), what]
-
-## How tending shows on the party's map label: "✨ Recover", "Drinking
-## Health Potion".
-func _tending_label(what: String) -> String:
-	return "✨ Recover" if what == RECOVER else _tending_text(what)
-
-## The Recover spell's effect, cast between fights.
-func _recover() -> void:
-	stats.mp -= RECOVER_MP_COST
-	stats.heal(stats.recover_power())
-
-## Applies a consumable's effect (a heal, a mana top-up, or learning a spell
-## from a tome) and uses up the one copy that was consumed.
-func _apply_consumable_effect(item_name: String) -> void:
-	var item := ItemCatalog.find(item_name)
-	match item.effect:
-		"heal_hp":
-			stats.heal(item.amount)
-		"restore_mp":
-			stats.mp = min(stats.max_mp, stats.mp + item.amount)
-		"learn_spell":
-			stats.learn_spell(item.spell)
-	stats.consume_item(item_name)
-
-func _consume_verb(item_name: String) -> String:
-	return "Reading" if ItemCatalog.find(item_name).effect == "learn_spell" else "Drinking"
 
 func _take_step() -> void:
 	_backed_off = 0
@@ -825,7 +746,7 @@ func receive_item(item_name: String) -> void:
 	stats.acquire_item(item_name)
 	var item := ItemCatalog.find(item_name)
 	if not is_party_leader and item.effect == "learn_spell" and not stats.knows_spell(item.spell):
-		_apply_consumable_effect(item_name)
+		stats.use_item(item_name)
 
 ## Every living member of this character's party, including itself.
 func living_party() -> Array:
@@ -834,55 +755,6 @@ func living_party() -> Array:
 		if is_instance_valid(member) and not member.dead:
 			result.append(member)
 	return result
-
-## Survival first (a Health Potion, if it has one -- Recover can't be cast
-## mid-fight, only between fights: see _see_to_ourselves), then whichever
-## of its attack spells or a plain attack actually deals the most damage
-## right now. A spell's damage is fixed by intelligence while a plain
-## attack scales with strength, level and weapon bonuses, so a spell that
-## out-damages a fresh character is often no longer the better choice once
-## they've leveled up or found a sword — this compares them fresh each turn
-## rather than always preferring magic once it's known.
-func choose_combat_action(opponent_stats: NpcStats) -> String:
-	var hurt := stats.hp < int(stats.max_hp * IN_COMBAT_HEAL_THRESHOLD)
-	if hurt and stats.can_heal and stats.has_item("Health Potion"):
-		return CombatRules.POTION
-
-	var best_action := CombatRules.ATTACK
-	var best_damage: float = CombatMath.expected_damage_dealt(stats, opponent_stats)
-	if stats.knows_spell("spark") and stats.mp >= NpcStats.SPARK_MP_COST and stats.spark_power() > best_damage:
-		best_action = CombatRules.SPARK
-		best_damage = stats.spark_power()
-	if stats.knows_spell("fireball") and stats.mp >= NpcStats.FIREBALL_MP_COST and stats.fireball_power() > best_damage:
-		best_action = CombatRules.FIREBALL
-		best_damage = stats.fireball_power()
-	return best_action
-
-## Applies one chosen combat action (a plain attack, a spell, or a potion)
-## against an opponent's stat block. Shared between a monster fight
-## and a player-vs-player one — only what each side does with it differs.
-## Returns what happened, for the battle window: {"amount": the damage dealt
-## or HP healed, "missed": whether a plain attack missed}.
-func apply_combat_action(action: String, opponent_stats: NpcStats) -> Dictionary:
-	var hp_before: int = stats.hp
-	var damage := 0
-	match action:
-		CombatRules.POTION:
-			_apply_consumable_effect("Health Potion")
-		CombatRules.FIREBALL:
-			stats.mp -= NpcStats.FIREBALL_MP_COST
-			damage = max(1, stats.fireball_power())
-		CombatRules.SPARK:
-			stats.mp -= NpcStats.SPARK_MP_COST
-			damage = max(1, stats.spark_power())
-		_:
-			if randf() >= CombatMath.hit_chance_against(stats, opponent_stats):
-				return {"amount": 0, "missed": true}
-			damage = max(1, stats.attack_power() + randi() % 4 - opponent_stats.defense())
-	if CombatRules.is_heal(action):
-		return {"amount": stats.hp - hp_before, "missed": false}
-	opponent_stats.hp -= damage
-	return {"amount": damage, "missed": false}
 
 ## HP hitting 0 is final: the character dies, is hidden from the maze, and
 ## stops doing anything further. game_manager listens for `died` to drop it
@@ -923,20 +795,6 @@ func killer_description() -> String:
 	if party.size() > 1 and party_name != "":
 		desc += " of %s" % party_name
 	return desc
-
-## A combat action (see apply_combat_action) as a killing blow: the spell
-## cast, or whatever weapon they're wielding -- "Fireball for 12 damage",
-## "Iron Sword for 6 damage", "Bare hands for 3 damage".
-func killing_blow(action: String, damage: int) -> String:
-	var weapon := "Bare hands"
-	if CombatRules.is_offensive_spell(action):
-		weapon = CombatRules.ACTION_NAMES[action]
-	else:
-		for item_name in stats.equipped_in("hand"):
-			if ItemCatalog.find(item_name).effects.has("attack"):
-				weapon = item_name
-				break
-	return "%s for %d damage" % [weapon, damage]
 
 ## Backs off a step onto ground already covered, clear of monsters and
 ## other players (see NpcRoutes.retreat_cell) -- or stays put if there's none.

@@ -11,7 +11,7 @@ static func hit_chance(accuracy: float, evasion: float) -> float:
 	return clampf(BASE_HIT_CHANCE + accuracy - evasion, MIN_HIT_CHANCE, MAX_HIT_CHANCE)
 
 ## The actions a fighter can take on their turn (see
-## NpcAgent.choose_combat_action / apply_combat_action), as they're named in
+## CombatActions), as they're named in
 ## combat events (see CombatEvent). Use these rather than the bare
 ## strings: a misspelt constant fails when the script loads, where a
 ## misspelt string quietly turned into a plain attack.

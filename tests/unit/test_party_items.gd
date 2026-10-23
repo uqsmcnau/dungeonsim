@@ -116,7 +116,7 @@ func test_tome_for_the_leader_is_kept_to_read_at_the_next_idle_moment():
 	members[1].stats.intelligence = 3
 	_open_chest_with(members[0], {"Tome of Spark": 1})
 	assert_true(members[0].stats.has_item("Tome of Spark"), "the leader reads tomes on its own idle time, as before")
-	assert_eq(members[0]._pending_tome(), "Tome of Spark")
+	assert_eq(Upkeep.pending_tome(members[0].stats), "Tome of Spark")
 
 func test_potions_go_to_whoever_holds_fewest():
 	var members := _party(2)

@@ -114,9 +114,16 @@ func accuracy() -> float:
 func evasion() -> float:
 	return dexterity * DEX_HIT_STEP + evasion_bonus
 
-## The Recover spell's healing power scales with wisdom.
+## The Recover spell's healing power scales with wisdom. It's cast only
+## between fights (see Upkeep), for RECOVER_MP_COST.
+const RECOVER_MP_COST := 5
+
 func recover_power() -> int:
 	return 2 + wisdom
+
+func cast_recover() -> void:
+	mp -= RECOVER_MP_COST
+	heal(recover_power())
 
 ## Spark and Fireball are attack spells taught by their tomes (see
 ## ItemCatalog's "learn_spell" effect). Both scale with intelligence and, as
@@ -263,6 +270,19 @@ func acquire_item(item_name: String) -> bool:
 		_unequip(_weakest_in(slot))
 	_equip(item_name)
 	return true
+
+## Uses one of the consumable `item_name` (see ItemCatalog): a heal, a mana
+## top-up, or learning a spell from a tome -- and it's gone.
+func use_item(item_name: String) -> void:
+	var item := ItemCatalog.find(item_name)
+	match item.effect:
+		"heal_hp":
+			heal(item.amount)
+		"restore_mp":
+			mp = min(max_mp, mp + item.amount)
+		"learn_spell":
+			learn_spell(item.spell)
+	consume_item(item_name)
 
 ## Uses up one copy of a consumable (a potion drunk or a tome read).
 func consume_item(item_name: String) -> void:

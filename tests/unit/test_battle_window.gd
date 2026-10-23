@@ -483,12 +483,12 @@ func test_an_action_says_what_it_did():
 	var target := NpcStats.new()
 	target.hp = 50
 	target.max_hp = 50
-	var result: Dictionary = a.apply_combat_action(CombatRules.ATTACK, target)
+	var result: Dictionary = CombatActions.apply(a.stats, CombatRules.ATTACK, target)
 	assert_eq(result["missed"], result["amount"] == 0)
 	assert_eq(target.hp, 50 - result["amount"])
 	a.stats.hp = 10
 	a.stats.inventory["Health Potion"] = 1
-	result = a.apply_combat_action(CombatRules.POTION, target)
+	result = CombatActions.apply(a.stats, CombatRules.POTION, target)
 	assert_eq(result["amount"], a.stats.hp - 10, "the HP healed")
 
 func test_a_pack_fight_turn_reports_every_action():
@@ -527,7 +527,7 @@ func test_spells_and_heals_are_told_apart():
 	assert_false(CombatRules.is_heal(CombatRules.SPARK))
 	assert_true(CombatRules.is_offensive_spell(CombatRules.FIREBALL))
 	assert_false(CombatRules.is_offensive_spell(CombatRules.ATTACK))
-	assert_eq(a.killing_blow(CombatRules.SPARK, 4), "Spark for 4 damage")
+	assert_eq(CombatActions.killing_blow(a.stats, CombatRules.SPARK, 4), "Spark for 4 damage")
 
 func test_who_theyre_fighting_can_be_looked_up():
 	assert_eq(GroupCombat.opponents_of(a, main.enemy_map), [], "nobody, between fights")

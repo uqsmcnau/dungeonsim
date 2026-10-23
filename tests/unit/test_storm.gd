@@ -122,10 +122,10 @@ func test_nothing_heals_in_the_storm():
 	a.stats.mp = 30
 	a._weather_the_storm(0.01)
 	assert_false(a.stats.can_heal)
-	a._recover()
+	a.stats.cast_recover()
 	assert_eq(a.stats.hp, 10, "not from Recover")
 	a.stats.inventory["Health Potion"] = 1
-	a._apply_consumable_effect("Health Potion")
+	a.stats.use_item("Health Potion")
 	assert_eq(a.stats.hp, 10, "nor a potion")
 	var max_before: int = a.stats.max_hp
 	a.stats.add_xp(10000)
@@ -186,7 +186,7 @@ func test_no_turn_wasted_on_healing_in_the_storm():
 	a._weather_the_storm(0.01)
 	assert_false(a._see_to_ourselves(), "no Recover, no potion, no resting")
 	var foe := NpcStats.new()
-	assert_eq(a.choose_combat_action(foe), CombatRules.ATTACK, "nor mid-fight")
+	assert_eq(CombatActions.choose(a.stats, foe), CombatRules.ATTACK, "nor mid-fight")
 
 func test_exploring_prefers_ground_out_of_the_storm():
 	# Unexplored both ways from (1,0); only (2,0) is out of the storm.

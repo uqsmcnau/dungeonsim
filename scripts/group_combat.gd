@@ -4,7 +4,7 @@ extends RefCounted
 ## The two group fight loops: a player party against a monster pack, and a
 ## player party against another player party. Every living member on both
 ## sides takes part, each fighting with their own tactics each turn (see
-## NpcAgent.choose_combat_action / apply_combat_action); these just run the
+## CombatActions); these just run the
 ## turns and the beginning and end of the fight.
 ##
 ## Both identify a side by its party's shared array rather than by any one
@@ -101,8 +101,8 @@ static func resolve_pack_turn(my_party: Array, enemy_cell: Vector2i, enemies: Di
 		if foes.is_empty():
 			break
 		var target: EnemyAgent = me.weakest_of(foes)
-		var action: String = ally.choose_combat_action(target.stats)
-		var result: Dictionary = ally.apply_combat_action(action, target.stats)
+		var action: String = CombatActions.choose(ally.stats, target.stats)
+		var result: Dictionary = CombatActions.apply(ally.stats, action, target.stats)
 		ally.combat_event.emit(CombatEvent.of_action(ally, target, action, result["amount"], result["missed"]))
 		if target.stats.hp <= 0:
 			foes.erase(target)
@@ -263,13 +263,13 @@ static func resolve_pvp_turn(my_party: Array, their_party: Array, my_cell: Vecto
 		if foes.is_empty():
 			break
 		var target: NpcAgent = me.weakest_of(foes)
-		var action: String = ally.choose_combat_action(target.stats)
+		var action: String = CombatActions.choose(ally.stats, target.stats)
 		var hp_before: int = target.stats.hp
-		var result: Dictionary = ally.apply_combat_action(action, target.stats)
+		var result: Dictionary = CombatActions.apply(ally.stats, action, target.stats)
 		ally.combat_event.emit(CombatEvent.of_action(ally, target, action, result["amount"], result["missed"]))
 		if target.stats.hp <= 0:
 			foes.erase(target)
-			target.die(ally.killer_description(), ally.killing_blow(action, hp_before - target.stats.hp))
+			target.die(ally.killer_description(), CombatActions.killing_blow(ally.stats, action, hp_before - target.stats.hp))
 
 	var allies: Array = me.living_party()
 	if foes.is_empty() or allies.is_empty():
@@ -281,12 +281,12 @@ static func resolve_pvp_turn(my_party: Array, their_party: Array, my_cell: Vecto
 		if allies.is_empty():
 			break
 		var target: NpcAgent = foe.weakest_of(allies)
-		var action: String = foe.choose_combat_action(target.stats)
+		var action: String = CombatActions.choose(foe.stats, target.stats)
 		var hp_before: int = target.stats.hp
-		var result: Dictionary = foe.apply_combat_action(action, target.stats)
+		var result: Dictionary = CombatActions.apply(foe.stats, action, target.stats)
 		foe.combat_event.emit(CombatEvent.of_action(foe, target, action, result["amount"], result["missed"]))
 		if target.stats.hp <= 0:
-			target.die(foe.killer_description(), foe.killing_blow(action, hp_before - target.stats.hp))
+			target.die(foe.killer_description(), CombatActions.killing_blow(foe.stats, action, hp_before - target.stats.hp))
 
 	if me.living_party().is_empty() or them.living_party().is_empty():
 		conclude_pvp(my_party, their_party, my_cell, their_cell)
