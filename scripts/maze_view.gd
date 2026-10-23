@@ -176,15 +176,26 @@ func update_fog(npcs: Array, focus: Array = []) -> void:
 func _draw() -> void:
 	if grid.is_empty():
 		return
-	var height: int = grid.size()
-	var width: int = grid[0].size()
-	var thickness := 3.0
-	var dim := Color(0.4, 0.4, 0.4, 1.0)
+	_draw_border()
+	for s in start_cells:
+		_draw_marker_if_visible(s, Color(0.2, 0.9, 0.3, 0.6))
+	_draw_marker_if_visible(exit_cell, Color(0.95, 0.8, 0.15, 0.6))
+	for shop in shops:
+		if is_discovered(shop):
+			_draw_room(shop, SILVER_SHOP_COLOR if shops[shop] == ItemCatalog.RARITY_SILVER else SHOP_COLOR, "$")
+	for mid_boss in mid_boss_cells:
+		if is_discovered(mid_boss):
+			_draw_room(mid_boss, Color(0.55, 0.15, 0.75), "☠")
+	_draw_walls()
+	_draw_storm()
+	_draw_guidance_marker()
+	_draw_selection()
 
-	# The border: a band of stone around the maze's circle, its outer
-	# edge rimmed, then the maze's floor laid over the middle of it -- so the
-	# band shows between the floor's stepped edge and the smooth rim. Drawn
-	# whatever the fog, so the dungeon's outline is always framed.
+## The border: a band of stone around the maze's circle, its outer edge
+## rimmed, then the maze's floor laid over the middle of it -- so the band
+## shows between the floor's stepped edge and the smooth rim. Drawn whatever
+## the fog, so the dungeon's outline is always framed.
+func _draw_border() -> void:
 	if not _border.is_empty():
 		draw_colored_polygon(_border, BORDER_COLOR)
 		var rim := _border.duplicate()
@@ -193,35 +204,23 @@ func _draw() -> void:
 	for run in _floor:
 		draw_rect(run, FLOOR_COLOR)
 
-	for s in start_cells:
-		_draw_marker_if_visible(s, Color(0.2, 0.9, 0.3, 0.6))
-	_draw_marker_if_visible(exit_cell, Color(0.95, 0.8, 0.15, 0.6))
+## A 3x3 room around `center` -- a shop or a mid boss's -- tinted `tint`,
+## its middle stronger and marked with `symbol`.
+func _draw_room(center: Vector2i, tint: Color, symbol: String) -> void:
+	for dy in range(-1, 2):
+		for dx in range(-1, 2):
+			_draw_marker(center + Vector2i(dx, dy), Color(tint, 0.18))
+	_draw_marker(center, Color(tint, 0.6))
+	var baseline := Vector2(center.x * cell_size, center.y * cell_size + cell_size * 0.78)
+	draw_string(ThemeDB.fallback_font, baseline, symbol, HORIZONTAL_ALIGNMENT_CENTER, cell_size, int(cell_size * 0.8), Color.WHITE)
 
-	for shop in shops:
-		if not is_discovered(shop):
-			continue
-		var tint := SILVER_SHOP_COLOR if shops[shop] == ItemCatalog.RARITY_SILVER else SHOP_COLOR
-		for dy in range(-1, 2):
-			for dx in range(-1, 2):
-				_draw_marker(shop + Vector2i(dx, dy), Color(tint, 0.18))
-		_draw_marker(shop, Color(tint, 0.6))
-		var font := ThemeDB.fallback_font
-		var baseline := Vector2(shop.x * cell_size, shop.y * cell_size + cell_size * 0.78)
-		draw_string(font, baseline, "$", HORIZONTAL_ALIGNMENT_CENTER, cell_size, int(cell_size * 0.8), Color.WHITE)
-
-	for mid_boss in mid_boss_cells:
-		if not is_discovered(mid_boss):
-			continue
-		for dy in range(-1, 2):
-			for dx in range(-1, 2):
-				_draw_marker(mid_boss + Vector2i(dx, dy), Color(0.55, 0.15, 0.75, 0.18))
-		_draw_marker(mid_boss, Color(0.55, 0.15, 0.75, 0.6))
-		var mb_font := ThemeDB.fallback_font
-		var mb_baseline := Vector2(mid_boss.x * cell_size, mid_boss.y * cell_size + cell_size * 0.78)
-		draw_string(mb_font, mb_baseline, "☠", HORIZONTAL_ALIGNMENT_CENTER, cell_size, int(cell_size * 0.8), Color.WHITE)
-
-	for y in range(height):
-		for x in range(width):
+## The walls of every discovered cell: white where they're in sight right
+## now, dimmed elsewhere.
+func _draw_walls() -> void:
+	var thickness := 3.0
+	var dim := Color(0.4, 0.4, 0.4, 1.0)
+	for y in range(grid.size()):
+		for x in range(grid[0].size()):
 			var cell := Vector2i(x, y)
 			if MazeGenerator.is_outside(grid, cell) or not is_discovered(cell):
 				continue
@@ -240,16 +239,20 @@ func _draw() -> void:
 			if walls & MazeGenerator.WALL_W:
 				draw_line(top_left, bottom_left, wall_color, thickness)
 
-	_draw_storm()
+## Where the selected party's been sent by Guidance, if anywhere.
+func _draw_guidance_marker() -> void:
+	if guidance_marker == MazeQuery.NONE:
+		return
+	var center := Vector2((guidance_marker.x + 0.5) * cell_size, (guidance_marker.y + 0.5) * cell_size)
+	draw_arc(center, cell_size * 0.4, 0.0, TAU, 24, Color(1.0, 0.85, 0.2, 0.95), 2.0)
+	draw_circle(center, cell_size * 0.1, Color(1.0, 0.85, 0.2, 0.95))
 
-	if guidance_marker != MazeQuery.NONE:
-		var center := Vector2((guidance_marker.x + 0.5) * cell_size, (guidance_marker.y + 0.5) * cell_size)
-		draw_arc(center, cell_size * 0.4, 0.0, TAU, 24, Color(1.0, 0.85, 0.2, 0.95), 2.0)
-		draw_circle(center, cell_size * 0.1, Color(1.0, 0.85, 0.2, 0.95))
-
-	if selection_radius > 0.0:
-		draw_circle(selection_center, selection_radius, Color(SELECTION_COLOR, 0.18))
-		draw_arc(selection_center, selection_radius, 0.0, TAU, 32, Color(SELECTION_COLOR, 0.95), 2.5)
+## The ring round the selected party, if anyone's selected.
+func _draw_selection() -> void:
+	if selection_radius <= 0.0:
+		return
+	draw_circle(selection_center, selection_radius, Color(SELECTION_COLOR, 0.18))
+	draw_arc(selection_center, selection_radius, 0.0, TAU, 32, Color(SELECTION_COLOR, 0.95), 2.5)
 
 func _draw_marker_if_visible(cell: Vector2i, color: Color) -> void:
 	if is_discovered(cell):

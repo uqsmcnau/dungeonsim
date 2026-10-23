@@ -171,18 +171,7 @@ static func _ignore_mouse_inside(node: Node) -> void:
 ## equipment slots, potions and spells.
 func _build_panel(npc: NpcAgent, with_gear: bool = true) -> Dictionary:
 	var panel := PanelContainer.new()
-	var style := StyleBoxFlat.new()
-	var c: Color = npc.visual.color
-	style.bg_color = Color(c.r, c.g, c.b, 0.28)
-	style.content_margin_left = 10
-	style.content_margin_right = 10
-	style.content_margin_top = 2
-	style.content_margin_bottom = 2
-	style.corner_radius_top_left = 6
-	style.corner_radius_top_right = 6
-	style.corner_radius_bottom_left = 6
-	style.corner_radius_bottom_right = 6
-	panel.add_theme_stylebox_override("panel", style)
+	panel.add_theme_stylebox_override("panel", _panel_style(npc.visual.color))
 
 	var vbox := VBoxContainer.new()
 	vbox.custom_minimum_size = Vector2(400, 0)
@@ -202,24 +191,14 @@ func _build_panel(npc: NpcAgent, with_gear: bool = true) -> Dictionary:
 	# Its own line rather than part of the header: party names run up to
 	# ~30 characters, which would push the header past the panel's width.
 	# Hidden while on their own (see _fill_panel).
-	var party_label := Label.new()
-	party_label.add_theme_font_size_override("font_size", 12)
-	party_label.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0, 1.0))
-	vbox.add_child(party_label)
-
-	var action_label := Label.new()
-	action_label.add_theme_font_size_override("font_size", 12)
-	action_label.add_theme_color_override("font_color", Color(0.85, 0.85, 0.6, 1.0))
-	vbox.add_child(action_label)
+	var party_label := _small_label(vbox, Color(0.7, 0.85, 1.0, 1.0))
+	var action_label := _small_label(vbox, Color(0.85, 0.85, 0.6, 1.0))
 
 	# Once dead, the action line says who or what killed them, and this one
 	# says how (see _fill_panel). Hidden while alive.
-	var death_label := Label.new()
-	death_label.add_theme_font_size_override("font_size", 12)
-	death_label.add_theme_color_override("font_color", Color(1.0, 0.6, 0.55, 1.0))
+	var death_label := _small_label(vbox, Color(1.0, 0.6, 0.55, 1.0))
 	death_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	death_label.visible = false
-	vbox.add_child(death_label)
 
 	var hp_widget := make_stat_bar(Color(0.2, 0.8, 0.3))
 	vbox.add_child(hp_widget["container"])
@@ -227,51 +206,8 @@ func _build_panel(npc: NpcAgent, with_gear: bool = true) -> Dictionary:
 	var mp_widget := make_stat_bar(Color(0.25, 0.55, 0.95))
 	vbox.add_child(mp_widget["container"])
 
-	var abilities_label := Label.new()
-	abilities_label.add_theme_font_size_override("font_size", 12)
-	vbox.add_child(abilities_label)
-
-	## The gear section: one label per equipment slot, laid out two to a row
-	## so the slot list reads as columns rather than one long wrapped block.
-	var gear: GridContainer = null
-	var slot_labels: Dictionary = {}
-	var potions_label: Label = null
-	var spells_label: Label = null
-	if with_gear:
-		gear = GridContainer.new()
-		gear.columns = 2
-		gear.add_theme_constant_override("h_separation", 12)
-		gear.add_theme_constant_override("v_separation", 0)
-		vbox.add_child(gear)
-
-		# Every cell gets the same capped width with wrapping allowed, so two
-		# long entries sharing a row (e.g. Accessories + Potions, both able to
-		# list two items) wrap instead of pushing the panel wider than its column.
-		for slot in ItemCatalog.SLOT_ORDER:
-			var slot_label := _make_grid_cell()
-			gear.add_child(slot_label)
-			slot_labels[slot] = slot_label
-
-		# Potions and spells fill out the same grid rather than breaking into
-		# separate full-width rows, continuing on from the equipment slots
-		# (accessory | potions, then spells alone on the next row).
-		potions_label = _make_grid_cell()
-		gear.add_child(potions_label)
-
-		spells_label = _make_grid_cell()
-		gear.add_child(spells_label)
-
-	## A white overlay on top of the whole panel, flashed on level-up (see
-	## flash_level_up) then faded back out.
-	var flash := ColorRect.new()
-	flash.color = Color(1, 1, 1, 0)
-	flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	flash.set_anchors_preset(Control.PRESET_FULL_RECT)
-	panel.add_child(flash)
-
-	return {
+	var r := {
 		"panel": panel,
-		"flash": flash,
 		"header_row": header_row,
 		"header": header,
 		"party": party_label,
@@ -283,12 +219,77 @@ func _build_panel(npc: NpcAgent, with_gear: bool = true) -> Dictionary:
 		"hp_text": hp_widget["label"],
 		"mp_bar": mp_widget["bar"],
 		"mp_text": mp_widget["label"],
-		"abilities": abilities_label,
-		"gear": gear,
-		"slot_labels": slot_labels,
-		"potions": potions_label,
-		"spells": spells_label,
+		"abilities": _small_label(vbox),
+		"gear": null,
+		"slot_labels": {},
+		"potions": null,
+		"spells": null,
 	}
+	if with_gear:
+		_build_gear(vbox, r)
+	r["flash"] = _flash_overlay(panel)
+	return r
+
+## A panel's background: the character's colour, faint, with rounded
+## corners.
+static func _panel_style(c: Color) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(c.r, c.g, c.b, 0.28)
+	style.content_margin_left = 10
+	style.content_margin_right = 10
+	style.content_margin_top = 2
+	style.content_margin_bottom = 2
+	style.corner_radius_top_left = 6
+	style.corner_radius_top_right = 6
+	style.corner_radius_bottom_left = 6
+	style.corner_radius_bottom_right = 6
+	return style
+
+## A line of small text added to `box`, in `color` if one's given.
+static func _small_label(box: Container, color = null) -> Label:
+	var label := Label.new()
+	label.add_theme_font_size_override("font_size", 12)
+	if color != null:
+		label.add_theme_color_override("font_color", color)
+	box.add_child(label)
+	return label
+
+## The gear section, added to `box` and its widgets to `r` (see
+## _build_panel): one label per equipment slot, laid out two to a row so the
+## slot list reads as columns rather than one long wrapped block.
+func _build_gear(box: Container, r: Dictionary) -> void:
+	var gear := GridContainer.new()
+	gear.columns = 2
+	gear.add_theme_constant_override("h_separation", 12)
+	gear.add_theme_constant_override("v_separation", 0)
+	box.add_child(gear)
+	r["gear"] = gear
+
+	# Every cell gets the same capped width with wrapping allowed, so two
+	# long entries sharing a row (e.g. Accessories + Potions, both able to
+	# list two items) wrap instead of pushing the panel wider than its column.
+	for slot in ItemCatalog.SLOT_ORDER:
+		var slot_label := _make_grid_cell()
+		gear.add_child(slot_label)
+		r["slot_labels"][slot] = slot_label
+
+	# Potions and spells fill out the same grid rather than breaking into
+	# separate full-width rows, continuing on from the equipment slots
+	# (accessory | potions, then spells alone on the next row).
+	r["potions"] = _make_grid_cell()
+	gear.add_child(r["potions"])
+	r["spells"] = _make_grid_cell()
+	gear.add_child(r["spells"])
+
+## A white overlay on top of the whole of `panel`, flashed on level-up (see
+## flash_level_up) then faded back out.
+static func _flash_overlay(panel: PanelContainer) -> ColorRect:
+	var flash := ColorRect.new()
+	flash.color = Color(1, 1, 1, 0)
+	flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	flash.set_anchors_preset(Control.PRESET_FULL_RECT)
+	panel.add_child(flash)
+	return flash
 
 func refresh_npc(npc: NpcAgent) -> void:
 	_refresh_row(npc)

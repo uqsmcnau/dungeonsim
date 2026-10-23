@@ -307,16 +307,7 @@ func advance(delta: float) -> void:
 func _act(ev: CombatEvent) -> void:
 	var actor: BattleFighter = fighters.get(ev.actor_id)
 	if ev.kind == CombatEvent.Kind.ESCAPE:
-		if actor == null:
-			return
-		if actor.side == Side.PARTY:
-			_party_escaped = true
-			_show_banner("Escaped!")
-			for f in fighters_on(Side.PARTY):
-				if not f.ko:
-					f.run = RUN_SECONDS
-		else:
-			_show_caption("%s fled!" % actor.name)
+		_escape(actor)
 		return
 
 	actions_played += 1
@@ -331,6 +322,7 @@ func _act(ev: CombatEvent) -> void:
 			actor.lunge = LUNGE_SECONDS
 	if target == null:
 		return
+	# A spell has to fly and a blow to land before the target feels it.
 	var delay := 0.0
 	if CombatRules.is_offensive_spell(ev.action):
 		delay = SPELL_SECONDS
@@ -340,6 +332,28 @@ func _act(ev: CombatEvent) -> void:
 		delay = LUNGE_SECONDS * 0.5
 	target.hp = ev.target_hp
 	target.max_hp = ev.target_max_hp
+	_pop_number(ev, target, delay)
+	if ev.killed:
+		_fall(target, delay)
+
+## `actor` gets away: the whole party runs for it, or a foe's said to have
+## fled.
+func _escape(actor: BattleFighter) -> void:
+	if actor == null:
+		return
+	if actor.side == Side.PARTY:
+		_party_escaped = true
+		_show_banner("Escaped!")
+		for f in fighters_on(Side.PARTY):
+			if not f.ko:
+				f.run = RUN_SECONDS
+	else:
+		_show_caption("%s fled!" % actor.name)
+
+## What `ev` did to `target`, floating up over them `delay` seconds from
+## now: "Miss", a heal ("+5"), a critical hit ("9!"), or the damage -- which
+## also has them blink white.
+func _pop_number(ev: CombatEvent, target: BattleFighter, delay: float) -> void:
 	var text := str(ev.amount)
 	var color := BattlePainter.TEXT_COLOR
 	if ev.missed:
@@ -357,14 +371,16 @@ func _act(ev: CombatEvent) -> void:
 	var pos := _home_of(target) + Vector2(0, -target.height() * 0.2)
 	pos.y -= 16.0 * popups.filter(func(p): return p["target_id"] == target.id and p["t"] < POPUP_SECONDS * 0.5).size()
 	popups.append({"text": text, "color": color, "pos": pos, "t": -delay, "target_id": target.id})
-	if ev.killed:
-		# Monsters dissolve; players fall and lie where they fell.
-		if target.is_player():
-			target.ko = true
-		else:
-			target.dissolve = DISSOLVE_SECONDS + delay
-		if target.side == Side.FOES:
-			_foes_defeated += 1
+
+## `target` falls, `delay` seconds from now: monsters dissolve; players fall
+## and lie where they fell.
+func _fall(target: BattleFighter, delay: float) -> void:
+	if target.is_player():
+		target.ko = true
+	else:
+		target.dissolve = DISSOLVE_SECONDS + delay
+	if target.side == Side.FOES:
+		_foes_defeated += 1
 
 func _show_caption(text: String) -> void:
 	caption = text
