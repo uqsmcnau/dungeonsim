@@ -32,8 +32,10 @@ jobs:
       - name: Import project (generates .godot/ cache and class_name registry)
         run: /opt/godot/godot --headless --editor --path . --quit
 
-      - name: Run GUT test suite
-        run: /opt/godot/godot --headless --path . -s addons/gut/gut_cmdln.gd
+      - name: Run GUT test suite (in parallel -- see tools/test.sh)
+        env:
+          GODOT: /opt/godot/godot
+        run: tools/test.sh
 
   gdlint:
     runs-on: ubuntu-latest

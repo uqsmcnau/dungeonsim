@@ -40,13 +40,24 @@ The test suite is [GUT](https://github.com/bitwes/Gut) 9.7.1, vendored into
 live in `tests/unit/`, one file per concern.
 
 ```
+tools/test.sh [jobs]
+```
+
+runs it in several Godot processes at once (one per core, up to 8), the
+test files shared out between them, and sums up — about 17 seconds rather
+than a minute, since nearly all the time goes on building a fresh game for
+each test. It prints every failure in full and exits 1 if anything failed;
+CI uses it (see `.github/workflows/tests.yml`). Test files mustn't depend
+on each other or on running alone (the music tests' scratch folder is per
+process for that reason). The plain runner still works, for one file
+(`-gselect=`) or one test (`-gunit_test_name=`):
+
+```
 godot --headless --path . -s addons/gut/gut_cmdln.gd
 ```
 
-`.gutconfig.json` in the project root already points the runner at
-`tests/unit`, so no extra flags are needed. Exits 0 on success, 1 if any
-test fails — safe to gate CI on (see `.github/workflows/tests.yml`). The
-whole suite takes about a minute.
+`.gutconfig.json` in the project root already points it at `tests/unit`, so
+no extra flags are needed.
 
 Test scripts extend **`DungeonTest`** (`tests/dungeon_test.gd`, outside
 `tests/unit` so GUT doesn't collect it) rather than `GutTest`. It provides
