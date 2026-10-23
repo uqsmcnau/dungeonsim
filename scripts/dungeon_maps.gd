@@ -13,7 +13,7 @@ var cell_size: float = GameManager.CELL_SIZE
 ## Where the race ends: the boss room's middle.
 var exit_cell: Vector2i = MazeQuery.NONE
 ## Monsters, chests, shops and players by the cell they're on (a shop by
-## its rarity -- see NpcAgent.shop_rarity).
+## its rarity -- see Shopping.rarity_at).
 var enemies: Dictionary = {}
 var chests: Dictionary = {}
 var shops: Dictionary = {}

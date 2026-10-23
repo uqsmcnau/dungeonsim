@@ -91,6 +91,6 @@ func test_they_only_make_for_a_silver_shop_with_business_there():
 	npc.stats = _shopper()
 	npc.stats.gold = npc.stats.buy_price(ItemCatalog.RARITY_SILVER) - 1
 	npc.known_shops = {shop: true}
-	assert_eq(npc._shop_step(), npc.cell_pos, "can't afford a thing there")
+	assert_eq(Shopping.step(npc), npc.cell_pos, "can't afford a thing there")
 	npc.stats.gold = 1000
-	assert_ne(npc._shop_step(), npc.cell_pos, "now it's worth the trip")
+	assert_ne(Shopping.step(npc), npc.cell_pos, "now it's worth the trip")

@@ -165,4 +165,4 @@ func test_party_has_shop_business_if_any_member_does():
 	members[1].stats.acquire_item("Helmet")
 	members[1].stats.acquire_item("Helmet")  # the follower has a spare to sell
 	assert_false(members[0].stats.has_shop_business(), "sanity: the leader alone has nothing to do there")
-	assert_true(members[0]._party_has_shop_business())
+	assert_true(Shopping.party_has_business(members[0]))

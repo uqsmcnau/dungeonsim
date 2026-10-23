@@ -140,7 +140,7 @@ On GitHub it plays 3 games at x10 on every push, from a new seed each run
   silver shops near the middle, at `SILVER_BUY_PRICE`) and gold (the chest
   an Ogre Warlord's whole party leaves — `EnemyAgent.pack_defeated`; never
   sold). A shop's rarity is its value in `shop_map`
-  (`NpcAgent.shop_rarity`), and the `NpcStats` shopping calls take it. A
+  (`Shopping.rarity_at`), and the `NpcStats` shopping calls take it. A
   new item that changes how a character looks in the battle window also
   needs a look in `BattleFighter.look_of` and drawing in
   `BattlePainter.draw_figure`.
@@ -188,9 +188,11 @@ On GitHub it plays 3 games at x10 on every push, from a new seed each run
   coherent piece out rather than loosening the line limit. Which way it
   steps next (exploring, routes round the storm and monsters, escaping the
   storm, backing off) is **`npc_routes.gd` (`NpcRoutes`)**, static functions
-  taking the character; the label itself (passing messages, their
-  countdown, sitting raised over a party) is **`map_label.gd`
-  (`MapLabel`)**, the `NameLabel` node's script. It extends
+  taking the character, and its dealings with shops (which to head for,
+  the visit itself) **`shopping.gd` (`Shopping`)**, likewise; the label
+  itself (passing messages, their countdown, sitting raised over a party)
+  is **`map_label.gd` (`MapLabel`)**, the `NameLabel` node's script. It
+  extends
   **`npc_body.gd` (`NpcBody`)**: where the character is and how it gets
   around — its cell, stepping (`move_to`, the party tagging along),
   its icon's slide, and its entry in the shared `players` map. NpcBody asks

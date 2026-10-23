@@ -22,9 +22,6 @@ const CHEST_SKIP_STEPS := 12
 ## up with. They're within SIGHT_RANGE in a straight line, so this mostly
 ## leaves room for detours around monsters.
 const PARTY_PATH_DEPTH := 18
-## A shop trip is only worth it if the shop is within this many steps.
-const SHOP_PATH_DEPTH := 80
-const SHOPPING_SECONDS := 1.0
 const CONSUME_SECONDS := 1.0
 ## Below this fraction of max MP, top up with a Mana Potion if carrying one.
 const LOW_MANA_FRACTION := 0.3
@@ -323,7 +320,7 @@ func _finish_consume_idle(item_name: String) -> void:
 	reset_label()
 
 func _take_step() -> void:
-	_notice_shops()
+	Shopping.notice(self)
 
 	# The spectator's Guidance trumps everything else this party might want to do
 	# -- teaming up, shops, chests and exploring all wait until it arrives.
@@ -342,7 +339,7 @@ func _take_step() -> void:
 		_attempt_move(party_step)
 		return
 
-	var shop_step := _shop_step()
+	var shop_step := Shopping.step(self)
 	if shop_step != cell_pos and not has_live_enemy(shop_step) and not NpcRoutes.leaves_safe_ground(self, shop_step):
 		move_to(shop_step)
 		return
@@ -466,71 +463,21 @@ func _wants_to_party_with(other) -> bool:
 		return true
 	return not _decide_pvp_fight(other) and not other._decide_pvp_fight(self)
 
-## Remembers any shop currently in sight.
-func _notice_shops() -> void:
-	var seen := MazeQuery.nearest_visible(grid, cell_pos, SIGHT_RANGE, shops)
-	if seen != MazeQuery.NONE:
-		known_shops[seen] = true
-
-## Next step toward the nearest known shop with something to do there
-## (spare items to sell, potions to stock up on, or gold for an item we
-## don't have yet -- a silver shop's dearer stock, at a silver one).
-func _shop_step() -> Vector2i:
-	if known_shops.is_empty():
-		return cell_pos
-	var nearest := MazeQuery.NONE
-	var nearest_dist := 1 << 30
-	for c in known_shops:
-		if NpcRoutes.storm_cells(self).has(c):
-			continue  # not worth a trip into the storm
-		if not _party_has_shop_business(shop_rarity(c)):
-			continue
-		var d: int = abs(c.x - cell_pos.x) + abs(c.y - cell_pos.y)
-		if d < nearest_dist:
-			nearest = c
-			nearest_dist = d
-	if nearest == MazeQuery.NONE:
-		return cell_pos
-	return NpcRoutes.step_toward(self, nearest, SHOP_PATH_DEPTH)
-
-## Whether a visit to a shop of `rarity` would do anything for anyone in
-## the party -- the whole party shops together (see _finish_shopping).
-func _party_has_shop_business(rarity: String = ItemCatalog.RARITY_BRONZE) -> bool:
-	for member in living_party():
-		if member.stats.has_shop_business(rarity):
-			return true
-	return false
-
-## What kind of shop is on `cell`: bronze, or one of the silver shops near
-## the middle (see WorldBuilder._place_silver_shops).
-func shop_rarity(cell: Vector2i) -> String:
-	var rarity = shops.get(cell)
-	return rarity if rarity is String else ItemCatalog.RARITY_BRONZE
-
-## The whole party shops: spares go to party-mates who'd wear them first,
-## then everyone sells what's left and buys what their own gold stretches to.
+## The whole party shops, for Shopping.SECONDS (see Shopping.trade).
 func _start_shopping() -> void:
 	is_moving = true
 	current_action = "Shopping"
 	show_label("%s $ Shopping" % map_name())
-	var timer := get_tree().create_timer(SHOPPING_SECONDS, false)
+	var timer := get_tree().create_timer(Shopping.SECONDS, false)
 	timer.timeout.connect(_finish_shopping)
 
 func _finish_shopping() -> void:
 	if dead:
 		return
-	var members := _self_first_party()
-	PartyOps.pass_spares_around(members)
-	var rarity := shop_rarity(cell_pos)
-	var sold := 0
-	var bought := 0
-	for member in members:
-		sold += member.stats.sell_spares()
-		bought += member.stats.buy_missing(rarity).size()
-		bought += member.stats.buy_potions().size()
+	var traded := Shopping.trade(_self_first_party(), Shopping.rarity_at(self, cell_pos))
 	is_moving = false
-	if sold > 0 or bought > 0:
-		show_label("%s sold %d, bought %d" % [map_name(), sold, bought], MapLabel.MESSAGE_SECONDS)
+	if traded != Vector2i.ZERO:
+		show_label("%s sold %d, bought %d" % [map_name(), traded.x, traded.y], MapLabel.MESSAGE_SECONDS)
 	else:
 		reset_label()
 
@@ -900,7 +847,7 @@ func _on_enter_cell() -> void:
 	reset_label()
 	if finished:
 		current_action = "Finished the maze!"
-	if shops.has(cell_pos) and _party_has_shop_business(shop_rarity(cell_pos)):
+	if shops.has(cell_pos) and Shopping.party_has_business(self, Shopping.rarity_at(self, cell_pos)):
 		_start_shopping()
 
 ## Picks up anything sitting on our current cell. First come, first served —
