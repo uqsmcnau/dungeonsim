@@ -44,6 +44,27 @@ static func win_chance_against(me: NpcStats, opponent: NpcStats) -> float:
 	var turns_to_die: float = max(me.hp, 1) / expected_damage_taken(me, opponent)
 	return clampf(turns_to_die / (turns_to_die + turns_to_kill), 0.05, 0.95)
 
+## win_chance_against for two sides of several fighters each (NpcStats
+## both): a party against a boss's party, say. Each side's damage is pooled,
+## as though spread evenly over the other side, and its HP too -- so one
+## against one, it's win_chance_against.
+static func group_win_chance(mine: Array, theirs: Array) -> float:
+	var our_hp := 0.0
+	var their_hp := 0.0
+	var our_damage := 0.0
+	var their_damage := 0.0
+	for me in mine:
+		our_hp += max(me.hp, 1)
+	for foe in theirs:
+		their_hp += max(foe.hp, 1)
+	for me in mine:
+		for foe in theirs:
+			our_damage += expected_damage_dealt(me, foe) / theirs.size()
+			their_damage += expected_damage_taken(me, foe) / mine.size()
+	var turns_to_kill := their_hp / our_damage
+	var turns_to_die := our_hp / their_damage
+	return clampf(turns_to_die / (turns_to_die + turns_to_kill), 0.05, 0.95)
+
 ## Fights with a probability that reflects the odds — even a long-shot
 ## occasionally gets taken.
 static func decide_fight(me: NpcStats, opponent: NpcStats) -> bool:

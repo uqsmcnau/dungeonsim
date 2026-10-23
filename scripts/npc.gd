@@ -58,6 +58,10 @@ var _sight_cell: Vector2i = MazeQuery.NONE
 var enemies: Dictionary = {}
 var chests: Dictionary = {}
 var chest_goal: Vector2i = MazeQuery.NONE
+## The monster (a pack's leader) this party is out to fight (see
+## Hunting.step), or null. Meeting it, it fights rather than rolling for it
+## (see _will_fight).
+var hunt_target: EnemyAgent = null
 ## Chests set aside for now, by cell -> steps left to ignore them for.
 var skipped_chests: Dictionary = {}
 ## The party leader it's heading over to team up with, if any (see
@@ -236,7 +240,7 @@ func _settle_enemy_on_our_cell() -> bool:
 		_try_join_fight_against(enemy)
 		return true
 	var nowhere_to_go := _backed_off >= CORNERED_AFTER
-	if CombatMath.decide_fight(stats, enemy.stats) or nowhere_to_go:
+	if _will_fight(enemy) or nowhere_to_go:
 		_backed_off = 0
 		cornered = nowhere_to_go
 		GroupCombat.engage_pack(self, cell_pos, enemy)
@@ -368,7 +372,8 @@ func _take_step() -> void:
 
 	# Priorities: teaming up with another party in sight that's up for it,
 	# then a shop worth visiting, then a chest in sight, then the exit once
-	# it's been seen, then exploring -- and none of the first three is worth
+	# it's been seen and is clear, then the strongest monster it's sure it
+	# can beat, then exploring -- and none of the first three is worth
 	# picking a fight over, or leaving safe ground for (see
 	# NpcRoutes.leaves_safe_ground), so an enemy or the storm in the way
 	# means carrying on with the next option instead.
@@ -391,8 +396,13 @@ func _take_step() -> void:
 
 	var exit_step := _exit_step()
 	if exit_step != cell_pos:
-		# Not move_to: whoever holds the exit (the boss) has to be beaten.
 		_attempt_move(exit_step)
+		return
+
+	var hunt_step := Hunting.step(self)
+	if hunt_step != cell_pos:
+		# Not move_to: the monster, once there, has to be fought.
+		_attempt_move(hunt_step)
 		return
 
 	var open_dirs := MazeQuery.open_neighbors(grid, cell_pos)
@@ -501,18 +511,14 @@ func _party_up_step() -> Vector2i:
 	current_action = "Heading to join %s" % party_goal.npc_name
 	return step
 
-## Next step toward the exit once this party has seen it, or our own cell
-## if it isn't going for it. Exploring alone would never get there: ground
-## that's been seen counts as explored (see NpcRoutes.explored), so the exit
-## in plain sight would be left alone like any other cell they can see.
-##
-## Not while whoever's holding it (the boss) looks too strong to beat, or it
-## was just backed away from (see NpcRoutes.leave_alone): better to explore
-## on and level up than walk up to it and back.
+## Next step toward the exit once this party has seen it with nobody
+## holding it -- the boss beaten -- or our own cell if it isn't going for
+## it. Exploring alone would never get there: ground that's been seen counts
+## as explored (see NpcRoutes.explored), so the exit in plain sight would be
+## left alone like any other cell they can see. (While the boss holds it,
+## going there is a fight: see Hunting.)
 func _exit_step() -> Vector2i:
-	if not seen_cells.has(exit_cell) or NpcRoutes.leave_alone(self).has(exit_cell):
-		return cell_pos
-	if has_live_enemy(exit_cell) and CombatMath.win_chance_against(stats, enemies[exit_cell].stats) <= 0.5:
+	if not seen_cells.has(exit_cell) or has_live_enemy(exit_cell) or NpcRoutes.leave_alone(self).has(exit_cell):
 		return cell_pos
 	var step := NpcRoutes.step_through_seen(self, exit_cell)
 	if step != cell_pos:
@@ -607,6 +613,15 @@ func _chests_worth_trying() -> Dictionary:
 			result[c] = chests[c]
 	return result
 
+## Whether to take on `enemy`, met face to face: the one this party set out
+## to fight (hunt_target), if it's still sure of winning -- it decided that
+## before setting off -- or else on a roll of the odds (see
+## CombatMath.decide_fight).
+func _will_fight(enemy: EnemyAgent) -> bool:
+	if enemy == hunt_target and Hunting.confident_against(self, enemy):
+		return true
+	return CombatMath.decide_fight(stats, enemy.stats)
+
 func has_live_enemy(cell: Vector2i) -> bool:
 	if not enemies.has(cell):
 		return false
@@ -615,13 +630,14 @@ func has_live_enemy(cell: Vector2i) -> bool:
 
 ## If the destination holds a live enemy, decide whether to fight (a battle
 ## fought in 1-second turns) or flee (retreat toward already-explored ground
-## instead). A live enemy always blocks the cell until it's defeated. If
-## another party is already fighting it, join them if the two parties could
-## team up (see _try_join_fight_against), or back off if not. The same goes for another
-## player standing there, except whether to fight is governed by alignment
-## rather than combat odds alone (see _decide_pvp_fight), and never allowed
-## at all in a safe room — and if neither side wants to fight, they may band
-## together into one party instead, and failing that this one simply
+## instead) -- see _will_fight. A live enemy always blocks the cell until
+## it's defeated. If another party is already fighting it, join them if the
+## two parties could team up (see _try_join_fight_against), or back off if
+## not. The same goes for another player standing there, except whether to
+## fight is governed by alignment rather than combat odds alone (see
+## _decide_pvp_fight), and never allowed at all in a safe room — and if
+## neither side wants to fight, they may band together into one party
+## instead, and failing that this one simply
 ## squeezes past (see _squeeze_past). A player already mid-fight (with
 ## monsters or other players) is never attacked, but can still be joined:
 ## this party merges into theirs and fights alongside them from the next
@@ -634,7 +650,7 @@ func _attempt_move(next_cell: Vector2i) -> void:
 			if not _try_join_fight_against(enemy):
 				daunted[next_cell] = DAUNTED_STEPS
 				retreat()
-		elif CombatMath.decide_fight(stats, enemy.stats):
+		elif _will_fight(enemy):
 			GroupCombat.engage_pack(self, next_cell, enemy)
 		else:
 			daunted[next_cell] = DAUNTED_STEPS

@@ -127,7 +127,6 @@ static func form_pack(members: Array, spread: float = 7.0) -> void:
 		follower.position = leader.position + follower.pack_offset
 	leader.enemies[leader.cell_pos] = leader
 
-## Every living member of this enemy's pack, including itself.
 ## How this monster reads as a player's killer, for their HUD panel (see
 ## NpcAgent.killed_by): "the Dragon (Lv.12)", "a Troll (Lv.8)" -- noting the
 ## boss it was guarding or the pack it was part of, if either:
@@ -140,6 +139,12 @@ func killer_description() -> String:
 		desc += ", one of a pack of %d" % pack.size()
 	return desc
 
+## Whether it's one of a boss's party -- the boss on the exit, a mid boss,
+## or a guard of either -- holding a boss room it never leaves.
+func in_boss_party() -> bool:
+	return is_boss or is_mid_boss or guarding != ""
+
+## Every living member of this enemy's pack, including itself.
 func living_pack() -> Array:
 	var result: Array = []
 	for m in pack:

@@ -3,7 +3,7 @@ extends DungeonTest
 ## Covers what counts as explored: anywhere the party has been or seen (see
 ## NpcRoutes.explored), pooled across the party -- and, since the exit in
 ## plain sight would then never be walked onto, heading for it once seen
-## (see NpcAgent._exit_step).
+## and clear (see NpcAgent._exit_step).
 
 var a: NpcAgent
 var b: NpcAgent
@@ -89,28 +89,9 @@ func test_but_not_before():
 	a.seen_cells.erase(exit)
 	assert_eq(a._exit_step(), a.cell_pos)
 
-## A monster of `level` holding the exit.
-func _boss_on(cell: Vector2i, level: int) -> EnemyAgent:
+func test_nor_while_the_boss_holds_it():
+	# That's a fight, not a walk: see test_hunting.gd.
+	var exit := _exit_in_sight()
 	var boss := new_enemy()
-	boss.setup(cell, main.CELL_SIZE, level, a.grid, a.enemies, {}, [], false)
-	return boss
-
-func test_not_while_the_boss_holding_it_looks_too_strong():
-	var exit := _exit_in_sight()
-	set_stats(a, 1, 5, 1, 1)
-	_boss_on(exit, 10)
-	assert_eq(a._exit_step(), a.cell_pos, "exploring on, to level up first")
-
-func test_but_once_its_strong_enough_it_goes_for_it():
-	var exit := _exit_in_sight()
-	set_stats(a, 10, 300, 30, 30)
-	_boss_on(exit, 1)
-	assert_gt(CombatMath.win_chance_against(a.stats, a.enemies[exit].stats), 0.5, "sanity: it should win")
-	assert_eq(a._exit_step(), Vector2i(1, 0))
-
-func test_not_straight_back_after_backing_off_from_it():
-	var exit := _exit_in_sight()
-	set_stats(a, 10, 300, 30, 30)
-	_boss_on(exit, 1)
-	a.daunted[exit] = NpcAgent.DAUNTED_STEPS  # lost its nerve last time (decide_fight is a roll)
+	boss.setup(exit, main.CELL_SIZE, 1, a.grid, a.enemies, {}, [], false)
 	assert_eq(a._exit_step(), a.cell_pos)

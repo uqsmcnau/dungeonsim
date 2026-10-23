@@ -195,7 +195,9 @@ func isolate(npc: NpcAgent, g: Array, cell: Vector2i, players: Dictionary, explo
 	npc.position = npc._cell_to_world(cell)
 	npc.visited = {}
 	npc.seen_cells = {}  # what it saw of the real game's maze means nothing here
+	npc.sight_cells = {}
 	npc._sight_cell = MazeQuery.NONE
+	npc.hunt_target = null
 	for c in explored:
 		npc.visited[c] = true
 	npc.visited[cell] = true

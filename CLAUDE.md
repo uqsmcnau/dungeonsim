@@ -230,7 +230,9 @@ there.
   steps next (exploring, routes round the storm and monsters, escaping the
   storm, backing off) is **`npc_routes.gd` (`NpcRoutes`)**, static functions
   taking the character, and its dealings with shops (which to head for,
-  the visit itself) **`shopping.gd` (`Shopping`)**, likewise; the label
+  the visit itself) **`shopping.gd` (`Shopping`)**, likewise, as is which
+  monster it goes after (the strongest it's sure its party can beat, by
+  `CombatMath.group_win_chance`) **`hunting.gd` (`Hunting`)**; the label
   itself (passing messages, their countdown, sitting raised over a party)
   is **`map_label.gd` (`MapLabel`)**, the `NameLabel` node's script. It
   extends
