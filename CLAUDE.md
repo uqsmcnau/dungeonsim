@@ -119,6 +119,25 @@ On GitHub it plays 3 games at x10 on every push, each run carrying on from
 the seeds the last one played (Actions → Soak), and runs by hand there for
 more.
 
+### Balance
+
+How hard is the game, and what's doing the damage? The balance report plays
+a batch of games and averages what happened in them: the win rate and game
+length, players left, deaths by cause (maze monsters, each tier of boss
+party, other players, the storm), mid boss parties beaten, silver and gold
+chests, silver shop visits, the best gear players wore and the levels
+reached. Run it before and after anything that changes difficulty or loot,
+and compare:
+
+```
+tools/balance.sh [games=12] [first_seed=1] [speed=10]
+```
+
+Twelve games at x10 take about a minute and a half. Deaths are sorted by
+the text on players' gravestones (`tools/balance.gd`'s `killer_kind`,
+covered by `test_balance_report.gd`), so a new kind of killer needs a line
+there.
+
 ## Where things live
 
 - **`game_manager.gd` (`GameManager`)** — the running session: input
