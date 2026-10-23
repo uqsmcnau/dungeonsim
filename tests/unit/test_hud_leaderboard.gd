@@ -85,3 +85,49 @@ func test_a_lower_ranked_character_is_promoted_once_the_dead_ones_slot_frees_up(
 
 	assert_true(main.hud.rows[just_outside]["panel"].visible,
 		"once the dead #1's slot is actually freed, the next-strongest living character should be promoted into it")
+
+# ============================ Clicking a row ===============================
+
+## A left click (press and release) on the screen at `at`, as the mouse
+## would make it -- through the GUI, so whatever's on top there gets it.
+func _click_at(at: Vector2) -> void:
+	for pressed in [true, false]:
+		var click := InputEventMouseButton.new()
+		click.button_index = MOUSE_BUTTON_LEFT
+		click.pressed = pressed
+		click.position = at
+		click.global_position = at
+		main.get_viewport().push_input(click)
+
+## The top-ranked character, with the leaderboard laid out.
+func _top_of_the_board() -> NpcAgent:
+	var n: int = main.npcs.size()
+	rank_npcs_by_index(n)
+	main._process(0.0)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	return main.npcs[n - 1]
+
+func test_clicking_a_row_selects_that_character():
+	var npc: NpcAgent = await _top_of_the_board()
+	_click_at(main.hud.rows[npc]["panel"].get_global_rect().get_center())
+	assert_eq(main.hud.inspected, npc, "just as clicking them on the map does")
+
+func test_a_click_on_its_hp_bar_counts_too():
+	var npc: NpcAgent = await _top_of_the_board()
+	_click_at(main.hud.rows[npc]["hp_bar"].get_global_rect().get_center())
+	assert_eq(main.hud.inspected, npc)
+
+func test_clicking_a_row_works_while_paused_too():
+	var npc: NpcAgent = await _top_of_the_board()
+	get_tree().paused = true
+	_click_at(main.hud.rows[npc]["panel"].get_global_rect().get_center())
+	get_tree().paused = false
+	assert_eq(main.hud.inspected, npc)
+
+func test_clicking_another_row_switches_to_them():
+	var npc: NpcAgent = await _top_of_the_board()
+	var second: NpcAgent = main.npcs[main.npcs.size() - 2]
+	_click_at(main.hud.rows[npc]["panel"].get_global_rect().get_center())
+	_click_at(main.hud.rows[second]["panel"].get_global_rect().get_center())
+	assert_eq(main.hud.inspected, second)

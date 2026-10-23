@@ -134,12 +134,31 @@ static func make_stat_bar(fill_color: Color) -> Dictionary:
 	return {"container": container, "bar": bar, "label": label, "fill": fill}
 
 ## Leaderboard panels are compact -- no gear section (see _build_panel) --
-## so all VISIBLE_HUD_COUNT of them fit down the one column.
+## so all VISIBLE_HUD_COUNT of them fit down the one column. Clicking one
+## selects that character, as clicking them on the map does -- paused or
+## not, like the map (see GameManager._on_world_clicked).
 func register_npc(npc: NpcAgent) -> void:
 	var r := _build_panel(npc, false)
-	leaderboard_container.add_child(r["panel"])
+	var panel: PanelContainer = r["panel"]
+	panel.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	panel.process_mode = Node.PROCESS_MODE_ALWAYS
+	_ignore_mouse_inside(panel)  # a click on its HP bar is a click on the panel
+	panel.gui_input.connect(_on_row_input.bind(npc))
+	leaderboard_container.add_child(panel)
 	rows[npc] = r
 	_refresh_row(npc)
+
+func _on_row_input(event: InputEvent, npc: NpcAgent) -> void:
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		inspect(npc)
+		accept_event()
+
+## Leaves every Control inside `node` to let the mouse through to it.
+static func _ignore_mouse_inside(node: Node) -> void:
+	for child in node.get_children():
+		if child is Control:
+			child.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_ignore_mouse_inside(child)
 
 ## Builds one character's stat panel (unparented) and returns its widgets,
 ## in the shape _fill_panel expects. Shared by the leaderboard rows and the
